@@ -1,0 +1,43 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-primary: #e67e22;
+  --color-secondary: #95a5a6;
+  --color-success: #27ae60;
+  --color-danger: #c0392b;
+  --color-warning: #f39c12;
+  
+  /* Dark Mode Colors (Original Profesional) */
+  --color-dark-bg: #1b2431;
+  --color-dark-sidebar: #151b26;
+  --color-dark-card: #121820;
+  --color-dark-border: #2d3748;
+  --color-dark-text: #ffffff;
+  --color-dark-muted: #a0aec0;
+  
+  /* Light Mode Colors (from style.css) */
+  --color-light-bg: #f4f6f8;
+  --color-light-card: #ffffff;
+  --color-light-border: #dfe0e2;
+  --color-light-text: #2d3748;
+  --color-light-muted: #718096;
+  
+  --font-sans: "Inter", "sans-serif";
+}
+
+@layer base {
+  .dark body {
+    background-color: var(--color-dark-bg);
+    color: var(--color-dark-text);
+  }
+}
+
+@layer utilities {
+  .bg-sidebar-theme {
+    background-color: #ffffff;
+  }
+  .dark .bg-sidebar-theme {
+    background-color: var(--color-dark-sidebar);
+  }
+}
