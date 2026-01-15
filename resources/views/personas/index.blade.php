@@ -124,7 +124,7 @@
                                 </span>
                             </div>
                             @endcan
-
+                         
                             <!-- Botón Eliminar -->
                             @can('personas.delete')
                             <div class="relative group/tooltip">

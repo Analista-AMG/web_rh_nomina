@@ -21,7 +21,7 @@
                 </a>
 
                 <!-- Tarjeta Contratos -->
-                <a href="{{ route('contratos.index') }}" class="group bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg p-8 transition-all hover:shadow-lg hover:-translate-y-1 border-b-4 border-green-500">
+                <a href="{{ route('contratos.index') }}" class="group bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg p-8 transition-all hover:shadow-lg hover:-translate-y-1 border-b-4 border-yellow-500">
                     <div class="flex flex-col items-center">
                         <div class="h-16 w-16 bg-green-100 rounded-full flex items-center justify-center mb-4 group-hover:bg-green-200 transition-colors">
                             <i class="fa-solid fa-file-contract text-2xl text-green-600"></i>
@@ -48,7 +48,7 @@
             <div class="mt-12 flex justify-center gap-4">
                 <form method="POST" action="{{ route('logout') }}">
                     @csrf
-                    <button type="submit" class="text-gray-400 hover:text-red-500 transition-colors flex items-center gap-2 text-sm font-medium">
+                    <button type="submit" class="text-gray-400 hover:text-red-500 transition-colors flex items-center gap-2 text-sm font-medium cursor-pointer">
                         <i class="fa-solid fa-right-from-bracket"></i>
                         Cerrar Sesión
                     </button>
