@@ -49,6 +49,14 @@
                 </a>
             </li>
             @endcan
+            @can('asistencia.view')
+            <li>
+                <a href="{{ route('asistencia.index') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg {{ request()->routeIs('asistencia.*') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors group" title="Asistencia">
+                    <i class="fa-solid fa-clipboard-user text-lg flex-shrink-0"></i>
+                    <span class="sidebar-text font-medium">Asistencia</span>
+                </a>
+            </li>
+            @endcan
             @can('dashboard.view')
             <li>
                 <a href="{{ route('dashboard') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg {{ request()->routeIs('dashboard') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors group" title="Dashboard">

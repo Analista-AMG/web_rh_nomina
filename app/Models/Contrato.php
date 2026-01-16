@@ -43,4 +43,9 @@ class Contrato extends Model
     {
         return $this->belongsTo(Banco::class, 'id_banco', 'id_banco');
     }
+
+    public function condicion()
+    {
+        return $this->belongsTo(Condicion::class, 'id_condicion', 'id_condicion');
+    }
 }

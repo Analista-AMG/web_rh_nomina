@@ -55,7 +55,16 @@ Route::middleware('auth')->group(function () {
         ->delete('/contratos/{contrato}', [App\Http\Controllers\ContratoController::class, 'destroy'])
         ->name('contratos.destroy');
 
-    // 5. Rutas de Perfil (sin restricciones)
+    // 5. Rutas de Asistencia - Protegidas por permisos
+    Route::middleware(['permission:asistencia.view'])->group(function () {
+        Route::get('/asistencia', [App\Http\Controllers\AsistenciaController::class, 'index'])->name('asistencia.index');
+    });
+
+    Route::middleware(['permission:asistencia.edit'])
+        ->post('/asistencia/guardar', [App\Http\Controllers\AsistenciaController::class, 'guardar'])
+        ->name('asistencia.guardar');
+
+    // 6. Rutas de Perfil (sin restricciones)
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
