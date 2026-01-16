@@ -21,26 +21,6 @@
                     @csrf
                     
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <!-- Nombres -->
-                        <div>
-                            <x-forms.input-label for="new-nombres" value="Nombres" />
-                            <x-forms.text-input id="new-nombres" name="nombres" type="text" class="w-full mt-1" required />
-                            <x-forms.input-error :messages="$errors->get('nombres')" class="mt-2" />
-                        </div>
-
-                        <!-- Apellido Paterno -->
-                        <div>
-                            <x-forms.input-label for="new-apellido_paterno" value="Apellido Paterno" />
-                            <x-forms.text-input id="new-apellido_paterno" name="apellido_paterno" type="text" class="w-full mt-1" required />
-                            <x-forms.input-error :messages="$errors->get('apellido_paterno')" class="mt-2" />
-                        </div>
-
-                        <!-- Apellido Materno -->
-                        <div>
-                            <x-forms.input-label for="new-apellido_materno" value="Apellido Materno" />
-                            <x-forms.text-input id="new-apellido_materno" name="apellido_materno" type="text" class="w-full mt-1" />
-                        </div>
-
                         <!-- Tipo Documento -->
                         <div>
                             <x-forms.input-label for="new-tipo_documento" value="Tipo de Documento" />
@@ -50,17 +30,103 @@
                             </select>
                         </div>
 
-                        <!-- Número Documento -->
+                        <!-- Numero Documento -->
                         <div>
-                            <x-forms.input-label for="new-numero_documento" value="Número de Documento" />
-                            <x-forms.text-input id="new-numero_documento" name="numero_documento" type="text" class="w-full mt-1" required />
+                            <x-forms.input-label for="new-numero_documento" value="Numero de Documento" />
+                            <x-forms.text-input id="new-numero_documento" name="numero_documento" type="text" class="w-full mt-1" inputmode="numeric" pattern="\d+" oninput="this.value = this.value.replace(/\D/g, '')" required />
                             <x-forms.input-error :messages="$errors->get('numero_documento')" class="mt-2" />
+                        </div>
+
+                        <!-- Nombres -->
+                        <div>
+                            <x-forms.input-label for="new-nombres" value="Nombres" />
+                            <x-forms.text-input id="new-nombres" name="nombres" type="text" class="w-full mt-1" oninput="this.value = this.value.replace(/\d/g, '')" required />
+                            <x-forms.input-error :messages="$errors->get('nombres')" class="mt-2" />
+                        </div>
+
+                        <!-- Apellido Paterno -->
+                        <div>
+                            <x-forms.input-label for="new-apellido_paterno" value="Apellido Paterno" />
+                            <x-forms.text-input id="new-apellido_paterno" name="apellido_paterno" type="text" class="w-full mt-1" oninput="this.value = this.value.replace(/\d/g, '')" required />
+                            <x-forms.input-error :messages="$errors->get('apellido_paterno')" class="mt-2" />
+                        </div>
+
+                        <!-- Apellido Materno -->
+                        <div>
+                            <x-forms.input-label for="new-apellido_materno" value="Apellido Materno" />
+                            <x-forms.text-input id="new-apellido_materno" name="apellido_materno" type="text" class="w-full mt-1" oninput="this.value = this.value.replace(/\d/g, '')" />
+                        </div>
+
+                        <!-- Genero -->
+                        <div>
+                            <x-forms.input-label for="new-genero" value="Genero" />
+                            <select id="new-genero" name="genero" class="border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm w-full mt-1">
+                                <option value="1">Masculino</option>
+                                <option value="2">Femenino</option>
+                            </select>
+                        </div>
+
+                        <!-- Fecha de Nacimiento -->
+                        <div>
+                            <x-forms.input-label for="new-fecha_nacimiento" value="Fecha de Nacimiento" />
+                            <x-forms.text-input id="new-fecha_nacimiento" name="fecha_nacimiento" type="date" class="w-full mt-1" />
+                        </div>
+
+                        <!-- Pais -->
+                        <div>
+                            <x-forms.input-label for="new-pais" value="Pais" />
+                            <select id="new-pais" name="pais" class="border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm w-full mt-1">
+                                <option value="">Seleccione un pais</option>
+                                @foreach ($paises as $pais)
+                                    <option value="{{ $pais->id }}" data-codigo="{{ $pais->codigo_pais }}">{{ $pais->nombre }} ({{ $pais->codigo_pais }})</option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        <!-- Departamento -->
+                        <div>
+                            <x-forms.input-label for="new-departamento" value="Departamento" />
+                            <select id="new-departamento" name="departamento" class="border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm w-full mt-1">
+                                <option value="">Seleccione un departamento</option>
+                                @foreach ($departamentos as $departamento)
+                                    <option value="{{ $departamento->id }}" data-pais="{{ $departamento->pais_id }}">{{ $departamento->nombre }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        <!-- Distrito -->
+                        <div>
+                            <x-forms.input-label for="new-distrito" value="Distrito" />
+                            <select id="new-distrito" name="distrito" class="border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm w-full mt-1">
+                                <option value="">Seleccione un distrito</option>
+                                @foreach ($distritos as $distrito)
+                                    <option value="{{ $distrito->id }}" data-departamento="{{ $distrito->departamento_id }}">{{ $distrito->nombre }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        <!-- Direccion -->
+                        <div>
+                            <x-forms.input-label for="new-direccion" value="Direccion" />
+                            <x-forms.text-input id="new-direccion" name="direccion" type="text" class="w-full mt-1" />
+                        </div>
+
+                        <!-- Numero Telefonico -->
+                        <div>
+                            <x-forms.input-label for="new-numero_telefonico" value="Numero Telefonico" />
+                            <x-forms.text-input id="new-numero_telefonico" name="numero_telefonico" type="tel" class="w-full mt-1" />
                         </div>
 
                         <!-- Correo Personal -->
                         <div>
                             <x-forms.input-label for="new-correo_electronico_personal" value="Correo Personal" />
                             <x-forms.text-input id="new-correo_electronico_personal" name="correo_electronico_personal" type="email" class="w-full mt-1" />
+                        </div>
+
+                        <!-- Correo Corporativo -->
+                        <div>
+                            <x-forms.input-label for="new-correo_electronico_corporativo" value="Correo Corporativo" />
+                            <x-forms.text-input id="new-correo_electronico_corporativo" name="correo_electronico_corporativo" type="email" class="w-full mt-1" />
                         </div>
                     </div>
 

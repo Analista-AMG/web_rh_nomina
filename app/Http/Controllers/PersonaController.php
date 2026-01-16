@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Persona;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class PersonaController extends Controller
 {
@@ -63,7 +64,11 @@ class PersonaController extends Controller
             'activas' => $activas,
         ];
 
-        return view('personas.index', compact('personas', 'kpis'));
+        $paises = DB::table('bronze.dim_paises')->orderBy('nombre')->get();
+        $departamentos = DB::table('bronze.dim_departamentos')->orderBy('nombre')->get();
+        $distritos = DB::table('bronze.dim_distritos')->orderBy('nombre')->get();
+
+        return view('personas.index', compact('personas', 'kpis', 'paises', 'departamentos', 'distritos'));
     }
 
     public function create()

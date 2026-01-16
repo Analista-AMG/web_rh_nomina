@@ -157,5 +157,44 @@
         if(nameInput) nameInput.addEventListener('input', search);
         if(docInput) docInput.addEventListener('input', search);
 
+        // D. Dependencia Pais -> Departamento -> Distrito (Modal Crear)
+        const paisSelect = document.getElementById('new-pais');
+        const departamentoSelect = document.getElementById('new-departamento');
+        const distritoSelect = document.getElementById('new-distrito');
+
+        if (paisSelect && departamentoSelect && distritoSelect) {
+            const deptOptions = Array.from(departamentoSelect.options);
+            const distOptions = Array.from(distritoSelect.options);
+
+            function rebuildOptions(select, options) {
+                select.innerHTML = '';
+                const fragment = document.createDocumentFragment();
+                options.forEach((opt) => fragment.appendChild(opt));
+                select.appendChild(fragment);
+            }
+
+            function filterDepartamentos() {
+                const paisId = paisSelect.value;
+                const filtered = deptOptions.filter((opt) => {
+                    return !opt.value || opt.dataset.pais === paisId;
+                });
+                rebuildOptions(departamentoSelect, filtered);
+                departamentoSelect.value = '';
+                filterDistritos();
+            }
+
+            function filterDistritos() {
+                const departamentoId = departamentoSelect.value;
+                const filtered = distOptions.filter((opt) => {
+                    return !opt.value || opt.dataset.departamento === departamentoId;
+                });
+                rebuildOptions(distritoSelect, filtered);
+                distritoSelect.value = '';
+            }
+
+            paisSelect.addEventListener('change', filterDepartamentos);
+            departamentoSelect.addEventListener('change', filterDistritos);
+        }
+
     })();
 </script>
