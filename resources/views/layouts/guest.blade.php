@@ -232,6 +232,17 @@
                 width: 80px;
                 margin-bottom: 10px;
             }
+
+            .status-message {
+                font-size: 11px;
+                margin-top: 2px;
+                display: block;
+                text-align: left;
+            }
+
+            .input-group {
+                position: relative;
+            }
         </style>
     </head>
     <body>
@@ -257,5 +268,7 @@
                 if(container) container.classList.add("active");
             @endif
         </script>
+
+        @stack('scripts')
     </body>
 </html>

@@ -16,11 +16,11 @@
     <!-- User Profile -->
     <div class="flex flex-col items-center py-6 overflow-hidden">
         <div id="avatar-container" class="w-20 h-20 rounded-full overflow-hidden mb-4 border-2 border-primary p-1 transition-all duration-300 flex-shrink-0">
-            <img class="w-full h-full rounded-full object-cover" src="https://ui-avatars.com/api/?name=Juan+Perez&background=random" alt="Juan Pérez">
+            <img class="w-full h-full rounded-full object-cover" src="https://ui-avatars.com/api/?name={{ urlencode(auth()->user()->name) }}&background=random" alt="{{ auth()->user()->name }}">
         </div>
         <div class="sidebar-text text-center overflow-hidden">
-            <h3 class="font-semibold text-base whitespace-nowrap dark:text-white">Juan Pérez</h3>
-            <span class="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">Administrador</span>
+            <h3 class="font-semibold text-base whitespace-nowrap dark:text-white">{{ auth()->user()->name }}</h3>
+            <span class="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ auth()->user()->roles->first()?->name ?? 'Sin rol' }}</span>
         </div>
     </div>
 
