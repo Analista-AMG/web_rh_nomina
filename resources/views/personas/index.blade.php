@@ -42,7 +42,7 @@
                 <tr>
                     <th class="px-6 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider text-left">Colaborador</th>
                     <th class="px-6 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">F. Nac.</th>
-                    <th class="px-6 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Nacionalidad</th>
+                    <th class="px-6 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Numero telefónico</th>
                     <th class="px-6 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Correo personal</th>
                     <th class="px-6 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Estado</th>
                     <th class="px-6 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider text-center">Acciones</th>
@@ -53,6 +53,11 @@
                 @php
                     $fechaNac = $persona->fecha_nacimiento ? \Carbon\Carbon::parse($persona->fecha_nacimiento)->format('d/m/Y') : '-';
                     $fechaNacIso = $persona->fecha_nacimiento ? \Carbon\Carbon::parse($persona->fecha_nacimiento)->format('Y-m-d') : '';
+                    $esCumple = false;
+                    if ($persona->fecha_nacimiento) {
+                        $nac = \Carbon\Carbon::parse($persona->fecha_nacimiento);
+                        $esCumple = $nac->format('m-d') === \Carbon\Carbon::now()->format('m-d');
+                    }
                     $estado = $persona->estado;
                     $badgeClass = ($estado == 1) ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 
                                  (($estado == 2) ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' : 
@@ -68,7 +73,6 @@
                     data-materno="{{ $persona->apellido_materno }}"
                     data-nac="{{ $fechaNacIso }}"
                     data-genero="{{ $persona->genero }}"
-                    data-nacionalidad="{{ $persona->nacionalidad }}"
                     data-pais="{{ $persona->pais }}"
                     data-departamento="{{ $persona->departamento }}"
                     data-provincia="{{ $persona->provincia }}"
@@ -81,21 +85,25 @@
                     <!-- Columna Colaborador (Izquierda) -->
                     <td class="bg-white dark:bg-[#273142] px-6 py-2.5 text-left rounded-l-xl border-y border-l border-light-border dark:border-dark-border group-hover:bg-gray-50 dark:group-hover:bg-[#323d4d] transition-all duration-300 shadow-sm">
                         <div class="flex items-center gap-3">
-                            <div class="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary text-sm font-bold">
-                                {{ substr($persona->nombres ?? '?', 0, 1) }}{{ substr($persona->apellido_paterno ?? '?', 0, 1) }}
+                            <div class="h-9 w-9 rounded-full flex items-center justify-center text-sm font-bold {{ $esCumple ? 'bg-amber-100 text-amber-600 ring-2 ring-amber-300' : 'bg-primary/10 text-primary' }}">
+                                @if($esCumple)
+                                    <i class="fa-solid fa-cake-candles" aria-hidden="true"></i>
+                                @else
+                                    {{ substr($persona->apellido_paterno ?? '?', 0, 1) }}{{ substr($persona->nombres ?? '?', 0, 1) }}
+                                @endif
                             </div>
                             <div class="flex flex-col">
                                 <span class="text-sm font-bold text-gray-800 dark:text-white leading-tight">
                                     {{ $persona->apellido_paterno ?? '' }} {{ $persona->apellido_materno ?? '' }} {{ $persona->nombres ?? 'Sin Asignar' }}
                                 </span>
-                                <span class="text-[12px] text-gray-500 font-medium mt-0.5">
+                                <span class="text-[15px] text-gray-500 font-medium mt-0.5">
                                     {{ $persona->tipo_documento ?? 'DOC' }}: {{ $persona->numero_documento ?? '---' }}
                                 </span>
                             </div>
                         </div>
                     </td>
                     <td class="bg-white dark:bg-[#273142] px-6 py-2.5 text-sm text-gray-500 dark:text-[#ffffff] border-y border-light-border dark:border-dark-border group-hover:bg-gray-50 dark:group-hover:bg-[#323d4d] transition-all duration-300 shadow-sm">{{ $fechaNac }}</td>
-                    <td class="bg-white dark:bg-[#273142] px-6 py-2.5 text-sm text-gray-500 dark:text-[#ffffff] border-y border-light-border dark:border-dark-border group-hover:bg-gray-50 dark:group-hover:bg-[#323d4d] transition-all duration-300 shadow-sm truncate">{{ $persona->nacionalidad }}</td>
+                    <td class="bg-white dark:bg-[#273142] px-6 py-2.5 text-sm text-gray-500 dark:text-[#ffffff] border-y border-light-border dark:border-dark-border group-hover:bg-gray-50 dark:group-hover:bg-[#323d4d] transition-all duration-300 shadow-sm truncate">{{ $persona->numero_telefonico }}</td>
                     <td class="bg-white dark:bg-[#273142] px-6 py-2.5 text-sm text-gray-500 dark:text-[#ffffff] border-y border-light-border dark:border-dark-border group-hover:bg-gray-50 dark:group-hover:bg-[#323d4d] transition-all duration-300 shadow-sm truncate">{{ $persona->correo_electronico_personal }}</td>
                     <td class="bg-white dark:bg-[#273142] px-6 py-2.5 border-y border-light-border dark:border-dark-border group-hover:bg-gray-50 dark:group-hover:bg-[#323d4d] transition-all duration-300 shadow-sm">
                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $badgeClass }} ">
@@ -153,11 +161,18 @@
     </div>
 
     <!-- Paginación -->
-    @if($personas->hasPages())
-    <div class="mt-4 px-4 pb-4">
-        {{ $personas->links('vendor.pagination.tailwind') }}
+    <div class="mt-4 px-4 pb-6 flex items-center {{ $personas->hasPages() ? 'justify-end' : 'justify-end' }}">
+        @if($personas->hasPages())
+            <div class="flex-1 flex justify-center -mt-4">
+                {{ $personas->links('vendor.pagination.tailwind') }}
+            </div>
+        @endif
+        <a href="{{ route('personas.export', request()->query()) }}"
+           class="inline-flex items-center gap-2 bg-white text-gray-700 border border-light-border hover:border-gray-300 hover:text-gray-900 shadow-sm rounded-lg px-3 py-2 text-sm transition">
+            <i class="fa-solid fa-download"></i>
+            Descargar Excel
+        </a>
     </div>
-    @endif
 
     <!-- Inclusión de Modales -->
     @include('personas.partials.modals.create')

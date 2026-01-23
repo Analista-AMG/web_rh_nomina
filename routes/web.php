@@ -18,7 +18,7 @@ Route::middleware('auth')->group(function () {
     // 3. Rutas de Personas - Protegidas por permisos
     Route::middleware(['permission:personas.view'])->group(function () {
         Route::get('/personas', [PersonaController::class, 'index'])->name('personas.index');
-        Route::get('/personas/{persona}', [PersonaController::class, 'show'])->name('personas.show');
+        Route::get('/personas/export', [PersonaController::class, 'exportExcel'])->name('personas.export');
     });
 
     Route::middleware(['permission:personas.create'])
@@ -114,6 +114,11 @@ Route::middleware('auth')->group(function () {
         Route::get('/monedas', function () {
             return response()->json(\App\Models\Moneda::select('id_moneda', 'nombre_moneda')->get());
         });
+
+        Route::get('/personas/reniec/{numero_documento}', [PersonaController::class, 'lookupReniec'])
+            ->name('personas.reniec');
+        Route::get('/personas/check-document/{numero_documento}', [PersonaController::class, 'checkDocumento'])
+            ->name('personas.check-document');
 
         // API para flujo de creacion de contratos
         Route::post('/contratos/evaluar', [App\Http\Controllers\ContratoController::class, 'evaluarContrato']);

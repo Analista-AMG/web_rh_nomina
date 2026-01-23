@@ -2,7 +2,7 @@
 <div id="create-modal" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true">
     <div class="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
         <!-- Backdrop -->
-        <div class="fixed inset-0 bg-gray-900/60 transition-opacity" onclick="closeModal('create-modal')" style="backdrop-filter: blur(5px);"></div>
+        <div class="fixed inset-0 bg-gray-900/60 transition-opacity" style="backdrop-filter: blur(5px);"></div>
         
         <!-- Panel -->
         <div class="relative z-10 w-full transform overflow-hidden rounded-xl bg-white dark:bg-dark-card text-left shadow-2xl border border-light-border dark:border-dark-border" style="max-width: 800px;">
@@ -35,6 +35,7 @@
                             <x-forms.input-label for="new-numero_documento" value="Numero de Documento" />
                             <x-forms.text-input id="new-numero_documento" name="numero_documento" type="text" class="w-full mt-1" inputmode="numeric" pattern="\d+" oninput="this.value = this.value.replace(/\D/g, '')" required />
                             <x-forms.input-error :messages="$errors->get('numero_documento')" class="mt-2" />
+                            <p id="new-doc-feedback" class="mt-1 text-xs"></p>
                         </div>
 
                         <!-- Nombres -->
@@ -69,7 +70,7 @@
                         <!-- Fecha de Nacimiento -->
                         <div>
                             <x-forms.input-label for="new-fecha_nacimiento" value="Fecha de Nacimiento" />
-                            <x-forms.text-input id="new-fecha_nacimiento" name="fecha_nacimiento" type="date" class="w-full mt-1" />
+                            <x-forms.text-input id="new-fecha_nacimiento" name="fecha_nacimiento" type="date" class="w-full mt-1" max="{{ \Carbon\Carbon::now()->subYears(18)->format('Y-m-d') }}" />
                         </div>
 
                         <!-- Pais -->
@@ -125,19 +126,21 @@
                         <!-- Numero Telefonico -->
                         <div>
                             <x-forms.input-label for="new-numero_telefonico" value="Numero Telefonico" />
-                            <x-forms.text-input id="new-numero_telefonico" name="numero_telefonico" type="tel" class="w-full mt-1" />
+                            <x-forms.text-input id="new-numero_telefonico" name="numero_telefonico" type="tel" class="w-full mt-1" inputmode="numeric" pattern="\\d{1,9}" maxlength="9" oninput="this.value = this.value.replace(/\\D/g, '').slice(0, 9)" />
                         </div>
 
                         <!-- Correo Personal -->
                         <div>
                             <x-forms.input-label for="new-correo_electronico_personal" value="Correo Personal" />
                             <x-forms.text-input id="new-correo_electronico_personal" name="correo_electronico_personal" type="email" class="w-full mt-1" />
+                            <p id="new-correo-pers-feedback" class="mt-1 text-xs"></p>
                         </div>
 
                         <!-- Correo Corporativo -->
                         <div>
                             <x-forms.input-label for="new-correo_electronico_corporativo" value="Correo Corporativo" />
                             <x-forms.text-input id="new-correo_electronico_corporativo" name="correo_electronico_corporativo" type="email" class="w-full mt-1" />
+                            <p id="new-correo-corp-feedback" class="mt-1 text-xs"></p>
                         </div>
                     </div>
 

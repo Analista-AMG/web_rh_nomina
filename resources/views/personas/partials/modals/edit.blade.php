@@ -24,7 +24,8 @@
                         </div>
                         <div>
                             <x-forms.input-label for="edit-doc" value="N° Documento" />
-                            <x-forms.text-input id="edit-doc" type="text" class="w-full mt-1" />
+                            <x-forms.text-input id="edit-doc" type="text" class="w-full mt-1 py-2.5 px-4" />
+                            <p id="edit-doc-feedback" class="mt-1 text-xs"></p>
                         </div>
                     </div>
 
@@ -32,15 +33,15 @@
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
                         <div>
                             <x-forms.input-label for="edit-paterno" value="Apellido Paterno" />
-                            <x-forms.text-input id="edit-paterno" type="text" class="w-full mt-1" />
+                            <x-forms.text-input id="edit-paterno" type="text" class="w-full mt-1 py-2.5 px-4" />
                         </div>
                         <div>
                             <x-forms.input-label for="edit-materno" value="Apellido Materno" />
-                            <x-forms.text-input id="edit-materno" type="text" class="w-full mt-1" />
+                            <x-forms.text-input id="edit-materno" type="text" class="w-full mt-1 py-2.5 px-4" />
                         </div>
                         <div>
                             <x-forms.input-label for="edit-nombres" value="Nombres" />
-                            <x-forms.text-input id="edit-nombres" type="text" class="w-full mt-1" />
+                            <x-forms.text-input id="edit-nombres" type="text" class="w-full mt-1 py-2.5 px-4" />
                         </div>
                     </div>
 
@@ -48,7 +49,7 @@
                     <div class="flex flex-col md:flex-row gap-6 mb-6">
                         <div class="flex-1">
                             <x-forms.input-label for="edit-nac" value="Fecha Nacimiento" />
-                            <x-forms.text-input id="edit-nac" type="date" class="w-full mt-1" />
+                            <x-forms.text-input id="edit-nac" type="date" class="w-full mt-1 py-2.5 px-4" max="{{ \Carbon\Carbon::now()->subYears(18)->format('Y-m-d') }}" />
                         </div>
                         <div class="flex-1">
                             <x-forms.input-label for="edit-genero" value="Género" />
@@ -104,25 +105,27 @@
                         </div>
                         <div>
                             <x-forms.input-label for="edit-telefono" value="Numero Telefonico" />
-                            <x-forms.text-input id="edit-telefono" type="tel" class="w-full mt-1" />
+                            <x-forms.text-input id="edit-telefono" type="tel" class="w-full mt-1 py-2.5 px-4" inputmode="numeric" pattern="\\d{1,9}" maxlength="9" oninput="this.value = this.value.replace(/\\D/g, '').slice(0, 9)" />
                         </div>
                     </div>
 
                     <div class="flex flex-col md:flex-row gap-6 mb-6">
                         <div class="flex-1">
                             <x-forms.input-label for="edit-correo-pers" value="Correo Personal" />
-                            <x-forms.text-input id="edit-correo-pers" type="email" class="w-full mt-1" />
+                            <x-forms.text-input id="edit-correo-pers" type="email" class="w-full mt-1 py-2.5 px-4" />
+                            <p id="edit-correo-pers-feedback" class="mt-1 text-xs"></p>
                         </div>
                         <div class="flex-1">
                             <x-forms.input-label for="edit-correo-corp" value="Correo Corporativo" />
-                            <x-forms.text-input id="edit-correo-corp" type="email" class="w-full mt-1" />
+                            <x-forms.text-input id="edit-correo-corp" type="email" class="w-full mt-1 py-2.5 px-4" />
+                            <p id="edit-correo-corp-feedback" class="mt-1 text-xs"></p>
                         </div>
                     </div>
 
                     <!-- Fila 5 -->
                     <div class="mb-2">
                         <x-forms.input-label for="edit-direccion" value="Dirección" />
-                        <x-forms.text-input id="edit-direccion" type="text" class="w-full mt-1" />
+                        <x-forms.text-input id="edit-direccion" type="text" class="w-full mt-1 py-2.5 px-4" />
                     </div>
                 </form>
             </div>
