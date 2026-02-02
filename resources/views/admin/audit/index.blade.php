@@ -62,21 +62,37 @@
             }
             return $value;
         }
+
+        function resolveAuditPersona($activity) {
+            $subject = $activity->subject;
+            if (!$subject) return null;
+
+            return match($activity->log_name) {
+                'personas' => $subject,
+                'contratos' => $subject->persona ?? null,
+                'movimientos' => $subject->contrato?->persona,
+                'bajas' => $subject->contrato?->persona,
+                'asistencia' => $subject->contrato?->persona,
+                'usuarios' => null,
+                default => null,
+            };
+        }
     @endphp
 
     <!-- Tabla de Auditoría -->
     <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
         <div class="p-6">
             <div class="overflow-x-auto">
-                <table class="w-full text-left">
+                <table class="w-full text-left table-fixed">
                     <thead class="border-b dark:border-gray-700">
                         <tr>
-                            <th class="px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Fecha</th>
-                            <th class="px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Usuario</th>
-                            <th class="px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Módulo</th>
-                            <th class="px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Acción</th>
-                            <th class="px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Entidad</th>
-                            <th class="px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Detalle</th>
+                            <th class="px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase w-[8%]">Fecha</th>
+                            <th class="px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase w-[6%]">Usuario</th>
+                            <th class="px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase w-[10%]">Afectado</th>
+                            <th class="px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase w-[6%]">Módulo</th>
+                            <th class="px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase w-[5%]">Acción</th>
+                            <th class="px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase w-[8%]">Entidad</th>
+                            <th class="px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase w-[18%]">Detalle</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -85,8 +101,23 @@
                             <td class="px-4 py-4 text-sm text-gray-600 dark:text-gray-300 whitespace-nowrap">
                                 {{ $activity->created_at->format('d/m/Y H:i:s') }}
                             </td>
-                            <td class="px-4 py-4 text-sm text-gray-600 dark:text-gray-300 whitespace-nowrap">
-                                {{ $activity->causer?->name ?? 'Sistema' }}
+                            <td class="px-4 py-4 text-sm text-gray-600 dark:text-gray-300">
+                                <div class="font-medium text-gray-900 dark:text-white">{{ $activity->causer?->name ?? 'Sistema' }}</div>
+                                @if($activity->causer?->numero_documento)
+                                    <div class="text-xs text-gray-400">{{ $activity->causer->numero_documento }}</div>
+                                @endif
+                            </td>
+                            <td class="px-4 py-4 text-sm text-gray-600 dark:text-gray-300">
+                                @php $persona = resolveAuditPersona($activity); @endphp
+                                @if($persona)
+                                    <div class="font-medium text-gray-900 dark:text-white">{{ $persona->apellido_paterno }} {{ $persona->apellido_materno }} {{ explode(' ', $persona->nombres)[0] }}</div>
+                                    <div class="text-xs text-gray-400">{{ $persona->numero_documento }}</div>
+                                @elseif($activity->log_name === 'usuarios')
+                                    <div class="font-medium text-gray-900 dark:text-white">{{ $activity->subject?->name ?? '-' }}</div>
+                                    <div class="text-xs text-gray-400">{{ $activity->subject?->numero_documento ?? '' }}</div>
+                                @else
+                                    <span class="text-gray-400">-</span>
+                                @endif
                             </td>
                             <td class="px-4 py-4">
                                 <span class="inline-flex px-2 py-1 rounded text-xs font-medium
@@ -162,7 +193,7 @@
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="6" class="px-4 py-8 text-center text-gray-400">
+                            <td colspan="7" class="px-4 py-8 text-center text-gray-400">
                                 No se encontraron registros de auditoría.
                             </td>
                         </tr>
@@ -172,8 +203,8 @@
             </div>
 
             @if($activities->hasPages())
-            <div class="mt-4">
-                {{ $activities->links() }}
+            <div class="mt-4 flex justify-center">
+                {{ $activities->links('vendor.pagination.tailwind') }}
             </div>
             @endif
         </div>

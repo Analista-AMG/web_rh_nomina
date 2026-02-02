@@ -44,7 +44,18 @@ class UserManagementController extends Controller
             ], 403);
         }
 
+        $rolesAntes = $user->getRoleNames()->toArray();
         $user->assignRole($request->role);
+
+        activity('usuarios')
+            ->performedOn($user)
+            ->causedBy(auth()->user())
+            ->withProperties([
+                'old' => ['roles' => $rolesAntes],
+                'attributes' => ['roles' => $user->getRoleNames()->toArray()],
+            ])
+            ->event('updated')
+            ->log('Rol asignado');
 
         return response()->json([
             'success' => true,
@@ -74,7 +85,18 @@ class UserManagementController extends Controller
             ], 403);
         }
 
+        $rolesAntes = $user->getRoleNames()->toArray();
         $user->removeRole($request->role);
+
+        activity('usuarios')
+            ->performedOn($user)
+            ->causedBy(auth()->user())
+            ->withProperties([
+                'old' => ['roles' => $rolesAntes],
+                'attributes' => ['roles' => $user->getRoleNames()->toArray()],
+            ])
+            ->event('updated')
+            ->log('Rol removido');
 
         return response()->json([
             'success' => true,
@@ -105,8 +127,20 @@ class UserManagementController extends Controller
             ], 403);
         }
 
+        $rolesAntes = $user->getRoleNames()->toArray();
+
         // Sincronizar roles (reemplaza todos)
         $user->syncRoles($request->roles ?? []);
+
+        activity('usuarios')
+            ->performedOn($user)
+            ->causedBy(auth()->user())
+            ->withProperties([
+                'old' => ['roles' => $rolesAntes],
+                'attributes' => ['roles' => $user->getRoleNames()->toArray()],
+            ])
+            ->event('updated')
+            ->log('Roles sincronizados');
 
         return response()->json([
             'success' => true,

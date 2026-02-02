@@ -45,6 +45,18 @@ class RoleController extends Controller
             $role->givePermissionTo($request->permissions);
         }
 
+        activity('roles')
+            ->performedOn($role)
+            ->causedBy(auth()->user())
+            ->withProperties([
+                'attributes' => [
+                    'nombre' => $role->name,
+                    'permisos' => $role->permissions->pluck('name')->toArray(),
+                ],
+            ])
+            ->event('created')
+            ->log('Rol creado');
+
         return response()->json([
             'success' => true,
             'message' => "Rol '{$request->name}' creado correctamente",
@@ -74,8 +86,20 @@ class RoleController extends Controller
             ], 403);
         }
 
+        $permisosAntes = $role->permissions->pluck('name')->toArray();
+
         // Sincronizar permisos
         $role->syncPermissions($request->permissions ?? []);
+
+        activity('roles')
+            ->performedOn($role)
+            ->causedBy(auth()->user())
+            ->withProperties([
+                'old' => ['permisos' => $permisosAntes],
+                'attributes' => ['permisos' => $role->fresh()->permissions->pluck('name')->toArray()],
+            ])
+            ->event('updated')
+            ->log('Permisos actualizados');
 
         return response()->json([
             'success' => true,
@@ -109,11 +133,24 @@ class RoleController extends Controller
             ], 403);
         }
 
+        $roleName = $role->name;
+        $rolePermisos = $role->permissions->pluck('name')->toArray();
         $role->delete();
+
+        activity('roles')
+            ->causedBy(auth()->user())
+            ->withProperties([
+                'old' => [
+                    'nombre' => $roleName,
+                    'permisos' => $rolePermisos,
+                ],
+            ])
+            ->event('deleted')
+            ->log('Rol eliminado');
 
         return response()->json([
             'success' => true,
-            'message' => "Rol '{$role->name}' eliminado correctamente"
+            'message' => "Rol '{$roleName}' eliminado correctamente"
         ]);
     }
 

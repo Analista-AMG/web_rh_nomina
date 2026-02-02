@@ -32,7 +32,7 @@ class AuditController extends Controller
             $query->whereDate('created_at', '<=', $request->fecha_hasta);
         }
 
-        $activities = $query->paginate(20)->withQueryString();
+        $activities = $query->paginate(10)->withQueryString();
 
         $logNames = Activity::distinct()->pluck('log_name')->sort();
         $users = User::orderBy('name')->get(['id', 'name']);
