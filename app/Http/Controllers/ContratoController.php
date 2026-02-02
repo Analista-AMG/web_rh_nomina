@@ -28,6 +28,12 @@ class ContratoController extends Controller
         $query = Contrato::with([
             'persona',
             'cargo',
+            'planilla',
+            'fondoPensiones',
+            'banco',
+            'condicion',
+            'moneda',
+            'centroCosto',
             'movimientos.planilla',
             'movimientos.fondoPensiones',
             'movimientos.cargo',
@@ -188,6 +194,87 @@ class ContratoController extends Controller
     }
 
     /**
+     * Dar de baja a un contrato.
+     */
+    public function darDeBaja(Request $request, $id)
+    {
+        if (auth()->user()->cannot('contratos.baja')) {
+            return response()->json(['error' => 'No tienes permiso para dar de baja'], 403);
+        }
+
+        $validated = $request->validate([
+            'fecha_renuncia' => 'required|date',
+        ]);
+
+        $contrato = Contrato::findOrFail($id);
+
+        // Validar que la fecha esté dentro del rango del contrato
+        $inicio = $contrato->inicio_contrato;
+        $fin = $contrato->fin_contrato;
+
+        if ($validated['fecha_renuncia'] < $inicio) {
+            return response()->json([
+                'success' => false,
+                'message' => 'La fecha de baja no puede ser anterior al inicio del contrato.',
+            ], 422);
+        }
+
+        if ($fin && $validated['fecha_renuncia'] > $fin) {
+            return response()->json([
+                'success' => false,
+                'message' => 'La fecha de baja no puede ser posterior al fin del contrato.',
+            ], 422);
+        }
+
+        $isUpdate = !is_null($contrato->fecha_renuncia);
+
+        $contrato->update(['fecha_renuncia' => $validated['fecha_renuncia']]);
+
+        return response()->json([
+            'success' => true,
+            'message' => $isUpdate
+                ? 'Fecha de baja actualizada correctamente.'
+                : 'Baja registrada correctamente.',
+        ]);
+    }
+
+    /**
+     * Store a new movement for a contract.
+     */
+    public function storeMovimiento(Request $request)
+    {
+        abort_unless(auth()->user()->can('contratos.create'), 403);
+
+        $conn = config('database.default');
+
+        $validated = $request->validate([
+            'id_contrato' => "required|exists:{$conn}.bronze.fact_contratos,id_contrato",
+            'tipo_movimiento' => 'required|string|max:50',
+            'id_cargo' => "nullable|exists:{$conn}.bronze.dim_cargo,id_cargo",
+            'id_planilla' => "nullable|exists:{$conn}.bronze.dim_planilla,id_planilla",
+            'inicio' => 'required|date',
+            'fin' => 'nullable|date|after_or_equal:inicio',
+            'haber_basico' => 'required|numeric|min:0',
+            'movilidad' => 'nullable|numeric|min:0',
+            'asignacion_familiar' => 'required|boolean',
+            'id_fp' => "nullable|exists:{$conn}.bronze.dim_fondo_pensiones,id_fondo",
+            'id_condicion' => "nullable|exists:{$conn}.bronze.dim_condicion,id_condicion",
+            'id_banco' => "nullable|exists:{$conn}.bronze.dim_banco,id_banco",
+            'id_centro_costo' => "nullable|exists:{$conn}.bronze.dim_centro_costo,id_centro_costo",
+            'id_moneda' => "nullable|exists:{$conn}.bronze.dim_moneda,id_moneda",
+        ]);
+
+        $validated['fecha_insercion'] = now();
+
+        \App\Models\ContratoMovimiento::create($validated);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Movimiento registrado correctamente',
+        ]);
+    }
+
+    /**
      * Update the specified movement.
      */
     public function updateMovimiento(Request $request, $id)
@@ -197,33 +284,74 @@ class ContratoController extends Controller
             return response()->json(['error' => 'No tienes permiso para editar movimientos'], 403);
         }
 
+        // Prefijo de conexión para validaciones exists con schema
+        $conn = config('database.default');
+
         // Validar datos
         $validated = $request->validate([
-            'tipo_movimiento' => 'nullable|string|max:50',
-            'id_cargo' => 'nullable|exists:bronze.dim_cargos,id_cargo',
-            'id_planilla' => 'nullable|exists:bronze.dim_planillas,id_planilla',
+            'id_cargo' => "nullable|exists:{$conn}.bronze.dim_cargo,id_cargo",
+            'id_planilla' => "nullable|exists:{$conn}.bronze.dim_planilla,id_planilla",
             'inicio' => 'nullable|date',
             'fin' => 'nullable|date|after_or_equal:inicio',
             'haber_basico' => 'required|numeric|min:0',
             'movilidad' => 'nullable|numeric|min:0',
             'asignacion_familiar' => 'required|boolean',
-            'id_fp' => 'nullable|exists:bronze.dim_fondos_pensiones,id_fondo',
-            'id_condicion' => 'nullable|exists:bronze.dim_condiciones,id_condicion',
-            'id_banco' => 'nullable|exists:bronze.dim_bancos,id_banco',
-            'id_centro_costo' => 'nullable|exists:bronze.dim_centros_costo,id_centro_costo',
-            'id_moneda' => 'nullable|exists:bronze.dim_monedas,id_moneda',
+            'id_fp' => "nullable|exists:{$conn}.bronze.dim_fondo_pensiones,id_fondo",
+            'id_condicion' => "nullable|exists:{$conn}.bronze.dim_condicion,id_condicion",
+            'id_banco' => "nullable|exists:{$conn}.bronze.dim_banco,id_banco",
+            'id_centro_costo' => "nullable|exists:{$conn}.bronze.dim_centro_costo,id_centro_costo",
+            'id_moneda' => "nullable|exists:{$conn}.bronze.dim_moneda,id_moneda",
         ]);
 
         // Buscar el movimiento
         $movimiento = \App\Models\ContratoMovimiento::findOrFail($id);
 
-        // Actualizar el movimiento
-        $movimiento->update($validated);
+        // Tipos de movimiento que sincronizan con el contrato padre
+        $tiposSincronizables = [
+            'Contrato inicial',
+            'Contrato por reingreso',
+            'Contrato por baja',
+            'Contrato por renovación',
+        ];
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Movimiento actualizado correctamente'
-        ]);
+        \DB::beginTransaction();
+        try {
+            // Actualizar el movimiento
+            $movimiento->update($validated);
+
+            // Si el tipo de movimiento es uno generado por el sistema, sincronizar al contrato padre
+            if (in_array($movimiento->tipo_movimiento, $tiposSincronizables)) {
+                $contrato = $movimiento->contrato;
+
+                $contrato->update([
+                    'id_cargo'            => $movimiento->id_cargo,
+                    'id_planilla'         => $movimiento->id_planilla,
+                    'id_fp'               => $movimiento->id_fp,
+                    'id_condicion'        => $movimiento->id_condicion,
+                    'asignacion_familiar' => $movimiento->asignacion_familiar,
+                    'haber_basico'        => $movimiento->haber_basico,
+                    'movilidad'           => $movimiento->movilidad,
+                    'id_banco'            => $movimiento->id_banco,
+                    'id_moneda'           => $movimiento->id_moneda,
+                    'id_centro_costo'     => $movimiento->id_centro_costo,
+                    'inicio_contrato'     => $movimiento->inicio,
+                    'fin_contrato'        => $movimiento->fin,
+                ]);
+            }
+
+            \DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Movimiento actualizado correctamente',
+            ]);
+        } catch (\Exception $e) {
+            \DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al actualizar: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 
     /**

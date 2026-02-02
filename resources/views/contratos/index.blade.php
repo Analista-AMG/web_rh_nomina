@@ -45,6 +45,7 @@
                     <th class="px-6 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider text-left">Colaborador</th>
                     <th class="px-6 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Cargo</th>
                     <th class="px-6 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Salario</th>
+                    <th class="px-6 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Planilla</th>
                     <th class="px-6 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Inicio</th>
                     <th class="px-6 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Fin</th>
                     <th class="px-6 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Estado</th>
@@ -97,6 +98,9 @@
                     <td class="bg-white dark:bg-[#273142] px-6 py-2.5 text-sm text-gray-700 dark:text-[#ffffff] border-y border-light-border dark:border-dark-border group-hover:bg-gray-50 dark:group-hover:bg-[#323d4d] transition-all duration-300 shadow-sm font-mono">
                         {{ $salario }}
                     </td>
+                    <td class="bg-white dark:bg-[#273142] px-6 py-2.5 text-sm text-gray-700 dark:text-[#ffffff] border-y border-light-border dark:border-dark-border group-hover:bg-gray-50 dark:group-hover:bg-[#323d4d] transition-all duration-300 shadow-sm font-mono">
+                        {{ $contrato->planilla->nombre_planilla }}
+                    </td>
                     <td class="bg-white dark:bg-[#273142] px-6 py-2.5 text-sm text-gray-500 dark:text-[#ffffff] border-y border-light-border dark:border-dark-border group-hover:bg-gray-50 dark:group-hover:bg-[#323d4d] transition-all duration-300 shadow-sm">
                         {{ $inicio }}
                     </td>
@@ -109,28 +113,73 @@
                         </span>
                     </td>
                     <td class="bg-white dark:bg-[#273142] px-6 py-1 text-center rounded-r-xl border-y border-r border-light-border dark:border-dark-border group-hover:bg-gray-50 dark:group-hover:bg-[#323d4d] transition-all duration-300 shadow-sm">
-                        <div class="flex justify-center items-center gap-2">                            
+                        <div class="flex justify-center items-center gap-2">
+                            {{-- Botón Ver Contrato --}}
+                            <x-ui.action-button type="view" title="Ver Contrato" class="btn-view-contrato"
+                                data-colaborador="{{ ($contrato->persona->apellido_paterno ?? '') . ' ' . ($contrato->persona->apellido_materno ?? '') . ', ' . ($contrato->persona->nombres ?? 'Sin Asignar') }}"
+                                data-documento="{{ ($contrato->persona->tipo_documento ?? 'DOC') . ': ' . ($contrato->persona->numero_documento ?? '---') }}"
+                                data-cargo="{{ $contrato->cargo->nombre_cargo ?? 'Sin Cargo' }}"
+                                data-planilla="{{ $contrato->planilla->nombre_planilla ?? 'N/A' }}"
+                                data-fp="{{ $contrato->fondoPensiones->fondo_pension ?? 'N/A' }}"
+                                data-condicion="{{ $contrato->condicion->nombre_condicion ?? 'N/A' }}"
+                                data-banco="{{ $contrato->banco->nombre_banco ?? 'N/A' }}"
+                                data-moneda="{{ $contrato->moneda->nombre_moneda ?? 'N/A' }}"
+                                data-centro-costo="{{ $contrato->centroCosto->nombre_centro_costo ?? 'N/A' }}"
+                                data-inicio="{{ $inicio }}"
+                                data-fin="{{ $fin }}"
+                                data-fecha-renuncia="{{ $contrato->fecha_renuncia ? \Carbon\Carbon::parse($contrato->fecha_renuncia)->format('d/m/Y') : 'No registrada' }}"
+                                data-haber="{{ number_format($contrato->haber_basico, 2) }}"
+                                data-asignacion="{{ $contrato->asignacion_familiar ? 'Sí' : 'No' }}"
+                                data-movilidad="{{ number_format($contrato->movilidad ?? 0, 2) }}"
+                                data-numero-cuenta="{{ $contrato->numero_cuenta ?? 'N/A' }}"
+                                data-codigo-interbancario="{{ $contrato->codigo_interbancario ?? 'N/A' }}"
+                                data-periodo-prueba="{{ $contrato->periodo_prueba ? 'Sí' : 'No' }}"
+                                data-estado="{{ $estadoTexto }}" />
+
                             {{-- Botón Añadir Movimiento --}}
                             @can('contratos.create')
-                            <x-ui.action-button type="add" title="Añadir Movimiento" class="btn-add-movimiento-main" data-contrato-id="{{ $contrato->id_contrato }}" />
+                            @php
+                                $ultimoMov = $contrato->movimientos->sortByDesc('inicio')->first();
+                                $lastMovJson = $ultimoMov ? json_encode([
+                                    'cargo_id' => $ultimoMov->id_cargo,
+                                    'planilla_id' => $ultimoMov->id_planilla,
+                                    'fp_id' => $ultimoMov->id_fp,
+                                    'condicion_id' => $ultimoMov->id_condicion,
+                                    'banco_id' => $ultimoMov->id_banco,
+                                    'centro_costo_id' => $ultimoMov->id_centro_costo,
+                                    'moneda_id' => $ultimoMov->id_moneda,
+                                    'haber' => $ultimoMov->haber_basico,
+                                    'movilidad' => $ultimoMov->movilidad ?? 0,
+                                    'asignacion' => $ultimoMov->asignacion_familiar ? 1 : 0,
+                                    'inicio' => $ultimoMov->inicio ? $ultimoMov->inicio->format('Y-m-d') : '',
+                                    'fin' => $ultimoMov->fin ? $ultimoMov->fin->format('Y-m-d') : '',
+                                ]) : '{}';
+                            @endphp
+                            <x-ui.action-button type="add" title="Añadir Movimiento" class="btn-add-movimiento-main"
+                                data-contrato-id="{{ $contrato->id_contrato }}"
+                                data-last-mov="{{ $lastMovJson }}"
+                                data-contrato-inicio="{{ \Carbon\Carbon::parse($contrato->inicio_contrato)->addDay()->format('Y-m-d') }}"
+                                data-contrato-fin="{{ $contrato->fin_contrato ? \Carbon\Carbon::parse($contrato->fin_contrato)->format('Y-m-d') : '' }}" />
                             @endcan
                             
                             {{-- Botón Baja --}}
                             @can('contratos.baja')
-                            <x-ui.action-button type="baja" class="btn-baja-contrato" data-contrato-id="{{ $contrato->id_contrato }}" />
+                            <x-ui.action-button type="baja" class="btn-baja-contrato"
+                                data-contrato-id="{{ $contrato->id_contrato }}"
+                                data-colaborador-nombre="{{ ($contrato->persona->apellido_paterno ?? '') . ' ' . ($contrato->persona->apellido_materno ?? '') . ', ' . ($contrato->persona->nombres ?? '') }}"
+                                data-colaborador-doc="{{ ($contrato->persona->tipo_documento ?? 'DOC') . ': ' . ($contrato->persona->numero_documento ?? '---') }}"
+                                data-contrato-inicio="{{ \Carbon\Carbon::parse($contrato->inicio_contrato)->format('Y-m-d') }}"
+                                data-contrato-fin="{{ $contrato->fin_contrato ? \Carbon\Carbon::parse($contrato->fin_contrato)->format('Y-m-d') : '' }}"
+                                data-fecha-renuncia="{{ $contrato->fecha_renuncia ? \Carbon\Carbon::parse($contrato->fecha_renuncia)->format('Y-m-d') : '' }}" />
                             @endcan
 
-                            {{-- Icono de Expansión --}}
-                            <div class="w-7 h-7 flex items-center justify-center text-gray-400 chevron-icon">
-                                <i class="fa-solid fa-chevron-down text-sm"></i>
-                            </div>
                         </div>
                     </td>
                 </tr>
 
                 {{-- Sub-Fila de Movimientos (Oculta por defecto) --}}
                 <tr class="sub-row" style="display: none;">
-                    <td colspan="7" class="p-0">
+                    <td colspan="8" class="p-0">
                         <div class="bg-gray-50 dark:bg-[#1e2836] p-4">
                             {{-- Cabecera de la sub-fila: Limpia de botones de acción del contrato principal --}}
                             <div class="flex justify-end items-center mb-3">
@@ -187,7 +236,9 @@
                                         data-mov-moneda-id="{{ $mov->id_moneda ?? '' }}"
                                         data-mov-estado="{{ $estadoMov }}"
                                         data-mov-estado-raw="{{ $mov->estado ? 1 : 0 }}"
-                                        data-mov-fecha-registro="{{ $mov->fecha_insercion ? \Carbon\Carbon::parse($mov->fecha_insercion)->format('d/m/Y H:i') : '-' }}">
+                                        data-mov-fecha-registro="{{ $mov->fecha_insercion ? \Carbon\Carbon::parse($mov->fecha_insercion)->format('d/m/Y H:i') : '-' }}"
+                                        data-contrato-inicio="{{ \Carbon\Carbon::parse($contrato->inicio_contrato)->addDay()->format('Y-m-d') }}"
+                                        data-contrato-fin="{{ $contrato->fin_contrato ? \Carbon\Carbon::parse($contrato->fin_contrato)->format('Y-m-d') : '' }}">
                                         <td class="py-2 px-3 text-gray-700 dark:text-gray-300">{{ $mov->tipo_movimiento ?? '-' }}</td>
                                         <td class="py-2 px-3 text-gray-700 dark:text-gray-300">{{ $inicioMov }}</td>
                                         <td class="py-2 px-3 text-gray-700 dark:text-gray-300 font-mono">S/ {{ number_format($mov->haber_basico, 2) }}</td>
@@ -235,6 +286,8 @@
     @include('contratos.partials.modals.view')
     @include('contratos.partials.modals.view-movimiento')
     @include('contratos.partials.modals.edit-movimiento')
+    @include('contratos.partials.modals.add-movimiento')
+    @include('contratos.partials.modals.baja-contrato')
 
     @push('scripts')
     <script>
@@ -263,10 +316,115 @@
                 });
 
                 // Detener la propagación del clic en los botones para que no colapsen la fila
-                const actionButtons = row.querySelectorAll('.btn-add-movimiento-main, .btn-baja-contrato');
+                const actionButtons = row.querySelectorAll('.btn-view-contrato, .btn-add-movimiento-main, .btn-baja-contrato');
                 actionButtons.forEach(button => {
                     button.addEventListener('click', function (event) {
                         event.stopPropagation();
+
+                        // Abrir modal Ver Contrato
+                        if (this.classList.contains('btn-view-contrato')) {
+                            const d = this.dataset;
+                            document.getElementById('view-colaborador').value = d.colaborador || '';
+                            document.getElementById('view-documento').value = d.documento || '';
+                            document.getElementById('view-cargo').value = d.cargo || '';
+                            document.getElementById('view-planilla').value = d.planilla || '';
+                            document.getElementById('view-inicio').value = d.inicio || '';
+                            document.getElementById('view-fin').value = d.fin || '';
+                            document.getElementById('view-fecha-renuncia').value = d.fechaRenuncia || '';
+                            document.getElementById('view-estado').value = d.estado || '';
+                            document.getElementById('view-haber').value = 'S/ ' + (d.haber || '0.00');
+                            document.getElementById('view-asignacion').value = d.asignacion || '';
+                            document.getElementById('view-movilidad').value = 'S/ ' + (d.movilidad || '0.00');
+                            document.getElementById('view-fp').value = d.fp || '';
+                            document.getElementById('view-condicion').value = d.condicion || '';
+                            document.getElementById('view-banco').value = d.banco || '';
+                            document.getElementById('view-numero-cuenta').value = d.numeroCuenta || '';
+                            document.getElementById('view-codigo-interbancario').value = d.codigoInterbancario || '';
+                            document.getElementById('view-moneda').value = d.moneda || '';
+                            document.getElementById('view-centro-costo').value = d.centroCosto || '';
+                            document.getElementById('view-periodo-prueba').value = d.periodoPrueba || '';
+                            openModal('view-modal');
+                        }
+
+                        // Abrir modal Añadir Movimiento
+                        if (this.classList.contains('btn-add-movimiento-main')) {
+                            const contratoId = this.dataset.contratoId;
+                            document.getElementById('form-add-movimiento').reset();
+                            document.getElementById('add-mov-contrato-id').value = contratoId;
+                            document.getElementById('add-mov-tipo').value = 'Movimiento Regular';
+
+                            // Delimitar fechas: mínimo = inicio_contrato + 1 día, máximo = fin_contrato
+                            const minFecha = this.dataset.contratoInicio || '';
+                            const maxFecha = this.dataset.contratoFin || '';
+                            const inputInicio = document.getElementById('add-mov-inicio');
+                            const inputFin = document.getElementById('add-mov-fin');
+
+                            inputInicio.min = minFecha;
+                            inputInicio.max = maxFecha;
+                            inputFin.min = minFecha;
+                            inputFin.max = maxFecha;
+
+                            // Pre-llenar con datos del último movimiento (JSON en data-last-mov)
+                            try {
+                                const lastMov = JSON.parse(this.dataset.lastMov || '{}');
+                                if (lastMov.haber !== undefined) {
+                                    document.getElementById('add-mov-haber').value = parseFloat(lastMov.haber || 0).toFixed(2);
+                                    document.getElementById('add-mov-movilidad').value = parseFloat(lastMov.movilidad || 0).toFixed(2);
+                                    document.getElementById('add-mov-asignacion').value = lastMov.asignacion || '0';
+                                    document.getElementById('add-mov-inicio').value = '';
+                                    document.getElementById('add-mov-fin').value = '';
+
+                                    setTimeout(() => {
+                                        document.getElementById('add-mov-cargo-id').value = lastMov.cargo_id || '';
+                                        document.getElementById('add-mov-planilla-id').value = lastMov.planilla_id || '';
+                                        document.getElementById('add-mov-fp-id').value = lastMov.fp_id || '';
+                                        document.getElementById('add-mov-condicion-id').value = lastMov.condicion_id || '';
+                                        document.getElementById('add-mov-banco-id').value = lastMov.banco_id || '';
+                                        document.getElementById('add-mov-centro-costo-id').value = lastMov.centro_costo_id || '';
+                                        document.getElementById('add-mov-moneda-id').value = lastMov.moneda_id || '';
+                                    }, 200);
+                                }
+                            } catch (e) {
+                                console.error('Error parseando datos del último movimiento:', e);
+                            }
+
+                            openModal('add-movimiento-modal');
+                        }
+
+                        // Abrir modal Dar de Baja
+                        if (this.classList.contains('btn-baja-contrato')) {
+                            const contratoId = this.dataset.contratoId;
+                            const fechaRenunciaActual = this.dataset.fechaRenuncia || '';
+                            const esActualizacion = fechaRenunciaActual !== '';
+
+                            document.getElementById('form-baja-contrato').reset();
+                            document.getElementById('baja-contrato-id').value = contratoId;
+                            document.getElementById('baja-colaborador-nombre').textContent = this.dataset.colaboradorNombre || '';
+                            document.getElementById('baja-colaborador-doc').textContent = this.dataset.colaboradorDoc || '';
+
+                            // Delimitar fecha: min = inicio_contrato, max = fin_contrato
+                            const inputBajaFecha = document.getElementById('baja-fecha');
+                            inputBajaFecha.min = this.dataset.contratoInicio || '';
+                            inputBajaFecha.max = this.dataset.contratoFin || '';
+
+                            // Adaptar modal según si es nueva baja o actualización
+                            const titulo = document.getElementById('baja-modal-titulo');
+                            const btnConfirmar = document.getElementById('btn-confirmar-baja');
+                            const advertencia = document.getElementById('baja-advertencia-texto');
+
+                            if (esActualizacion) {
+                                inputBajaFecha.value = fechaRenunciaActual;
+                                titulo.textContent = 'Actualizar Fecha de Baja';
+                                btnConfirmar.textContent = 'Actualizar Baja';
+                                advertencia.innerHTML = 'Este contrato ya tiene una baja registrada. Puede modificar la fecha si es necesario.';
+                            } else {
+                                titulo.textContent = 'Dar de Baja';
+                                btnConfirmar.textContent = 'Confirmar Baja';
+                                advertencia.innerHTML = 'Esta acción registrará la fecha de baja en el contrato. El contrato pasará a estado <strong>Finalizado</strong> una vez cumplida la fecha.';
+                            }
+
+                            openModal('baja-contrato-modal');
+                        }
                     });
                 });
 
@@ -316,24 +474,23 @@
                             const tr = this.closest('tr');
                             const data = tr.dataset;
 
-                            console.log('=== DEBUG MODAL EDITAR ===');
-                            console.log('Todos los data attributes:', data);
-                            console.log('IDs específicos:');
-                            console.log('- movCargoId:', data.movCargoId);
-                            console.log('- movPlanillaId:', data.movPlanillaId);
-                            console.log('- movFpId:', data.movFpId);
-                            console.log('- movCondicionId:', data.movCondicionId);
-                            console.log('- movBancoId:', data.movBancoId);
-                            console.log('- movCentroCostoId:', data.movCentroCostoId);
-                            console.log('- movMonedaId:', data.movMonedaId);
+                            // Delimitar fechas: min = inicio_contrato + 1, max = fin_contrato
+                            const minFecha = data.contratoInicio || '';
+                            const maxFecha = data.contratoFin || '';
+                            const editInicio = document.getElementById('edit-mov-inicio');
+                            const editFin = document.getElementById('edit-mov-fin');
+                            editInicio.min = minFecha;
+                            editInicio.max = maxFecha;
+                            editFin.min = minFecha;
+                            editFin.max = maxFecha;
 
                             // Llenar campos simples inmediatamente
                             document.getElementById('edit-mov-id').value = data.movId || '';
                             document.getElementById('edit-mov-tipo').value = data.movTipo || '';
-                            document.getElementById('edit-mov-inicio').value = data.movInicioRaw || '';
-                            document.getElementById('edit-mov-fin').value = data.movFinRaw || '';
-                            document.getElementById('edit-mov-haber').value = data.movHaberRaw || '0';
-                            document.getElementById('edit-mov-movilidad').value = data.movMovilidadRaw || '0';
+                            editInicio.value = data.movInicioRaw || '';
+                            editFin.value = data.movFinRaw || '';
+                            document.getElementById('edit-mov-haber').value = parseFloat(data.movHaberRaw || 0).toFixed(2);
+                            document.getElementById('edit-mov-movilidad').value = parseFloat(data.movMovilidadRaw || 0).toFixed(2);
                             document.getElementById('edit-mov-asignacion').value = data.movAsignacionRaw || '0';
 
                             // Abrir el modal primero

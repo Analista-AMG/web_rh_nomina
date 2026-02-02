@@ -56,7 +56,7 @@
                     $esCumple = false;
                     if ($persona->fecha_nacimiento) {
                         $nac = \Carbon\Carbon::parse($persona->fecha_nacimiento);
-                        $esCumple = $nac->format('m-d') === \Carbon\Carbon::now()->format('m-d');
+                        $esCumple = $nac->format('m') === \Carbon\Carbon::now()->format('m');
                     }
                     $estado = $persona->estado;
                     $badgeClass = ($estado == 1) ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 

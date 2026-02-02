@@ -49,6 +49,16 @@ class Contrato extends Model
         return $this->belongsTo(Condicion::class, 'id_condicion', 'id_condicion');
     }
 
+    public function moneda()
+    {
+        return $this->belongsTo(Moneda::class, 'id_moneda', 'id_moneda');
+    }
+
+    public function centroCosto()
+    {
+        return $this->belongsTo(CentroCosto::class, 'id_centro_costo', 'id_centro_costo');
+    }
+
     public function movimientos()
     {
         return $this->hasMany(ContratoMovimiento::class, 'id_contrato', 'id_contrato');

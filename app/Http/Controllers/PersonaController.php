@@ -65,7 +65,10 @@ class PersonaController extends Controller
         $paises = DB::table('bronze.dim_paises')->orderBy('nombre')->get();
         $departamentos = DB::table('bronze.dim_departamentos')->orderBy('nombre')->get();
         $provincias = DB::table('bronze.dim_provincias')->orderBy('nombre')->get();
-        $distritos = DB::table('bronze.dim_distritos')->orderBy('nombre')->get();
+        $distritos = DB::table('bronze.dim_distritos')
+    ->select('id', 'nombre', 'provincia_id')
+    ->get();
+
 
         return view('personas.index', compact('personas', 'kpis', 'paises', 'departamentos', 'provincias', 'distritos'));
     }

@@ -189,6 +189,15 @@
                 populateSelect('edit-mov-centro-costo-id', centrosCosto, 'id_centro_costo', 'nombre'); // Llenar select de Centros de Costo
                 populateSelect('edit-mov-moneda-id', monedas, 'id_moneda', 'nombre_moneda');// Llenar select de Monedas
 
+                // MODAL AÑADIR MOVIMIENTO
+                populateSelect('add-mov-cargo-id', cargos, 'id_cargo', 'nombre_cargo');
+                populateSelect('add-mov-planilla-id', planillas, 'id_planilla', 'nombre_planilla');
+                populateSelect('add-mov-fp-id', fondosPensiones, 'id_fondo', 'fondo_pension');
+                populateSelect('add-mov-condicion-id', condiciones, 'id_condicion', 'nombre_condicion');
+                populateSelect('add-mov-banco-id', bancos, 'id_banco', 'nombre_banco');
+                populateSelect('add-mov-centro-costo-id', centrosCosto, 'id_centro_costo', 'nombre');
+                populateSelect('add-mov-moneda-id', monedas, 'id_moneda', 'nombre_moneda');
+
                 window.selectsLoaded = true;
 
             } catch (error) {
@@ -745,7 +754,6 @@
                 }
 
                 const data = {
-                    tipo_movimiento: document.getElementById('edit-mov-tipo').value,
                     id_cargo: document.getElementById('edit-mov-cargo-id').value,
                     id_planilla: document.getElementById('edit-mov-planilla-id').value,
                     inicio: document.getElementById('edit-mov-inicio').value,
@@ -787,6 +795,122 @@
                 } finally {
                     btnSaveMovimiento.disabled = false;
                     btnSaveMovimiento.innerText = 'Guardar Cambios';
+                }
+            });
+        }
+
+        // ============================================
+        // G. Logica de AÑADIR movimiento
+        // ============================================
+
+        // Guardar nuevo movimiento
+        const btnAddMovimiento = document.getElementById('btn-add-movimiento');
+        if (btnAddMovimiento) {
+            btnAddMovimiento.addEventListener('click', async () => {
+                const contratoId = document.getElementById('add-mov-contrato-id').value;
+                if (!contratoId) {
+                    alert('Error: ID de contrato no encontrado.');
+                    return;
+                }
+
+                const data = {
+                    id_contrato: contratoId,
+                    tipo_movimiento: 'Movimiento Regular',
+                    id_cargo: document.getElementById('add-mov-cargo-id').value,
+                    id_planilla: document.getElementById('add-mov-planilla-id').value,
+                    inicio: document.getElementById('add-mov-inicio').value,
+                    fin: document.getElementById('add-mov-fin').value || null,
+                    haber_basico: document.getElementById('add-mov-haber').value,
+                    movilidad: document.getElementById('add-mov-movilidad').value,
+                    asignacion_familiar: document.getElementById('add-mov-asignacion').value,
+                    id_fp: document.getElementById('add-mov-fp-id').value,
+                    id_condicion: document.getElementById('add-mov-condicion-id').value,
+                    id_banco: document.getElementById('add-mov-banco-id').value,
+                    id_centro_costo: document.getElementById('add-mov-centro-costo-id').value,
+                    id_moneda: document.getElementById('add-mov-moneda-id').value
+                };
+
+                try {
+                    btnAddMovimiento.disabled = true;
+                    btnAddMovimiento.innerText = 'Guardando...';
+
+                    const response = await fetch('/contratos/movimientos', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': csrfToken,
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify(data)
+                    });
+
+                    if (response.ok) {
+                        alert('Movimiento registrado exitosamente');
+                        window.location.reload();
+                    } else {
+                        const result = await response.json();
+                        alert('Error: ' + (result.message || 'Verifique los datos'));
+                    }
+                } catch (error) {
+                    console.error(error);
+                    alert('Error de conexión');
+                } finally {
+                    btnAddMovimiento.disabled = false;
+                    btnAddMovimiento.innerText = 'Guardar Movimiento';
+                }
+            });
+        }
+
+        // ============================================
+        // H. Logica de DAR DE BAJA
+        // ============================================
+        const btnConfirmarBaja = document.getElementById('btn-confirmar-baja');
+        if (btnConfirmarBaja) {
+            btnConfirmarBaja.addEventListener('click', async () => {
+                const id = document.getElementById('baja-contrato-id').value;
+                const fechaRenuncia = document.getElementById('baja-fecha').value;
+
+                if (!id) {
+                    alert('Error: ID de contrato no encontrado.');
+                    return;
+                }
+                if (!fechaRenuncia) {
+                    alert('Seleccione una fecha de baja.');
+                    return;
+                }
+
+                if (!confirm('¿Está seguro de dar de baja este contrato?')) {
+                    return;
+                }
+
+                try {
+                    btnConfirmarBaja.disabled = true;
+                    btnConfirmarBaja.innerText = 'Procesando...';
+
+                    const response = await fetch(`/contratos/${id}/baja`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': csrfToken,
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify({ fecha_renuncia: fechaRenuncia })
+                    });
+
+                    const result = await response.json();
+
+                    if (response.ok && result.success) {
+                        alert(result.message || 'Baja registrada correctamente');
+                        window.location.reload();
+                    } else {
+                        alert('Error: ' + (result.message || 'No se pudo registrar la baja'));
+                    }
+                } catch (error) {
+                    console.error(error);
+                    alert('Error de conexión');
+                } finally {
+                    btnConfirmarBaja.disabled = false;
+                    btnConfirmarBaja.innerText = 'Confirmar Baja';
                 }
             });
         }

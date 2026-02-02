@@ -55,7 +55,16 @@ Route::middleware('auth')->group(function () {
         ->delete('/contratos/{contrato}', [App\Http\Controllers\ContratoController::class, 'destroy'])
         ->name('contratos.destroy');
 
+    // Ruta para Dar de Baja
+    Route::middleware(['permission:contratos.baja'])
+        ->put('/contratos/{contrato}/baja', [App\Http\Controllers\ContratoController::class, 'darDeBaja'])
+        ->name('contratos.baja');
+
     // Rutas para Movimientos de Contratos
+    Route::middleware(['permission:contratos.create'])
+        ->post('/contratos/movimientos', [App\Http\Controllers\ContratoController::class, 'storeMovimiento'])
+        ->name('contratos.movimientos.store');
+
     Route::middleware(['permission:contratos.edit'])
         ->put('/contratos/movimientos/{movimiento}', [App\Http\Controllers\ContratoController::class, 'updateMovimiento'])
         ->name('contratos.movimientos.update');
