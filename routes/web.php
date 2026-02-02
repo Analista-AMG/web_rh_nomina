@@ -92,6 +92,9 @@ Route::middleware('auth')->group(function () {
         Route::post('/users/{user}/sync-roles', [App\Http\Controllers\Admin\UserManagementController::class, 'syncRoles'])->name('users.sync-roles');
         Route::get('/users/{user}/permissions', [App\Http\Controllers\Admin\UserManagementController::class, 'permissions'])->name('users.permissions');
 
+        // Auditoría
+        Route::get('/audit', [App\Http\Controllers\Admin\AuditController::class, 'index'])->name('audit.index');
+
         // Gestión de Roles
         Route::get('/roles', [App\Http\Controllers\Admin\RoleController::class, 'index'])->name('roles.index');
         Route::post('/roles', [App\Http\Controllers\Admin\RoleController::class, 'store'])->name('roles.store');

@@ -82,6 +82,12 @@
                     <span class="sidebar-text font-medium">Roles y Permisos</span>
                 </a>
             </li>
+            <li>
+                <a href="{{ route('admin.audit.index') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg {{ request()->routeIs('admin.audit.*') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors group" title="Auditoría">
+                    <i class="fa-solid fa-clock-rotate-left text-lg flex-shrink-0"></i>
+                    <span class="sidebar-text font-medium">Auditoría</span>
+                </a>
+            </li>
             @endrole
         </ul>
     </nav>
