@@ -287,6 +287,27 @@ class PersonaController extends Controller
         return response()->json(['success' => true, 'message' => 'Persona actualizada correctamente']);
     }
 
+    public function destroy($id)
+    {
+        abort_unless(auth()->user()->can('personas.delete'), 403);
+
+        $persona = Persona::findOrFail($id);
+
+        if ($persona->contratos()->exists()) {
+            return response()->json([
+                'success' => false,
+                'error' => 'No se puede eliminar la persona porque tiene contratos asociados. Primero elimine sus contratos.',
+            ], 422);
+        }
+
+        $persona->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Persona eliminada correctamente',
+        ]);
+    }
+
     public function lookupReniec(string $numeroDocumento)
     {
         abort_unless(auth()->user()->can('personas.create'), 403);

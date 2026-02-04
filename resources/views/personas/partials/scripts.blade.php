@@ -314,10 +314,37 @@
             }
 
             // Boton Eliminar
-            if (e.target.closest('.btn-delete')) {
-                if (confirm('¿Estas seguro de eliminar este registro?')) {
-                    alert('Funcionalidad pendiente.');
+            const btnDelete = e.target.closest('.btn-delete');
+            if (btnDelete) {
+                const row = btnDelete.closest('tr');
+                const id = row ? row.dataset.id : null;
+                if (!id) {
+                    alert('No se pudo identificar la persona a eliminar.');
+                    return;
                 }
+
+                if (!confirm('¿Estas seguro de eliminar este registro?')) return;
+
+                fetch(`/personas/${id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-CSRF-TOKEN': csrfToken,
+                        'Accept': 'application/json'
+                    }
+                })
+                .then(async (response) => {
+                    const result = await response.json().catch(() => ({}));
+                    if (response.ok && result.success) {
+                        alert(getMessage(result, 'Persona eliminada correctamente'));
+                        window.location.reload();
+                    } else {
+                        alert(getMessage(result, 'No se pudo eliminar la persona'));
+                    }
+                })
+                .catch((error) => {
+                    console.error(error);
+                    alert('Error de conexion');
+                });
             }
         });
 
