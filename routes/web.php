@@ -74,6 +74,10 @@ Route::middleware('auth')->group(function () {
         Route::get('/asistencia', [App\Http\Controllers\AsistenciaController::class, 'index'])->name('asistencia.index');
     });
 
+    Route::middleware(['permission:contratos.delete'])
+        ->delete('/contratos/movimientos/{movimiento}', [App\Http\Controllers\ContratoController::class, 'destroyMovimiento'])
+        ->name('contratos.movimientos.destroy');
+
     Route::middleware(['permission:asistencia.edit'])
         ->post('/asistencia/guardar', [App\Http\Controllers\AsistenciaController::class, 'guardar'])
         ->name('asistencia.guardar');

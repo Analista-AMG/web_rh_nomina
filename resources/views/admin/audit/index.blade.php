@@ -65,17 +65,61 @@
 
         function resolveAuditPersona($activity) {
             $subject = $activity->subject;
-            if (!$subject) return null;
 
-            return match($activity->log_name) {
-                'personas' => $subject,
-                'contratos' => $subject->persona ?? null,
-                'movimientos' => $subject->contrato?->persona,
-                'bajas' => $subject->contrato?->persona,
-                'asistencia' => $subject->contrato?->persona,
-                'usuarios' => null,
-                default => null,
-            };
+            // Intentar resolver desde el modelo vivo
+            if ($subject) {
+                $persona = match($activity->log_name) {
+                    'personas' => $subject,
+                    'contratos' => $subject->persona ?? null,
+                    'movimientos' => $subject->contrato?->persona,
+                    'bajas' => $subject->contrato?->persona,
+                    'asistencia' => $subject->contrato?->persona,
+                    default => null,
+                };
+                if ($persona) return $persona;
+            }
+
+            // Fallback: reconstruir desde properties (cuando el registro fue eliminado)
+            $props = $activity->properties;
+
+            // Fallback con datos explícitos del afectado (eliminación destructiva)
+            if ($props->has('afectado_nombre')) {
+                return (object) [
+                    'apellido_paterno' => '',
+                    'apellido_materno' => '',
+                    'nombres' => $props['afectado_nombre'] ?? '',
+                    'numero_documento' => $props['afectado_documento'] ?? '',
+                    '_nombre_directo' => true,
+                ];
+            }
+
+            $attrs = $props['old'] ?? $props['attributes'] ?? null;
+            if (!$attrs) return null;
+
+            if ($activity->log_name === 'personas') {
+                return (object) [
+                    'apellido_paterno' => $attrs['apellido_paterno'] ?? '',
+                    'apellido_materno' => $attrs['apellido_materno'] ?? '',
+                    'nombres' => $attrs['nombres'] ?? '',
+                    'numero_documento' => $attrs['numero_documento'] ?? '',
+                ];
+            }
+
+            // Para contratos/movimientos/bajas/asistencia: buscar persona por id_persona
+            $idPersona = $attrs['id_persona'] ?? null;
+            if ($idPersona) {
+                $persona = \App\Models\Persona::find($idPersona);
+                if ($persona) return $persona;
+            }
+
+            // Para movimientos/bajas/asistencia: buscar por id_contrato
+            $idContrato = $attrs['id_contrato'] ?? null;
+            if ($idContrato) {
+                $contrato = \App\Models\Contrato::find($idContrato);
+                if ($contrato) return $contrato->persona;
+            }
+
+            return null;
         }
     @endphp
 
@@ -110,11 +154,18 @@
                             <td class="px-4 py-4 text-sm text-gray-600 dark:text-gray-300">
                                 @php $persona = resolveAuditPersona($activity); @endphp
                                 @if($persona)
-                                    <div class="font-medium text-gray-900 dark:text-white">{{ $persona->apellido_paterno }} {{ $persona->apellido_materno }} {{ explode(' ', $persona->nombres)[0] }}</div>
+                                    @if(!empty($persona->_nombre_directo))
+                                        <div class="font-medium text-gray-900 dark:text-white">{{ $persona->nombres }}</div>
+                                    @else
+                                        <div class="font-medium text-gray-900 dark:text-white">{{ $persona->apellido_paterno }} {{ $persona->apellido_materno }} {{ explode(' ', $persona->nombres)[0] }}</div>
+                                    @endif
                                     <div class="text-xs text-gray-400">{{ $persona->numero_documento }}</div>
                                 @elseif($activity->log_name === 'usuarios')
-                                    <div class="font-medium text-gray-900 dark:text-white">{{ $activity->subject?->name ?? '-' }}</div>
-                                    <div class="text-xs text-gray-400">{{ $activity->subject?->numero_documento ?? '' }}</div>
+                                    @php
+                                        $userAttrs = $activity->properties['old'] ?? $activity->properties['attributes'] ?? [];
+                                    @endphp
+                                    <div class="font-medium text-gray-900 dark:text-white">{{ $activity->subject?->name ?? $userAttrs['name'] ?? '-' }}</div>
+                                    <div class="text-xs text-gray-400">{{ $activity->subject?->numero_documento ?? $userAttrs['numero_documento'] ?? '' }}</div>
                                 @else
                                     <span class="text-gray-400">-</span>
                                 @endif

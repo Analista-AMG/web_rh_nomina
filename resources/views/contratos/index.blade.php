@@ -80,7 +80,7 @@
                     <td class="bg-white dark:bg-[#273142] px-6 py-2.5 text-left rounded-l-xl border-y border-l border-light-border dark:border-dark-border group-hover:bg-gray-50 dark:group-hover:bg-[#323d4d] transition-all duration-300 shadow-sm">
                         <div class="flex items-center gap-3">
                             <div class="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold">
-                                {{ substr($contrato->persona->nombres ?? '?', 0, 1) }}{{ substr($contrato->persona->apellido_paterno ?? '?', 0, 1) }}
+                                {{ substr($contrato->persona->apellido_paterno ?? '?', 0, 1) }}{{ substr($contrato->persona->nombres ?? '?', 0, 1) }}
                             </div>
                             <div class="flex flex-col">
                                 <span class="text-sm font-bold text-gray-800 dark:text-white leading-tight">
@@ -471,6 +471,39 @@
                             document.getElementById('view-mov-fecha-registro').value = data.movFechaRegistro || '-';
 
                             openModal('view-movimiento-modal');
+                        }
+
+                        // Manejar botón Eliminar Movimiento
+                        if (this.classList.contains('btn-delete-movimiento')) {
+                            const tr = this.closest('tr');
+                            const data = tr.dataset;
+                            const tipo = data.movTipo || '';
+                            const esRegular = tipo === 'Movimiento Regular';
+
+                            const mensaje = esRegular
+                                ? '¿Estás seguro de eliminar este movimiento?'
+                                : '¿Estás seguro? Esto eliminará el CONTRATO COMPLETO y todos sus movimientos.';
+
+                            if (!confirm(mensaje)) return;
+
+                            const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+                            fetch(`/contratos/movimientos/${data.movId}`, {
+                                method: 'DELETE',
+                                headers: {
+                                    'X-CSRF-TOKEN': csrfToken,
+                                    'Accept': 'application/json'
+                                }
+                            })
+                            .then(res => res.json())
+                            .then(result => {
+                                if (result.success) {
+                                    alert(result.message);
+                                    location.reload();
+                                } else {
+                                    alert(result.error || 'Error al eliminar');
+                                }
+                            })
+                            .catch(() => alert('Error de conexión'));
                         }
 
                         // Manejar botón Editar Movimiento

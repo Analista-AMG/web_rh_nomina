@@ -355,6 +355,96 @@ class ContratoController extends Controller
             ], 500);
         }
     }
+    
+    /**
+     * Delete movement or entire contract depending on type.
+     */
+    public function destroyMovimiento($id)
+    {
+        if (auth()->user()->cannot('contratos.delete')) {
+            return response()->json(['error' => 'No tienes permiso para eliminar'], 403);
+        }
+
+        $movimiento = \App\Models\ContratoMovimiento::findOrFail($id);
+
+        if ($movimiento->tipo_movimiento === 'Movimiento Regular') {
+            $movimiento->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Movimiento eliminado correctamente',
+            ]);
+        }
+
+        // Tipo de sistema: eliminar todos los movimientos y el contrato
+        $contrato = $movimiento->contrato;
+        $persona = $contrato->persona;
+        $movimientos = $contrato->movimientos;
+
+        $afectadoNombre = $persona
+            ? $persona->apellido_paterno . ' ' . $persona->apellido_materno . ' ' . explode(' ', $persona->nombres)[0]
+            : null;
+        $afectadoDocumento = $persona?->numero_documento;
+
+        // Capturar datos antes de eliminar
+        $contratoData = $contrato->toArray();
+        $movimientosData = $movimientos->keyBy('id_movimiento')->map(fn($m) => $m->toArray())->all();
+
+        \DB::beginTransaction();
+        try {
+            // Desactivar logging automático (se logueará manualmente)
+            foreach ($movimientos as $mov) {
+                $mov->disableLogging();
+            }
+            $contrato->disableLogging();
+
+            // Eliminar individualmente
+            foreach ($movimientos as $mov) {
+                $mov->delete();
+            }
+            $contrato->delete();
+
+            // Loguear cada movimiento con datos del afectado
+            foreach ($movimientos as $mov) {
+                activity('movimientos')
+                    ->performedOn($mov)
+                    ->causedBy(auth()->user())
+                    ->withProperties([
+                        'old' => $movimientosData[$mov->id_movimiento],
+                        'afectado_nombre' => $afectadoNombre,
+                        'afectado_documento' => $afectadoDocumento,
+                    ])
+                    ->event('deleted')
+                    ->log('Movimiento eliminado');
+            }
+
+            // Loguear el contrato con datos del afectado
+            activity('contratos')
+                ->performedOn($contrato)
+                ->causedBy(auth()->user())
+                ->withProperties([
+                    'old' => $contratoData,
+                    'afectado_nombre' => $afectadoNombre,
+                    'afectado_documento' => $afectadoDocumento,
+                ])
+                ->event('deleted')
+                ->log('Contrato eliminado');
+
+            \DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Contrato y todos sus movimientos eliminados correctamente',
+                'redirect' => true,
+            ]);
+        } catch (\Exception $e) {
+            \DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al eliminar: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
 
     /**
      * Evaluar si se puede crear un contrato (API)
