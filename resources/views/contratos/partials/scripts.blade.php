@@ -599,6 +599,12 @@
                 if (datosUltimo.codigo_interbancario) {
                     document.getElementById('crear-codigo-interbancario').value = datosUltimo.codigo_interbancario;
                 }
+                if (datosUltimo.numero_cuenta_cts) {
+                    document.getElementById('crear-numero-cuenta-cts').value = datosUltimo.numero_cuenta_cts;
+                }
+                if (datosUltimo.codigo_interbancario_cts) {
+                    document.getElementById('crear-codigo-interbancario-cts').value = datosUltimo.codigo_interbancario_cts;
+                }
                 if (datosUltimo.periodo_prueba !== undefined) {
                     document.getElementById('crear-periodo-prueba').value = datosUltimo.periodo_prueba ? '1' : '0';
                 }

@@ -225,13 +225,14 @@ class PersonaController extends Controller
                 'distrito' => 'nullable',
                 'direccion' => 'nullable|max:255',
                 'numero_telefonico' => 'nullable|regex:/^\\d{1,9}$/',
-                'correo_electronico_personal' => 'nullable|email|max:255',
+                'correo_electronico_personal' => 'required|email|max:255',
                 'correo_electronico_corporativo' => 'nullable|email|max:255',
             ],
             [
                 'numero_documento.unique' => 'Persona ya se encuentra en la base de datos',
                 'fecha_nacimiento.before_or_equal' => 'La persona debe ser mayor de 18 anos',
                 'numero_telefonico.regex' => 'El numero telefonico debe tener maximo 9 digitos',
+                'correo_electronico_personal.required' => 'El correo personal es obligatorio',
             ]
         );
 

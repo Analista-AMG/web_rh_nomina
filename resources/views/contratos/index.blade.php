@@ -133,6 +133,8 @@
                                 data-movilidad="{{ number_format($contrato->movilidad ?? 0, 2) }}"
                                 data-numero-cuenta="{{ $contrato->numero_cuenta ?? 'N/A' }}"
                                 data-codigo-interbancario="{{ $contrato->codigo_interbancario ?? 'N/A' }}"
+                                data-numero-cuenta-cts="{{ $contrato->numero_cuenta_cts ?? 'N/A' }}"
+                                data-codigo-interbancario-cts="{{ $contrato->codigo_interbancario_cts ?? 'N/A' }}"
                                 data-periodo-prueba="{{ $contrato->periodo_prueba ? 'Sí' : 'No' }}"
                                 data-estado="{{ $estadoTexto }}" />
 
@@ -340,6 +342,8 @@
                             document.getElementById('view-banco').value = d.banco || '';
                             document.getElementById('view-numero-cuenta').value = d.numeroCuenta || '';
                             document.getElementById('view-codigo-interbancario').value = d.codigoInterbancario || '';
+                            document.getElementById('view-numero-cuenta-cts').value = d.numeroCuentaCts || '';
+                            document.getElementById('view-codigo-interbancario-cts').value = d.codigoInterbancarioCts || '';
                             document.getElementById('view-moneda').value = d.moneda || '';
                             document.getElementById('view-centro-costo').value = d.centroCosto || '';
                             document.getElementById('view-periodo-prueba').value = d.periodoPrueba || '';

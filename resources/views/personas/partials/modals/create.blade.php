@@ -138,8 +138,8 @@
 
                         <!-- Correo Personal -->
                         <div>
-                            <x-forms.input-label for="new-correo_electronico_personal" value="Correo Personal" />
-                            <x-forms.text-input id="new-correo_electronico_personal" name="correo_electronico_personal" type="email" class="w-full mt-1" />
+                            <x-forms.input-label for="new-correo_electronico_personal" value="Correo Personal *" />
+                            <x-forms.text-input id="new-correo_electronico_personal" name="correo_electronico_personal" type="email" class="w-full mt-1" required />
                             <p id="new-correo-pers-feedback" class="mt-1 text-xs"></p>
                         </div>
 

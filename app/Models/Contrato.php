@@ -25,7 +25,9 @@ class Contrato extends Model
     protected $fillable = [
         'id_persona', 'id_cargo', 'id_planilla', 'id_fp', 'id_condicion',
         'asignacion_familiar', 'haber_basico', 'movilidad', 'id_banco',
-        'numero_cuenta', 'codigo_interbancario', 'id_moneda',
+        'numero_cuenta', 'codigo_interbancario',
+        'numero_cuenta_cts', 'codigo_interbancario_cts',
+        'id_moneda',
         'inicio_contrato', 'fin_contrato', 'fecha_renuncia',
         'periodo_prueba', 'id_centro_costo', 'fecha_insercion'
     ];

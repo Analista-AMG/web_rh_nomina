@@ -216,19 +216,20 @@
 
                             <!-- Numero de Cuenta -->
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Numero de Cuenta</label>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Numero de Cuenta *</label>
                                 <input
                                     type="text"
                                     id="crear-numero-cuenta"
                                     name="numero_cuenta"
                                     class="w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 py-2.5 px-4"
                                     placeholder="Ej: 123-456-789"
+                                    required
                                 >
                             </div>
 
                             <!-- Codigo Interbancario -->
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Codigo Interbancario (CCI)</label>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Codigo Interbancario (CCI) *</label>
                                 <input
                                     type="text"
                                     id="crear-codigo-interbancario"
@@ -236,6 +237,33 @@
                                     class="w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 py-2.5 px-4"
                                     placeholder="20 digitos"
                                     maxlength="20"
+                                    required
+                                >
+                            </div>
+
+                            <!-- Numero de Cuenta CTS -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Numero de Cuenta CTS</label>
+                                <input
+                                    type="text"
+                                    id="crear-numero-cuenta-cts"
+                                    name="numero_cuenta_cts"
+                                    class="w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 py-2.5 px-4"
+                                    placeholder="Opcional"
+                                    maxlength="50"
+                                >
+                            </div>
+
+                            <!-- Codigo Interbancario CTS -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Codigo Interbancario CTS</label>
+                                <input
+                                    type="text"
+                                    id="crear-codigo-interbancario-cts"
+                                    name="codigo_interbancario_cts"
+                                    class="w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 py-2.5 px-4"
+                                    placeholder="Opcional"
+                                    maxlength="500"
                                 >
                             </div>
                         </div>

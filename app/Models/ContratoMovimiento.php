@@ -34,6 +34,8 @@ class ContratoMovimiento extends Model
         'id_banco',
         'numero_cuenta',
         'codigo_interbancario',
+        'numero_cuenta_cts',
+        'codigo_interbancario_cts',
         'id_moneda',
         'inicio',
         'fin',

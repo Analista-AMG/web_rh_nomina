@@ -146,8 +146,10 @@ class ContratoController extends Controller
             'haber_basico' => 'required|numeric|min:0',
             'asignacion_familiar' => 'nullable',
             'movilidad' => 'nullable|numeric|min:0',
-            'numero_cuenta' => 'nullable|string|max:100',
-            'codigo_interbancario' => 'nullable|string|max:20',
+            'numero_cuenta' => 'required|string|max:100',
+            'codigo_interbancario' => 'required|string|max:20',
+            'numero_cuenta_cts' => 'nullable|string|max:50',
+            'codigo_interbancario_cts' => 'nullable|string|max:500',
             'periodo_prueba' => 'nullable',
         ]);
 

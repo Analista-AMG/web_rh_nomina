@@ -107,6 +107,18 @@
                         <input type="text" id="view-codigo-interbancario" class="w-full bg-gray-100 dark:bg-gray-800 border-none rounded-lg text-gray-800 dark:text-gray-200" readonly>
                     </div>
 
+                    <!-- Número de Cuenta CTS -->
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-500 mb-1">Número de Cuenta CTS</label>
+                        <input type="text" id="view-numero-cuenta-cts" class="w-full bg-gray-100 dark:bg-gray-800 border-none rounded-lg text-gray-800 dark:text-gray-200" readonly>
+                    </div>
+
+                    <!-- Código Interbancario CTS -->
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-500 mb-1">Código Interbancario CTS</label>
+                        <input type="text" id="view-codigo-interbancario-cts" class="w-full bg-gray-100 dark:bg-gray-800 border-none rounded-lg text-gray-800 dark:text-gray-200" readonly>
+                    </div>
+
                     <!-- Moneda -->
                     <div>
                         <label class="block text-sm font-semibold text-gray-500 mb-1">Moneda</label>

@@ -3,98 +3,192 @@
 namespace App\Http\Controllers;
 
 use App\Models\Asistencia;
+use App\Models\Calendario;
 use App\Models\Contrato;
 use App\Models\ItemAsistencia;
-use App\Models\Calendario;
 use App\Models\Pago;
 use App\Models\Planilla;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
-use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class AsistenciaController extends Controller
 {
     public function index(Request $request)
     {
-        $pagos = Pago::orderBy('periodo', 'desc')
+        $pagosBase = Pago::select('id_pago', 'periodo', 'quincena', 'inicio', 'fin')
+            ->orderBy('periodo', 'desc')
             ->orderBy('quincena', 'desc')
             ->get();
+        $pagosAsc = $pagosBase->sortBy('inicio')->values();
 
         $planillas = Planilla::orderBy('nombre_planilla')->get();
+        $itemsAsistencia = ItemAsistencia::all();
 
         $pagoSeleccionado = null;
         $contratos = collect();
         $fechas = [];
-        $feriados = []; // Inicializamos la variable
-        $itemsAsistencia = ItemAsistencia::all();
+        $feriados = [];
 
-        if ($request->has('id_pago') && $request->id_pago) {
+        $minFechaPago = $pagosAsc->isNotEmpty() ? Carbon::parse($pagosAsc->first()->inicio)->toDateString() : null;
+        $maxFechaPago = $pagosAsc->isNotEmpty() ? Carbon::parse($pagosAsc->last()->fin)->toDateString() : null;
+        $rangosPago = $pagosAsc->map(function ($pago) {
+            return [
+                'inicio' => Carbon::parse($pago->inicio)->toDateString(),
+                'fin' => Carbon::parse($pago->fin)->toDateString(),
+            ];
+        })->values();
+
+        $fechaInicioRango = null;
+        $fechaFinRango = null;
+        if ($request->filled('fecha_inicio') && $request->filled('fecha_fin')) {
+            try {
+                $fechaInicioRango = Carbon::parse($request->fecha_inicio)->startOfDay();
+                $fechaFinRango = Carbon::parse($request->fecha_fin)->endOfDay();
+                if ($fechaFinRango->lt($fechaInicioRango)) {
+                    $fechaInicioRango = null;
+                    $fechaFinRango = null;
+                }
+            } catch (\Exception $e) {
+                $fechaInicioRango = null;
+                $fechaFinRango = null;
+            }
+        }
+
+        if ($fechaInicioRango && $fechaFinRango) {
+            $hayCobertura = $pagosAsc->contains(function ($pago) use ($fechaInicioRango, $fechaFinRango) {
+                $inicioPago = Carbon::parse($pago->inicio)->startOfDay();
+                $finPago = Carbon::parse($pago->fin)->endOfDay();
+                return $inicioPago->lte($fechaFinRango) && $finPago->gte($fechaInicioRango);
+            });
+            if (!$hayCobertura) {
+                $fechaInicioRango = null;
+                $fechaFinRango = null;
+            }
+        }
+
+        $quincenas = collect();
+        if ($fechaInicioRango && $fechaFinRango) {
+            $quincenas = $pagosAsc
+                ->filter(function ($pago) use ($fechaInicioRango, $fechaFinRango) {
+                    $inicioPago = Carbon::parse($pago->inicio)->startOfDay();
+                    $finPago = Carbon::parse($pago->fin)->endOfDay();
+                    return $inicioPago->lte($fechaFinRango) && $finPago->gte($fechaInicioRango);
+                })
+                ->values()
+                ->map(function ($pago) {
+                    return [
+                        'id_pago' => $pago->id_pago,
+                        'label' => Carbon::parse($pago->inicio)->format('d/m/Y')
+                            . ' - '
+                            . Carbon::parse($pago->fin)->format('d/m/Y')
+                            . ' (Q'
+                            . $pago->quincena
+                            . ')',
+                    ];
+                });
+        }
+
+        $fechaInicio = null;
+        $fechaFin = null;
+
+        if ($request->filled('id_pago')) {
             $pagoSeleccionado = Pago::find($request->id_pago);
-
             if ($pagoSeleccionado) {
-                $fechaInicio = Carbon::parse($pagoSeleccionado->inicio);
-                $fechaFin = Carbon::parse($pagoSeleccionado->fin);
+                $inicioPago = Carbon::parse($pagoSeleccionado->inicio)->startOfDay();
+                $finPago = Carbon::parse($pagoSeleccionado->fin)->endOfDay();
+                if ($fechaInicioRango && $fechaFinRango) {
+                    $fechaInicio = $fechaInicioRango->copy()->max($inicioPago);
+                    $fechaFin = $fechaFinRango->copy()->min($finPago);
+                } else {
+                    $fechaInicio = $inicioPago;
+                    $fechaFin = $finPago;
+                }
+            }
+        } elseif ($fechaInicioRango && $fechaFinRango) {
+            $fechaInicio = $fechaInicioRango;
+            $fechaFin = $fechaFinRango;
+        }
 
-                // Obtener feriados del periodo
-                $feriados = Calendario::whereBetween('fecha', [$fechaInicio, $fechaFin])
+        if ($fechaInicio && $fechaFin && $fechaInicio->lte($fechaFin)) {
+            $fechasValidas = collect();
+            $pagosCobertura = $pagosAsc->filter(function ($pago) use ($fechaInicio, $fechaFin) {
+                $inicioPago = Carbon::parse($pago->inicio)->startOfDay();
+                $finPago = Carbon::parse($pago->fin)->endOfDay();
+                return $inicioPago->lte($fechaFin) && $finPago->gte($fechaInicio);
+            });
+
+            foreach ($pagosCobertura as $pago) {
+                $segInicio = Carbon::parse($pago->inicio)->startOfDay()->max($fechaInicio);
+                $segFin = Carbon::parse($pago->fin)->endOfDay()->min($fechaFin);
+                foreach (CarbonPeriod::create($segInicio, $segFin) as $f) {
+                    $fechasValidas->push($f->copy());
+                }
+            }
+
+            $fechasValidas = $fechasValidas
+                ->sortBy(fn ($f) => $f->toDateString())
+                ->unique(fn ($f) => $f->toDateString())
+                ->values();
+
+            if ($fechasValidas->isNotEmpty()) {
+                if (!$pagoSeleccionado) {
+                    $pagoSeleccionado = (object) [
+                        'inicio' => $fechasValidas->first()->toDateString(),
+                        'fin' => $fechasValidas->last()->toDateString(),
+                    ];
+                }
+
+                $fechas = $fechasValidas->all();
+                $inicioConsulta = $fechasValidas->first()->copy()->startOfDay();
+                $finConsulta = $fechasValidas->last()->copy()->endOfDay();
+
+                $feriados = Calendario::whereBetween('fecha', [$inicioConsulta, $finConsulta])
                     ->where('tipo_dia', 'Feriado')
                     ->pluck('fecha')
                     ->map(fn ($fecha) => $fecha->format('Y-m-d'))
-                    ->flip() // Usamos flip para tener las fechas como keys para búsqueda rápida (O(1))
+                    ->flip()
                     ->all();
 
-                // Generar array de fechas del periodo
-                $periodo = CarbonPeriod::create($fechaInicio, $fechaFin);
-                foreach ($periodo as $fecha) {
-                    $fechas[] = $fecha->copy();
-                }
-
-                // Obtener contratos que tengan al menos 1 día válido en el periodo
                 $query = Contrato::with(['persona', 'condicion', 'planilla'])
-                    ->where(function ($q) use ($fechaInicio, $fechaFin) {
-                        $q->where('inicio_contrato', '<=', $fechaFin)
-                            ->where(function ($q2) use ($fechaInicio) {
+                    ->where(function ($q) use ($inicioConsulta, $finConsulta) {
+                        $q->where('inicio_contrato', '<=', $finConsulta)
+                            ->where(function ($q2) use ($inicioConsulta) {
                                 $q2->whereNull('fin_contrato')
-                                    ->orWhere('fin_contrato', '>=', $fechaInicio);
+                                    ->orWhere('fin_contrato', '>=', $inicioConsulta);
                             });
                     });
 
-                // Filtro por planilla
                 if ($request->filled('id_planilla')) {
                     $query->where('id_planilla', $request->id_planilla);
                 }
 
-                // Filtro por número de documento
                 if ($request->filled('numero_documento')) {
                     $query->whereHas('persona', function ($q) use ($request) {
                         $q->where('numero_documento', 'like', '%' . $request->numero_documento . '%');
                     });
                 }
 
-                $contratos = $query->get()
-                    ->filter(function ($contrato) use ($fechaInicio, $fechaFin) {
-                        // Verificar que tenga al menos 1 día válido
-                        $inicioContrato = Carbon::parse($contrato->inicio_contrato);
-                        $finContrato = $contrato->fin_contrato ? Carbon::parse($contrato->fin_contrato) : null;
+                $contratos = $query->get()->filter(function ($contrato) use ($fechasValidas) {
+                    $inicioContrato = Carbon::parse($contrato->inicio_contrato);
+                    $finContrato = $contrato->fin_contrato ? Carbon::parse($contrato->fin_contrato) : null;
 
-                        foreach (CarbonPeriod::create($fechaInicio, $fechaFin) as $fecha) {
-                            if ($fecha->gte($inicioContrato) && (!$finContrato || $fecha->lte($finContrato))) {
-                                return true;
-                            }
+                    foreach ($fechasValidas as $fecha) {
+                        if ($fecha->gte($inicioContrato) && (!$finContrato || $fecha->lte($finContrato))) {
+                            return true;
                         }
-                        return false;
-                    });
+                    }
+                    return false;
+                });
 
-                // Cargar asistencias existentes
                 $asistenciasExistentes = Asistencia::whereIn('id_contrato', $contratos->pluck('id_contrato'))
-                    ->whereBetween('fecha', [$fechaInicio, $fechaFin])
+                    ->whereBetween('fecha', [$inicioConsulta, $finConsulta])
                     ->get()
                     ->keyBy(function ($item) {
                         return $item->id_contrato . '_' . $item->fecha->format('Y-m-d');
                     });
 
-                // Agregar asistencias a cada contrato
                 $contratos = $contratos->map(function ($contrato) use ($asistenciasExistentes, $fechas) {
                     $asistenciasContrato = [];
                     foreach ($fechas as $fecha) {
@@ -107,7 +201,18 @@ class AsistenciaController extends Controller
             }
         }
 
-        return view('asistencia.index', compact('pagos', 'planillas', 'pagoSeleccionado', 'contratos', 'fechas', 'itemsAsistencia', 'feriados'));
+        return view('asistencia.index', compact(
+            'quincenas',
+            'planillas',
+            'pagoSeleccionado',
+            'contratos',
+            'fechas',
+            'itemsAsistencia',
+            'feriados',
+            'minFechaPago',
+            'maxFechaPago',
+            'rangosPago'
+        ));
     }
 
     public function guardar(Request $request): JsonResponse
@@ -128,12 +233,11 @@ class AsistenciaController extends Controller
         $inicioContrato = Carbon::parse($contrato->inicio_contrato);
         $finContrato = $contrato->fin_contrato ? Carbon::parse($contrato->fin_contrato) : null;
 
-        // Validar que la fecha esté dentro del rango del contrato
+        // Validar que la fecha este dentro del rango del contrato
         if ($fecha->lt($inicioContrato) || ($finContrato && $fecha->gt($finContrato))) {
             return response()->json(['error' => 'Fecha fuera del rango del contrato'], 400);
         }
 
-        // Buscar si ya existe asistencia para esta fecha y contrato
         $asistencia = Asistencia::where('id_contrato', $request->id_contrato)
             ->where('fecha', $request->fecha)
             ->first();
@@ -144,17 +248,14 @@ class AsistenciaController extends Controller
                     'id_cod_asistencia' => $request->id_cod_asistencia,
                 ]);
             } else {
-                $asistencia = Asistencia::create([
+                Asistencia::create([
                     'id_contrato' => $request->id_contrato,
                     'fecha' => $request->fecha,
                     'id_cod_asistencia' => $request->id_cod_asistencia,
                 ]);
             }
-        } else {
-            // Si no hay valor, eliminar la asistencia si existe
-            if ($asistencia) {
-                $asistencia->delete();
-            }
+        } elseif ($asistencia) {
+            $asistencia->delete();
         }
 
         return response()->json(['success' => true]);

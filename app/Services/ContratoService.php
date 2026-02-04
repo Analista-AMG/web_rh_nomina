@@ -130,6 +130,8 @@ class ContratoService
                 'asignacion_familiar' => $ultimoMovimiento->asignacion_familiar ?? $ultimoContrato->asignacion_familiar ?? false,
                 'numero_cuenta' => $ultimoMovimiento->numero_cuenta ?? $ultimoContrato->numero_cuenta,
                 'codigo_interbancario' => $ultimoMovimiento->codigo_interbancario ?? $ultimoContrato->codigo_interbancario,
+                'numero_cuenta_cts' => $ultimoMovimiento->numero_cuenta_cts ?? $ultimoContrato->numero_cuenta_cts,
+                'codigo_interbancario_cts' => $ultimoMovimiento->codigo_interbancario_cts ?? $ultimoContrato->codigo_interbancario_cts,
                 'periodo_prueba' => false, // Normalmente no aplica en renovaciones/reingresos
             ];
         }
@@ -200,6 +202,8 @@ class ContratoService
                 'id_banco' => $datos['id_banco'],
                 'numero_cuenta' => $datos['numero_cuenta'] ?? null,
                 'codigo_interbancario' => $datos['codigo_interbancario'] ?? null,
+                'numero_cuenta_cts' => $datos['numero_cuenta_cts'] ?? null,
+                'codigo_interbancario_cts' => $datos['codigo_interbancario_cts'] ?? null,
                 'id_moneda' => $datos['id_moneda'],
                 'inicio_contrato' => $datos['inicio_contrato'],
                 'fin_contrato' => $datos['fin_contrato'],
@@ -221,6 +225,8 @@ class ContratoService
                 'id_banco' => $datos['id_banco'],
                 'numero_cuenta' => $datos['numero_cuenta'] ?? null,
                 'codigo_interbancario' => $datos['codigo_interbancario'] ?? null,
+                'numero_cuenta_cts' => $datos['numero_cuenta_cts'] ?? null,
+                'codigo_interbancario_cts' => $datos['codigo_interbancario_cts'] ?? null,
                 'id_moneda' => $datos['id_moneda'],
                 'inicio' => $datos['inicio_contrato'],
                 'fin' => $datos['fin_contrato'],

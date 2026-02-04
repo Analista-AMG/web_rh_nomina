@@ -7,21 +7,33 @@
 
     <!-- Filtros -->
     <div class="mb-6 bg-white dark:bg-[#273142] rounded-xl p-4 shadow-sm border border-light-border dark:border-dark-border">
-        <form method="GET" action="{{ route('asistencia.index') }}" class="flex flex-wrap items-end gap-4">
-            <div class="min-w-[200px]">
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Periodo</label>
-                <select name="id_pago" id="id_pago" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50">
-                    <option value="">Seleccione un periodo</option>
-                    @foreach($pagos as $pago)
-                        <option value="{{ $pago->id_pago }}" {{ ($pagoSeleccionado && $pagoSeleccionado->id_pago == $pago->id_pago) ? 'selected' : '' }}>
-                            {{ $pago->periodo }} - Q{{ $pago->quincena }} ({{ \Carbon\Carbon::parse($pago->inicio)->format('d/m') }} - {{ \Carbon\Carbon::parse($pago->fin)->format('d/m') }})
+        <form method="GET" action="{{ route('asistencia.index') }}" class="flex flex-wrap items-end gap-4" id="asistencia-filtros">
+            <div class="min-w-[170px]">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Fecha inicio</label>
+                <input type="date" name="fecha_inicio" id="fecha_inicio" value="{{ request('fecha_inicio') }}"
+                    min="{{ $minFechaPago }}" max="{{ $maxFechaPago }}"
+                    class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50">
+            </div>
+            <div class="min-w-[170px]">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Fecha fin</label>
+                <input type="date" name="fecha_fin" id="fecha_fin" value="{{ request('fecha_fin') }}"
+                    min="{{ $minFechaPago }}" max="{{ $maxFechaPago }}"
+                    class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50">
+            </div>
+            <div class="min-w-[160px]">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Quincena</label>
+                <select name="id_pago" id="id_pago" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50" {{ request('fecha_inicio') && request('fecha_fin') ? '' : 'disabled' }}>
+                    <option value="">Seleccione</option>
+                    @foreach($quincenas as $q)
+                        <option value="{{ $q['id_pago'] }}" {{ request('id_pago') == $q['id_pago'] ? 'selected' : '' }}>
+                            {{ $q['label'] }}
                         </option>
                     @endforeach
                 </select>
             </div>
             <div class="min-w-[180px]">
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Planilla</label>
-                <select name="id_planilla" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50">
+                <select name="id_planilla" id="id_planilla" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50">
                     <option value="">Todas</option>
                     @foreach($planillas as $planilla)
                         <option value="{{ $planilla->id_planilla }}" {{ request('id_planilla') == $planilla->id_planilla ? 'selected' : '' }}>
@@ -34,13 +46,10 @@
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">N° Documento</label>
                 <div class="relative">
                     <i class="fa-solid fa-id-card absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
-                    <input type="text" name="numero_documento" value="{{ request('numero_documento') }}" placeholder="Buscar documento"
+                    <input type="text" name="numero_documento" id="numero_documento" value="{{ request('numero_documento') }}" placeholder="Buscar documento"
                         class="w-full pl-10 pr-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50">
                 </div>
             </div>
-            <button type="submit" class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors">
-                <i class="fa-solid fa-filter mr-2"></i>Filtrar
-            </button>
         </form>
     </div>
 
@@ -65,6 +74,37 @@
         <div class="overflow-x-auto bg-white dark:bg-[#273142] rounded-xl shadow-sm border border-light-border dark:border-dark-border">
             <table class="w-full text-sm">
                 <thead class="bg-gray-50 dark:bg-[#1e2836]">
+                    @php
+                        $mesSpans = [];
+                        $mesActual = null;
+                        foreach ($fechas as $f) {
+                            $key = $f->format('Y-m');
+                            if ($mesActual === null || $mesActual !== $key) {
+                                $mesSpans[] = [
+                                    'key' => $key,
+                                    'label' => $f->locale('es')->isoFormat('MMMM YYYY'),
+                                    'count' => 1,
+                                ];
+                                $mesActual = $key;
+                            } else {
+                                $mesSpans[count($mesSpans) - 1]['count']++;
+                            }
+                        }
+                    @endphp
+                    <tr>
+                        <th class="sticky left-0 z-10 bg-gray-50 dark:bg-[#1e2836] px-4 py-2 text-left text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-r border-gray-200 dark:border-gray-700 min-w-[250px]">
+                            Mes
+                        </th>
+                        <th class="px-3 py-2 text-center text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-r border-gray-200 dark:border-gray-700 min-w-[80px]"></th>
+                        <th class="px-3 py-2 text-center text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-r border-gray-200 dark:border-gray-700 min-w-[100px]"></th>
+                        <th class="px-3 py-2 text-center text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-r border-gray-200 dark:border-gray-700"></th>
+                        <th class="px-3 py-2 text-center text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-r border-gray-200 dark:border-gray-700"></th>
+                        @foreach($mesSpans as $m)
+                            <th colspan="{{ $m['count'] }}" class="px-1 py-2 text-center text-sm font-bold uppercase tracking-widest text-gray-700 dark:text-gray-100 border-r border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-[#222c3a]">
+                                {{ $m['label'] }}
+                            </th>
+                        @endforeach
+                    </tr>
                     <tr>
                         <th class="sticky left-0 z-10 bg-gray-50 dark:bg-[#1e2836] px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-r border-gray-200 dark:border-gray-700 min-w-[250px]">
                             Colaborador
@@ -205,6 +245,70 @@
     @push('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            const filtroForm = document.getElementById('asistencia-filtros');
+            const fechaInicio = document.getElementById('fecha_inicio');
+            const fechaFin = document.getElementById('fecha_fin');
+            const idPago = document.getElementById('id_pago');
+            const planilla = document.getElementById('id_planilla');
+            const doc = document.getElementById('numero_documento');
+            const rangosPago = @json($rangosPago);
+
+            const submitForm = () => {
+                if (filtroForm) filtroForm.submit();
+            };
+
+            const dateCoveredByPago = (isoDate) => {
+                if (!isoDate || !Array.isArray(rangosPago)) return false;
+                return rangosPago.some(r => isoDate >= r.inicio && isoDate <= r.fin);
+            };
+
+            const onDateRangeChange = () => {
+                if (idPago) idPago.value = '';
+                if (fechaInicio && fechaFin) {
+                    if (fechaInicio.value && !dateCoveredByPago(fechaInicio.value)) {
+                        alert('La fecha inicio no pertenece a ninguna quincena disponible.');
+                        fechaInicio.value = '';
+                        return;
+                    }
+                    if (fechaFin.value && !dateCoveredByPago(fechaFin.value)) {
+                        alert('La fecha fin no pertenece a ninguna quincena disponible.');
+                        fechaFin.value = '';
+                        return;
+                    }
+                    if (!fechaInicio.value || !fechaFin.value) return;
+                    if (fechaInicio.value > fechaFin.value) return;
+                }
+                submitForm();
+            };
+
+            if (fechaInicio) {
+                fechaInicio.addEventListener('change', onDateRangeChange);
+            }
+            if (fechaFin) {
+                fechaFin.addEventListener('change', onDateRangeChange);
+            }
+            if (idPago) {
+                idPago.addEventListener('change', () => {
+                    if (fechaInicio && fechaFin && fechaInicio.value && fechaFin.value && fechaInicio.value > fechaFin.value) return;
+                    submitForm();
+                });
+            }
+            if (planilla) planilla.addEventListener('change', submitForm);
+
+            if (doc) {
+                let t = null;
+                doc.addEventListener('input', () => {
+                    clearTimeout(t);
+                    t = setTimeout(submitForm, 450);
+                });
+                doc.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        submitForm();
+                    }
+                });
+            }
+
             // Mapeo de códigos de asistencia a sus IDs
             const itemsAsistenciaMap = @json($itemsAsistencia->mapWithKeys(function ($item) {
                 return [$item->codigo_asistencia => $item->id_cod_asistencia];
