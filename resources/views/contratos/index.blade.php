@@ -80,7 +80,7 @@
                     <td class="bg-white dark:bg-[#273142] px-6 py-2.5 text-left rounded-l-xl border-y border-l border-light-border dark:border-dark-border group-hover:bg-gray-50 dark:group-hover:bg-[#323d4d] transition-all duration-300 shadow-sm">
                         <div class="flex items-center gap-3">
                             <div class="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold">
-                                {{ substr($contrato->persona->apellido_paterno ?? '?', 0, 1) }}{{ substr($contrato->persona->nombres ?? '?', 0, 1) }}
+                                {{ mb_substr($contrato->persona->apellido_paterno ?? '?', 0, 1, 'UTF-8') }}{{ mb_substr($contrato->persona->nombres ?? '?', 0, 1, 'UTF-8') }}
                             </div>
                             <div class="flex flex-col">
                                 <span class="text-sm font-bold text-gray-800 dark:text-white leading-tight">
@@ -125,7 +125,7 @@
                                 data-banco="{{ $contrato->banco->nombre_banco ?? 'N/A' }}"
                                 data-moneda="{{ $contrato->moneda->nombre_moneda ?? 'N/A' }}"
                                 data-centro-costo="{{ $contrato->centroCosto->nombre_centro_costo ?? 'N/A' }}"
-                                data-familia="{{ $contrato->familia->familia ?? 'N/A' }}" 
+                                data-familia="{{ $contrato->familia->nombre_familia ?? 'N/A' }}" 
                                 data-inicio="{{ $inicio }}"
                                 data-fin="{{ $fin }}"
                                 data-fecha-renuncia="{{ $contrato->fecha_renuncia ? \Carbon\Carbon::parse($contrato->fecha_renuncia)->format('d/m/Y') : 'No registrada' }}"
@@ -168,13 +168,23 @@
                             
                             {{-- Botón Baja --}}
                             @can('contratos.baja')
+                            @php
+                                $bajaData = $contrato->baja ? json_encode([
+                                    'id_baja' => $contrato->baja->id_baja,
+                                    'fecha_baja' => $contrato->baja->fecha_baja ? $contrato->baja->fecha_baja->format('Y-m-d') : '',
+                                    'motivo_baja' => $contrato->baja->motivo_baja ?? '',
+                                    'aviso_con_15_dias' => $contrato->baja->aviso_con_15_dias ? '1' : '0',
+                                    'recomienda_reingreso' => $contrato->baja->recomienda_reingreso ? '1' : '0',
+                                    'observacion' => $contrato->baja->observacion ?? '',
+                                ]) : '{}';
+                            @endphp
                             <x-ui.action-button type="baja" class="btn-baja-contrato"
                                 data-contrato-id="{{ $contrato->id_contrato }}"
                                 data-colaborador-nombre="{{ ($contrato->persona->apellido_paterno ?? '') . ' ' . ($contrato->persona->apellido_materno ?? '') . ', ' . ($contrato->persona->nombres ?? '') }}"
                                 data-colaborador-doc="{{ ($contrato->persona->tipo_documento ?? 'DOC') . ': ' . ($contrato->persona->numero_documento ?? '---') }}"
                                 data-contrato-inicio="{{ \Carbon\Carbon::parse($contrato->inicio_contrato)->format('Y-m-d') }}"
                                 data-contrato-fin="{{ $contrato->fin_contrato ? \Carbon\Carbon::parse($contrato->fin_contrato)->format('Y-m-d') : '' }}"
-                                data-fecha-renuncia="{{ $contrato->fecha_renuncia ? \Carbon\Carbon::parse($contrato->fecha_renuncia)->format('Y-m-d') : '' }}" />
+                                data-baja="{{ $bajaData }}" />
                             @endcan
 
                         </div>
@@ -404,11 +414,20 @@
                         // Abrir modal Dar de Baja
                         if (this.classList.contains('btn-baja-contrato')) {
                             const contratoId = this.dataset.contratoId;
-                            const fechaRenunciaActual = this.dataset.fechaRenuncia || '';
-                            const esActualizacion = fechaRenunciaActual !== '';
+
+                            // Parsear datos de baja existente
+                            let bajaData = {};
+                            try {
+                                bajaData = JSON.parse(this.dataset.baja || '{}');
+                            } catch (e) {
+                                console.error('Error parseando datos de baja:', e);
+                            }
+
+                            const esActualizacion = bajaData.id_baja !== undefined;
 
                             document.getElementById('form-baja-contrato').reset();
                             document.getElementById('baja-contrato-id').value = contratoId;
+                            document.getElementById('baja-id').value = bajaData.id_baja || '';
                             document.getElementById('baja-colaborador-nombre').textContent = this.dataset.colaboradorNombre || '';
                             document.getElementById('baja-colaborador-doc').textContent = this.dataset.colaboradorDoc || '';
 
@@ -422,15 +441,31 @@
                             const btnConfirmar = document.getElementById('btn-confirmar-baja');
                             const advertencia = document.getElementById('baja-advertencia-texto');
 
+                            // Mostrar/ocultar botón eliminar
+                            const eliminarContainer = document.getElementById('baja-eliminar-container');
+                            const spacer = document.getElementById('baja-spacer');
+
                             if (esActualizacion) {
-                                inputBajaFecha.value = fechaRenunciaActual;
-                                titulo.textContent = 'Actualizar Fecha de Baja';
+                                // Pre-llenar campos con datos existentes
+                                inputBajaFecha.value = bajaData.fecha_baja || '';
+                                document.getElementById('baja-motivo').value = bajaData.motivo_baja || '';
+                                document.getElementById('baja-aviso-15-dias').value = bajaData.aviso_con_15_dias || '0';
+                                document.getElementById('baja-recomienda-reingreso').value = bajaData.recomienda_reingreso || '1';
+                                document.getElementById('baja-observacion').value = bajaData.observacion || '';
+
+                                titulo.textContent = 'Actualizar Baja';
                                 btnConfirmar.textContent = 'Actualizar Baja';
-                                advertencia.innerHTML = 'Este contrato ya tiene una baja registrada. Puede modificar la fecha si es necesario.';
+                                advertencia.innerHTML = 'Este contrato ya tiene una baja registrada. Puede modificar los datos o eliminarla.';
+
+                                eliminarContainer.classList.remove('hidden');
+                                spacer.classList.add('hidden');
                             } else {
                                 titulo.textContent = 'Dar de Baja';
                                 btnConfirmar.textContent = 'Confirmar Baja';
-                                advertencia.innerHTML = 'Esta acción registrará la fecha de baja en el contrato. El contrato pasará a estado <strong>Finalizado</strong> una vez cumplida la fecha.';
+                                advertencia.innerHTML = 'Esta acción registrará la baja del colaborador. El contrato pasará a estado <strong>Finalizado</strong> una vez cumplida la fecha.';
+
+                                eliminarContainer.classList.add('hidden');
+                                spacer.classList.remove('hidden');
                             }
 
                             openModal('baja-contrato-modal');

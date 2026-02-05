@@ -880,24 +880,82 @@
         // ============================================
         // H. Logica de DAR DE BAJA
         // ============================================
-        const btnConfirmarBaja = document.getElementById('btn-confirmar-baja');
-        if (btnConfirmarBaja) {
-            btnConfirmarBaja.addEventListener('click', async () => {
+
+        // H.1 Eliminar Baja
+        const btnEliminarBaja = document.getElementById('btn-eliminar-baja');
+        if (btnEliminarBaja) {
+            btnEliminarBaja.addEventListener('click', async () => {
                 const id = document.getElementById('baja-contrato-id').value;
-                const fechaRenuncia = document.getElementById('baja-fecha').value;
 
                 if (!id) {
                     alert('Error: ID de contrato no encontrado.');
                     return;
                 }
-                if (!fechaRenuncia) {
-                    alert('Seleccione una fecha de baja.');
+
+                if (!confirm('¿Está seguro de eliminar esta baja? El contrato será reactivado.')) {
                     return;
                 }
 
-                if (!confirm('¿Está seguro de dar de baja este contrato?')) {
+                try {
+                    btnEliminarBaja.disabled = true;
+                    btnEliminarBaja.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> Eliminando...';
+
+                    const response = await fetch(`/contratos/${id}/baja`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': csrfToken,
+                            'Accept': 'application/json'
+                        }
+                    });
+
+                    const result = await response.json();
+
+                    if (response.ok && result.success) {
+                        alert(result.message || 'Baja eliminada correctamente');
+                        window.location.reload();
+                    } else {
+                        alert('Error: ' + (result.message || 'No se pudo eliminar la baja'));
+                    }
+                } catch (error) {
+                    console.error(error);
+                    alert('Error de conexión');
+                } finally {
+                    btnEliminarBaja.disabled = false;
+                    btnEliminarBaja.innerHTML = '<i class="fa-solid fa-trash-can mr-2"></i> Eliminar Baja';
+                }
+            });
+        }
+
+        // H.2 Confirmar Baja
+        const btnConfirmarBaja = document.getElementById('btn-confirmar-baja');
+        if (btnConfirmarBaja) {
+            btnConfirmarBaja.addEventListener('click', async () => {
+                const id = document.getElementById('baja-contrato-id').value;
+                const fechaBaja = document.getElementById('baja-fecha').value;
+                const motivoBaja = document.getElementById('baja-motivo').value;
+                const avisoCon15Dias = document.getElementById('baja-aviso-15-dias').value;
+                const recomiendaReingreso = document.getElementById('baja-recomienda-reingreso').value;
+                const observacion = document.getElementById('baja-observacion').value;
+
+                if (!id) {
+                    alert('Error: ID de contrato no encontrado.');
                     return;
                 }
+                if (!fechaBaja) {
+                    alert('Seleccione una fecha de baja.');
+                    return;
+                }
+                if (!motivoBaja) {
+                    alert('Seleccione un motivo de baja.');
+                    return;
+                }
+
+                if (!confirm('¿Está seguro de registrar esta baja?')) {
+                    return;
+                }
+
+                const textoOriginal = btnConfirmarBaja.innerText;
 
                 try {
                     btnConfirmarBaja.disabled = true;
@@ -910,7 +968,13 @@
                             'X-CSRF-TOKEN': csrfToken,
                             'Accept': 'application/json'
                         },
-                        body: JSON.stringify({ fecha_renuncia: fechaRenuncia })
+                        body: JSON.stringify({
+                            fecha_baja: fechaBaja,
+                            motivo_baja: motivoBaja,
+                            aviso_con_15_dias: avisoCon15Dias === '1',
+                            recomienda_reingreso: recomiendaReingreso === '1',
+                            observacion: observacion
+                        })
                     });
 
                     const result = await response.json();
@@ -926,7 +990,7 @@
                     alert('Error de conexión');
                 } finally {
                     btnConfirmarBaja.disabled = false;
-                    btnConfirmarBaja.innerText = 'Confirmar Baja';
+                    btnConfirmarBaja.innerText = textoOriginal;
                 }
             });
         }

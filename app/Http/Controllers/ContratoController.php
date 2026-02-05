@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Baja;
 use App\Models\Contrato;
 use App\Services\ContratoService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class ContratoController extends Controller
@@ -35,6 +37,7 @@ class ContratoController extends Controller
             'moneda',
             'centroCosto',
             'familia',
+            'baja',
             'movimientos.planilla',
             'movimientos.fondoPensiones',
             'movimientos.cargo',
@@ -207,38 +210,97 @@ class ContratoController extends Controller
         }
 
         $validated = $request->validate([
-            'fecha_renuncia' => 'required|date',
+            'fecha_baja' => 'required|date',
+            'motivo_baja' => 'required|string|max:255',
+            'aviso_con_15_dias' => 'required|boolean',
+            'recomienda_reingreso' => 'required|boolean',
+            'observacion' => 'nullable|string|max:1000',
         ]);
 
-        $contrato = Contrato::findOrFail($id);
+        $contrato = Contrato::with('baja')->findOrFail($id);
 
         // Validar que la fecha esté dentro del rango del contrato
         $inicio = $contrato->inicio_contrato;
         $fin = $contrato->fin_contrato;
 
-        if ($validated['fecha_renuncia'] < $inicio) {
+        if ($validated['fecha_baja'] < $inicio) {
             return response()->json([
                 'success' => false,
                 'message' => 'La fecha de baja no puede ser anterior al inicio del contrato.',
             ], 422);
         }
 
-        if ($fin && $validated['fecha_renuncia'] > $fin) {
+        if ($fin && $validated['fecha_baja'] > $fin) {
             return response()->json([
                 'success' => false,
                 'message' => 'La fecha de baja no puede ser posterior al fin del contrato.',
             ], 422);
         }
 
-        $isUpdate = !is_null($contrato->fecha_renuncia);
+        $isUpdate = $contrato->baja !== null;
 
-        $contrato->update(['fecha_renuncia' => $validated['fecha_renuncia']]);
+        DB::transaction(function () use ($contrato, $validated, $isUpdate) {
+            // Actualizar fecha_renuncia en el contrato
+            $contrato->update(['fecha_renuncia' => $validated['fecha_baja']]);
+
+            // Crear o actualizar registro en la tabla de bajas
+            if ($isUpdate) {
+                $contrato->baja->update([
+                    'fecha_baja' => $validated['fecha_baja'],
+                    'motivo_baja' => $validated['motivo_baja'],
+                    'aviso_con_15_dias' => $validated['aviso_con_15_dias'],
+                    'recomienda_reingreso' => $validated['recomienda_reingreso'],
+                    'observacion' => $validated['observacion'],
+                ]);
+            } else {
+                Baja::create([
+                    'id_contrato' => $contrato->id_contrato,
+                    'fecha_baja' => $validated['fecha_baja'],
+                    'motivo_baja' => $validated['motivo_baja'],
+                    'aviso_con_15_dias' => $validated['aviso_con_15_dias'],
+                    'recomienda_reingreso' => $validated['recomienda_reingreso'],
+                    'observacion' => $validated['observacion'],
+                ]);
+            }
+        });
 
         return response()->json([
             'success' => true,
             'message' => $isUpdate
-                ? 'Fecha de baja actualizada correctamente.'
+                ? 'Baja actualizada correctamente.'
                 : 'Baja registrada correctamente.',
+        ]);
+    }
+
+    /**
+     * Eliminar la baja de un contrato.
+     */
+    public function eliminarBaja($id)
+    {
+        if (auth()->user()->cannot('contratos.baja')) {
+            return response()->json(['error' => 'No tienes permiso para eliminar bajas'], 403);
+        }
+
+        $contrato = Contrato::with('baja')->findOrFail($id);
+
+        if (!$contrato->baja) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Este contrato no tiene una baja registrada.',
+            ], 422);
+        }
+
+        DB::transaction(function () use ($contrato) {
+            // Eliminar registro de baja
+            $contrato->baja->delete();
+
+            // Limpiar fecha_renuncia del contrato
+            $contrato->update(['fecha_renuncia' => null]);
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Baja eliminada correctamente. El contrato ha sido reactivado.',
         ]);
     }
 

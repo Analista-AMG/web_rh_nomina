@@ -89,7 +89,7 @@
                                 @if($esCumple)
                                     <i class="fa-solid fa-cake-candles" aria-hidden="true"></i>
                                 @else
-                                    {{ substr($persona->apellido_paterno ?? '?', 0, 1) }}{{ substr($persona->nombres ?? '?', 0, 1) }}
+                                    {{ mb_substr($persona->apellido_paterno ?? '?', 0, 1, 'UTF-8') }}{{ mb_substr($persona->nombres ?? '?', 0, 1, 'UTF-8') }}
                                 @endif
                             </div>
                             <div class="flex flex-col">

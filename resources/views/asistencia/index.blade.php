@@ -158,7 +158,7 @@
                             <td class="sticky left-0 z-10 bg-white dark:bg-[#273142] px-4 py-2 border-r border-gray-200 dark:border-gray-700">
                                 <div class="flex items-center gap-3">
                                     <div class="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary text-sm font-bold flex-shrink-0">
-                                        {{ substr($contrato->persona->nombres ?? '?', 0, 1) }}{{ substr($contrato->persona->apellido_paterno ?? '?', 0, 1) }}
+                                        {{ mb_substr($contrato->persona->nombres ?? '?', 0, 1, 'UTF-8') }}{{ mb_substr($contrato->persona->apellido_paterno ?? '?', 0, 1, 'UTF-8') }}
                                     </div>
                                     <div class="flex flex-col">
                                         <span class="text-sm font-bold text-gray-800 dark:text-white leading-tight">

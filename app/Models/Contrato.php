@@ -83,6 +83,11 @@ class Contrato extends Model
         return $this->hasMany(ContratoMovimiento::class, 'id_contrato', 'id_contrato');
     }
 
+    public function baja()
+    {
+        return $this->hasOne(Baja::class, 'id_contrato', 'id_contrato');
+    }
+
     // Accessor para calcular el estado en tiempo real
     public function getEstadoAttribute(): string
     {

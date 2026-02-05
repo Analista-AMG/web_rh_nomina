@@ -55,10 +55,13 @@ Route::middleware('auth')->group(function () {
         ->delete('/contratos/{contrato}', [App\Http\Controllers\ContratoController::class, 'destroy'])
         ->name('contratos.destroy');
 
-    // Ruta para Dar de Baja
-    Route::middleware(['permission:contratos.baja'])
-        ->put('/contratos/{contrato}/baja', [App\Http\Controllers\ContratoController::class, 'darDeBaja'])
-        ->name('contratos.baja');
+    // Rutas para Dar de Baja
+    Route::middleware(['permission:contratos.baja'])->group(function () {
+        Route::put('/contratos/{contrato}/baja', [App\Http\Controllers\ContratoController::class, 'darDeBaja'])
+            ->name('contratos.baja');
+        Route::delete('/contratos/{contrato}/baja', [App\Http\Controllers\ContratoController::class, 'eliminarBaja'])
+            ->name('contratos.baja.destroy');
+    });
 
     // Rutas para Movimientos de Contratos
     Route::middleware(['permission:contratos.create'])
