@@ -66,29 +66,35 @@
             </li>
             @endcan
 
-            @role('super_admin')
+            @canany(['users.view', 'roles.view', 'audit.view'])
             <li class="pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
                 <p class="px-4 text-xs font-semibold text-gray-400 uppercase mb-2 sidebar-text">Administración</p>
             </li>
+            @endcanany
+            @can('users.view')
             <li>
                 <a href="{{ route('admin.users.index') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg {{ request()->routeIs('admin.users.*') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors group" title="Gestión de Usuarios">
                     <i class="fa-solid fa-users-cog text-lg flex-shrink-0"></i>
                     <span class="sidebar-text font-medium">Usuarios</span>
                 </a>
             </li>
+            @endcan
+            @can('roles.view')
             <li>
                 <a href="{{ route('admin.roles.index') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg {{ request()->routeIs('admin.roles.*') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors group" title="Gestión de Roles">
                     <i class="fa-solid fa-shield-halved text-lg flex-shrink-0"></i>
                     <span class="sidebar-text font-medium">Roles y Permisos</span>
                 </a>
             </li>
+            @endcan
+            @can('audit.view')
             <li>
                 <a href="{{ route('admin.audit.index') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg {{ request()->routeIs('admin.audit.*') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors group" title="Auditoría">
                     <i class="fa-solid fa-clock-rotate-left text-lg flex-shrink-0"></i>
                     <span class="sidebar-text font-medium">Auditoría</span>
                 </a>
             </li>
-            @endrole
+            @endcan
         </ul>
     </nav>
     

@@ -174,10 +174,11 @@
                     fetch('/api/condiciones'),
                     fetch('/api/bancos'),
                     fetch('/api/centros-costo'),
+                    fetch('/api/familias'),
                     fetch('/api/monedas')
                 ]);
 
-                const [cargos, planillas, fondosPensiones, condiciones, bancos, centrosCosto, monedas] = await Promise.all(
+                const [cargos, planillas, fondosPensiones, condiciones, bancos, centrosCosto, familias, monedas] = await Promise.all(
                     responses.map(r => r.json())
                 );
                 // TABLA MOVIMIENTOS
@@ -187,6 +188,7 @@
                 populateSelect('edit-mov-condicion-id', condiciones, 'id_condicion', 'nombre_condicion');// Llenar select de Condiciones
                 populateSelect('edit-mov-banco-id', bancos, 'id_banco', 'nombre_banco');// Llenar select de Bancos
                 populateSelect('edit-mov-centro-costo-id', centrosCosto, 'id_centro_costo', 'nombre'); // Llenar select de Centros de Costo
+                populateSelect('edit-mov-familia-id', familias, 'id_familia', 'nombre'); // Llenar select de Centros de Costo
                 populateSelect('edit-mov-moneda-id', monedas, 'id_moneda', 'nombre_moneda');// Llenar select de Monedas
 
                 // MODAL AÑADIR MOVIMIENTO
@@ -196,6 +198,7 @@
                 populateSelect('add-mov-condicion-id', condiciones, 'id_condicion', 'nombre_condicion');
                 populateSelect('add-mov-banco-id', bancos, 'id_banco', 'nombre_banco');
                 populateSelect('add-mov-centro-costo-id', centrosCosto, 'id_centro_costo', 'nombre');
+                populateSelect('add-mov-familia-id', familias, 'id_familia', 'nombre');
                 populateSelect('add-mov-moneda-id', monedas, 'id_moneda', 'nombre_moneda');
 
                 window.selectsLoaded = true;
@@ -585,6 +588,9 @@
                 if (datosUltimo.id_centro_costo) {
                     document.getElementById('crear-centro-costo').value = datosUltimo.id_centro_costo;
                 }
+                if (datosUltimo.id_familia) {
+                    document.getElementById('crear-familia').value = datosUltimo.id_familia;
+                }
 
                 // Campos de texto/numero
                 if (datosUltimo.haber_basico) {
@@ -623,10 +629,11 @@
                     fetch('/api/condiciones'),
                     fetch('/api/bancos'),
                     fetch('/api/centros-costo'),
+                    fetch('/api/familias'),
                     fetch('/api/monedas')
                 ]);
 
-                const [cargos, planillas, fondosPensiones, condiciones, bancos, centrosCosto, monedas] = await Promise.all(
+                const [cargos, planillas, fondosPensiones, condiciones, bancos, centrosCosto, familias,  monedas] = await Promise.all(
                     responses.map(r => r.json())
                 );
 
@@ -636,6 +643,7 @@
                 populateSelect('crear-condicion', condiciones, 'id_condicion', 'nombre_condicion');
                 populateSelect('crear-banco', bancos, 'id_banco', 'nombre_banco');
                 populateSelect('crear-centro-costo', centrosCosto, 'id_centro_costo', 'nombre');
+                populateSelect('crear-familia', familias, 'id_familia', 'nombre');
                 populateSelect('crear-moneda', monedas, 'id_moneda', 'nombre_moneda');
 
             } catch (error) {
@@ -771,6 +779,7 @@
                     id_condicion: document.getElementById('edit-mov-condicion-id').value,
                     id_banco: document.getElementById('edit-mov-banco-id').value,
                     id_centro_costo: document.getElementById('edit-mov-centro-costo-id').value,
+                    id_familia: document.getElementById('edit-mov-familia-id').value,
                     id_moneda: document.getElementById('edit-mov-moneda-id').value
                 };
 
@@ -833,6 +842,7 @@
                     id_condicion: document.getElementById('add-mov-condicion-id').value,
                     id_banco: document.getElementById('add-mov-banco-id').value,
                     id_centro_costo: document.getElementById('add-mov-centro-costo-id').value,
+                    id_familia: document.getElementById('add-mov-familia-id').value,
                     id_moneda: document.getElementById('add-mov-moneda-id').value
                 };
 

@@ -14,8 +14,8 @@ class RoleController extends Controller
      */
     public function index()
     {
-        // Verificar que solo super_admin puede acceder
-        abort_unless(auth()->user()->hasRole('super_admin'), 403);
+        // Verificar permiso de ver roles
+        abort_unless(auth()->user()->can('roles.view'), 403);
 
         $roles = Role::with('permissions')->get();
         $permissions = Permission::all()->groupBy(function($permission) {
@@ -31,13 +31,20 @@ class RoleController extends Controller
     public function store(Request $request)
     {
         // Verificar permiso
-        abort_unless(auth()->user()->hasRole('super_admin'), 403);
+        abort_unless(auth()->user()->can('roles.manage'), 403);
 
         $request->validate([
             'name' => 'required|string|max:255|unique:roles,name',
             'permissions' => 'array',
             'permissions.*' => 'exists:permissions,name'
         ]);
+
+        // No permitir crear un rol llamado Administrador
+        if (strtolower($request->name) === 'administrador') {
+            return response()->json([
+                'error' => 'No se puede crear un rol con el nombre Administrador'
+            ], 403);
+        }
 
         $role = Role::create(['name' => $request->name]);
 
@@ -70,7 +77,7 @@ class RoleController extends Controller
     public function updatePermissions(Request $request, $roleId)
     {
         // Verificar permiso
-        abort_unless(auth()->user()->hasRole('super_admin'), 403);
+        abort_unless(auth()->user()->can('roles.manage'), 403);
 
         $request->validate([
             'permissions' => 'array',
@@ -79,10 +86,10 @@ class RoleController extends Controller
 
         $role = Role::findOrFail($roleId);
 
-        // No permitir modificar rol super_admin
-        if ($role->name === 'super_admin') {
+        // No permitir modificar rol Administrador (solo Administrador puede hacerlo)
+        if ($role->name === 'Administrador' && !auth()->user()->hasRole('Administrador')) {
             return response()->json([
-                'error' => 'No se puede modificar el rol super_admin'
+                'error' => 'No se puede modificar el rol Administrador'
             ], 403);
         }
 
@@ -114,14 +121,14 @@ class RoleController extends Controller
     public function destroy($roleId)
     {
         // Verificar permiso
-        abort_unless(auth()->user()->hasRole('super_admin'), 403);
+        abort_unless(auth()->user()->can('roles.manage'), 403);
 
         $role = Role::findOrFail($roleId);
 
-        // No permitir eliminar roles base
-        if (in_array($role->name, ['super_admin', 'admin_rrhh', 'supervisor', 'viewer'])) {
+        // No permitir eliminar Administrador nunca
+        if ($role->name === 'Administrador') {
             return response()->json([
-                'error' => 'No se puede eliminar este rol base'
+                'error' => 'No se puede eliminar el rol Administrador'
             ], 403);
         }
 
@@ -160,7 +167,7 @@ class RoleController extends Controller
     public function show($roleId)
     {
         // Verificar permiso
-        abort_unless(auth()->user()->hasRole('super_admin'), 403);
+        abort_unless(auth()->user()->can('roles.view'), 403);
 
         $role = Role::with(['permissions', 'users'])->findOrFail($roleId);
 

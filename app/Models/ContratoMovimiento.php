@@ -40,6 +40,7 @@ class ContratoMovimiento extends Model
         'inicio',
         'fin',
         'id_centro_costo',
+        'id_familia',
         'estado',
         'tipo_movimiento',
         'fecha_insercion',
@@ -91,5 +92,10 @@ class ContratoMovimiento extends Model
     public function centroCosto()
     {
         return $this->belongsTo(CentroCosto::class, 'id_centro_costo', 'id_centro_costo');
+    }
+
+    public function familia()
+    {
+        return $this->belongsTo(Familia::class, 'id_familia', 'id_familia');
     }
 }

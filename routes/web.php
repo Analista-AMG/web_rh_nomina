@@ -87,24 +87,33 @@ Route::middleware('auth')->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-    // 6. Rutas de Administración (solo super_admin)
-    Route::middleware(['role:super_admin'])->prefix('admin')->name('admin.')->group(function () {
+    // 6. Rutas de Administración (permisos granulares)
+    Route::prefix('admin')->name('admin.')->group(function () {
         // Gestión de Usuarios
-        Route::get('/users', [App\Http\Controllers\Admin\UserManagementController::class, 'index'])->name('users.index');
-        Route::post('/users/{user}/assign-role', [App\Http\Controllers\Admin\UserManagementController::class, 'assignRole'])->name('users.assign-role');
-        Route::post('/users/{user}/remove-role', [App\Http\Controllers\Admin\UserManagementController::class, 'removeRole'])->name('users.remove-role');
-        Route::post('/users/{user}/sync-roles', [App\Http\Controllers\Admin\UserManagementController::class, 'syncRoles'])->name('users.sync-roles');
-        Route::get('/users/{user}/permissions', [App\Http\Controllers\Admin\UserManagementController::class, 'permissions'])->name('users.permissions');
+        Route::middleware(['permission:users.view'])->group(function () {
+            Route::get('/users', [App\Http\Controllers\Admin\UserManagementController::class, 'index'])->name('users.index');
+            Route::get('/users/{user}/permissions', [App\Http\Controllers\Admin\UserManagementController::class, 'permissions'])->name('users.permissions');
+        });
+        Route::middleware(['permission:users.manage'])->group(function () {
+            Route::post('/users/{user}/assign-role', [App\Http\Controllers\Admin\UserManagementController::class, 'assignRole'])->name('users.assign-role');
+            Route::post('/users/{user}/remove-role', [App\Http\Controllers\Admin\UserManagementController::class, 'removeRole'])->name('users.remove-role');
+            Route::post('/users/{user}/sync-roles', [App\Http\Controllers\Admin\UserManagementController::class, 'syncRoles'])->name('users.sync-roles');
+        });
 
         // Auditoría
-        Route::get('/audit', [App\Http\Controllers\Admin\AuditController::class, 'index'])->name('audit.index');
+        Route::middleware(['permission:audit.view'])
+            ->get('/audit', [App\Http\Controllers\Admin\AuditController::class, 'index'])->name('audit.index');
 
         // Gestión de Roles
-        Route::get('/roles', [App\Http\Controllers\Admin\RoleController::class, 'index'])->name('roles.index');
-        Route::post('/roles', [App\Http\Controllers\Admin\RoleController::class, 'store'])->name('roles.store');
-        Route::get('/roles/{role}', [App\Http\Controllers\Admin\RoleController::class, 'show'])->name('roles.show');
-        Route::put('/roles/{role}/permissions', [App\Http\Controllers\Admin\RoleController::class, 'updatePermissions'])->name('roles.update-permissions');
-        Route::delete('/roles/{role}', [App\Http\Controllers\Admin\RoleController::class, 'destroy'])->name('roles.destroy');
+        Route::middleware(['permission:roles.view'])->group(function () {
+            Route::get('/roles', [App\Http\Controllers\Admin\RoleController::class, 'index'])->name('roles.index');
+            Route::get('/roles/{role}', [App\Http\Controllers\Admin\RoleController::class, 'show'])->name('roles.show');
+        });
+        Route::middleware(['permission:roles.manage'])->group(function () {
+            Route::post('/roles', [App\Http\Controllers\Admin\RoleController::class, 'store'])->name('roles.store');
+            Route::put('/roles/{role}/permissions', [App\Http\Controllers\Admin\RoleController::class, 'updatePermissions'])->name('roles.update-permissions');
+            Route::delete('/roles/{role}', [App\Http\Controllers\Admin\RoleController::class, 'destroy'])->name('roles.destroy');
+        });
     });
 
     // API Routes para cargar datos de tablas dimension
@@ -126,6 +135,9 @@ Route::middleware('auth')->group(function () {
         });
         Route::get('/centros-costo', function () {
             return response()->json(\App\Models\CentroCosto::select('id_centro_costo', 'nombre_centro_costo as nombre')->get());
+        });
+        Route::get('/familias', function () {
+            return response()->json(\App\Models\Familia::select('id_familia', 'nombre_familia as nombre')->get());
         });
         Route::get('/monedas', function () {
             return response()->json(\App\Models\Moneda::select('id_moneda', 'nombre_moneda')->get());

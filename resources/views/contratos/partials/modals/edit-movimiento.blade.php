@@ -103,6 +103,14 @@
                             </select>
                         </div>
 
+                        <!-- Familia -->
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Familia</label>
+                            <select id="edit-mov-familia-id" class="w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 py-2.5 px-4">
+                                <option value="">Cargando...</option>
+                            </select>
+                        </div>
+
                         <!-- Moneda -->
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Moneda</label>

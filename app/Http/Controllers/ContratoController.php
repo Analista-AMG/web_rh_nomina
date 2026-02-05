@@ -34,13 +34,14 @@ class ContratoController extends Controller
             'condicion',
             'moneda',
             'centroCosto',
+            'familia',
             'movimientos.planilla',
             'movimientos.fondoPensiones',
             'movimientos.cargo',
             'movimientos.banco',
             'movimientos.condicion',
             'movimientos.moneda',
-            'movimientos.centroCosto'
+            'movimientos.familia'
         ]);
 
         // Filtro por Nombre de Empleado
@@ -141,6 +142,7 @@ class ContratoController extends Controller
             'id_banco' => 'required|integer',
             'id_moneda' => 'required|integer',
             'id_centro_costo' => 'required|integer',
+            'id_familia' => 'required|integer',
             'inicio_contrato' => 'required|date',
             'fin_contrato' => 'required|date|after:inicio_contrato',
             'haber_basico' => 'required|numeric|min:0',
@@ -263,6 +265,7 @@ class ContratoController extends Controller
             'id_condicion' => "nullable|exists:{$conn}.bronze.dim_condicion,id_condicion",
             'id_banco' => "nullable|exists:{$conn}.bronze.dim_banco,id_banco",
             'id_centro_costo' => "nullable|exists:{$conn}.bronze.dim_centro_costo,id_centro_costo",
+            'id_familia' => "nullable|exists:{$conn}.bronze.dim_familia,id_familia",
             'id_moneda' => "nullable|exists:{$conn}.bronze.dim_moneda,id_moneda",
         ]);
 
@@ -302,6 +305,7 @@ class ContratoController extends Controller
             'id_condicion' => "nullable|exists:{$conn}.bronze.dim_condicion,id_condicion",
             'id_banco' => "nullable|exists:{$conn}.bronze.dim_banco,id_banco",
             'id_centro_costo' => "nullable|exists:{$conn}.bronze.dim_centro_costo,id_centro_costo",
+            'id_familia' => "nullable|exists:{$conn}.bronze.dim_familia,id_familia",
             'id_moneda' => "nullable|exists:{$conn}.bronze.dim_moneda,id_moneda",
         ]);
 
@@ -336,6 +340,7 @@ class ContratoController extends Controller
                     'id_banco'            => $movimiento->id_banco,
                     'id_moneda'           => $movimiento->id_moneda,
                     'id_centro_costo'     => $movimiento->id_centro_costo,
+                    'id_familia'          => $movimiento->id_familia,
                     'inicio_contrato'     => $movimiento->inicio,
                     'fin_contrato'        => $movimiento->fin,
                 ]);
@@ -355,7 +360,7 @@ class ContratoController extends Controller
             ], 500);
         }
     }
-    
+
     /**
      * Delete movement or entire contract depending on type.
      */

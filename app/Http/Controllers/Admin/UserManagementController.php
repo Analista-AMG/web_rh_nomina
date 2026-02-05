@@ -14,11 +14,15 @@ class UserManagementController extends Controller
      */
     public function index()
     {
-        // Verificar que solo super_admin puede acceder
-        abort_unless(auth()->user()->hasRole('super_admin'), 403);
+        // Verificar permiso de ver usuarios
+        abort_unless(auth()->user()->can('users.view'), 403);
 
         $users = User::with('roles')->paginate(15);
-        $roles = Role::all();
+
+        // Si no es Administrador, ocultar el rol Administrador de la lista
+        $roles = Role::when(!auth()->user()->hasRole('Administrador'), function ($query) {
+            return $query->where('name', '!=', 'Administrador');
+        })->get();
 
         return view('admin.users.index', compact('users', 'roles'));
     }
@@ -29,11 +33,18 @@ class UserManagementController extends Controller
     public function assignRole(Request $request, $userId)
     {
         // Verificar permiso
-        abort_unless(auth()->user()->hasRole('super_admin'), 403);
+        abort_unless(auth()->user()->can('users.manage'), 403);
 
         $request->validate([
             'role' => 'required|exists:roles,name'
         ]);
+
+        // Solo Administrador puede asignar el rol Administrador
+        if ($request->role === 'Administrador' && !auth()->user()->hasRole('Administrador')) {
+            return response()->json([
+                'error' => 'No tienes permiso para asignar el rol Administrador'
+            ], 403);
+        }
 
         $user = User::findOrFail($userId);
 
@@ -70,11 +81,18 @@ class UserManagementController extends Controller
     public function removeRole(Request $request, $userId)
     {
         // Verificar permiso
-        abort_unless(auth()->user()->hasRole('super_admin'), 403);
+        abort_unless(auth()->user()->can('users.manage'), 403);
 
         $request->validate([
             'role' => 'required|exists:roles,name'
         ]);
+
+        // Solo Administrador puede remover el rol Administrador
+        if ($request->role === 'Administrador' && !auth()->user()->hasRole('Administrador')) {
+            return response()->json([
+                'error' => 'No tienes permiso para remover el rol Administrador'
+            ], 403);
+        }
 
         $user = User::findOrFail($userId);
 
@@ -111,7 +129,7 @@ class UserManagementController extends Controller
     public function syncRoles(Request $request, $userId)
     {
         // Verificar permiso
-        abort_unless(auth()->user()->hasRole('super_admin'), 403);
+        abort_unless(auth()->user()->can('users.manage'), 403);
 
         $request->validate([
             'roles' => 'array',
@@ -127,10 +145,24 @@ class UserManagementController extends Controller
             ], 403);
         }
 
+        // Solo Administrador puede incluir/excluir el rol Administrador
+        $roles = $request->roles ?? [];
+        $userHadAdmin = $user->hasRole('Administrador');
+        $rolesIncludesAdmin = in_array('Administrador', $roles);
+
+        if (!auth()->user()->hasRole('Administrador')) {
+            // Si intenta agregar o quitar Administrador, denegar
+            if ($rolesIncludesAdmin || $userHadAdmin) {
+                return response()->json([
+                    'error' => 'No tienes permiso para modificar el rol Administrador'
+                ], 403);
+            }
+        }
+
         $rolesAntes = $user->getRoleNames()->toArray();
 
         // Sincronizar roles (reemplaza todos)
-        $user->syncRoles($request->roles ?? []);
+        $user->syncRoles($roles);
 
         activity('usuarios')
             ->performedOn($user)
@@ -155,7 +187,7 @@ class UserManagementController extends Controller
     public function permissions($userId)
     {
         // Verificar permiso
-        abort_unless(auth()->user()->hasRole('super_admin'), 403);
+        abort_unless(auth()->user()->can('users.view'), 403);
 
         $user = User::findOrFail($userId);
         $permissions = $user->getAllPermissions()->pluck('name');

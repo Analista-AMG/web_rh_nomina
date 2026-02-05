@@ -11,7 +11,7 @@ class AuditController extends Controller
 {
     public function index(Request $request)
     {
-        abort_unless(auth()->user()->hasRole('super_admin'), 403);
+        abort_unless(auth()->user()->can('audit.view'), 403);
 
         $query = Activity::with(['causer', 'subject'])
             ->latest();

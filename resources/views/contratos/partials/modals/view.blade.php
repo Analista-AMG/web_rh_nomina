@@ -131,6 +131,13 @@
                         <input type="text" id="view-centro-costo" class="w-full bg-gray-100 dark:bg-gray-800 border-none rounded-lg text-gray-800 dark:text-gray-200" readonly>
                     </div>
 
+                    <!-- Familia -->
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-500 mb-1">Familia</label>
+                        <input type="text" id="view-familia" class="w-full bg-gray-100 dark:bg-gray-800 border-none rounded-lg text-gray-800 dark:text-gray-200" readonly>
+                    </div>
+
+
                     <!-- Periodo de Prueba -->
                     <div>
                         <label class="block text-sm font-semibold text-gray-500 mb-1">Periodo de Prueba</label>

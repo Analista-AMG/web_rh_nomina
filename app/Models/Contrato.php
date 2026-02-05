@@ -27,7 +27,7 @@ class Contrato extends Model
         'asignacion_familiar', 'haber_basico', 'movilidad', 'id_banco',
         'numero_cuenta', 'codigo_interbancario',
         'numero_cuenta_cts', 'codigo_interbancario_cts',
-        'id_moneda',
+        'id_moneda', 'id_familia',
         'inicio_contrato', 'fin_contrato', 'fecha_renuncia',
         'periodo_prueba', 'id_centro_costo', 'fecha_insercion'
     ];
@@ -71,6 +71,11 @@ class Contrato extends Model
     public function centroCosto()
     {
         return $this->belongsTo(CentroCosto::class, 'id_centro_costo', 'id_centro_costo');
+    }
+
+    public function familia()
+    {
+        return $this->belongsTo(Familia::class, 'id_familia', 'id_familia');
     }
 
     public function movimientos()

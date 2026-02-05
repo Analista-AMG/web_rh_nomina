@@ -89,8 +89,8 @@
                             </div>
                         </div>
 
-                        <!-- Segunda fila: Cargo, Planilla, Centro de Costo -->
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <!-- Segunda fila: Cargo, Planilla, Centro de Costo y Familia -->
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                             <!-- Cargo -->
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cargo</label>
@@ -129,6 +129,21 @@
                                     <option value="">Cargando...</option>
                                 </select>
                             </div>
+
+                            <!-- Familia -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Familia</label>
+                                <select
+                                    id="crear-familia"
+                                    name="id_familia"
+                                    class="w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 py-2.5 px-4"
+                                    required
+                                >
+                                    <option value="">Cargando...</option>
+                                </select>
+                            </div>
+
+
                         </div>
                     </div>
 

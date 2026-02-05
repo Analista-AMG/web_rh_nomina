@@ -125,6 +125,7 @@
                                 data-banco="{{ $contrato->banco->nombre_banco ?? 'N/A' }}"
                                 data-moneda="{{ $contrato->moneda->nombre_moneda ?? 'N/A' }}"
                                 data-centro-costo="{{ $contrato->centroCosto->nombre_centro_costo ?? 'N/A' }}"
+                                data-familia="{{ $contrato->familia->familia ?? 'N/A' }}" 
                                 data-inicio="{{ $inicio }}"
                                 data-fin="{{ $fin }}"
                                 data-fecha-renuncia="{{ $contrato->fecha_renuncia ? \Carbon\Carbon::parse($contrato->fecha_renuncia)->format('d/m/Y') : 'No registrada' }}"
@@ -149,6 +150,7 @@
                                     'condicion_id' => $ultimoMov->id_condicion,
                                     'banco_id' => $ultimoMov->id_banco,
                                     'centro_costo_id' => $ultimoMov->id_centro_costo,
+                                    'familia_id' => $ultimoMov->id_familia,
                                     'moneda_id' => $ultimoMov->id_moneda,
                                     'haber' => $ultimoMov->haber_basico,
                                     'movilidad' => $ultimoMov->movilidad ?? 0,
@@ -234,6 +236,8 @@
                                         data-mov-banco-id="{{ $mov->id_banco ?? '' }}"
                                         data-mov-centro-costo="{{ $mov->centroCosto->nombre_centro_costo ?? 'N/A' }}"
                                         data-mov-centro-costo-id="{{ $mov->id_centro_costo ?? '' }}"
+                                        data-mov-familia="{{ $mov->familia->nombre_familia ?? 'N/A' }}"
+                                        data-mov-familia-id="{{ $mov->id_familia ?? '' }}"
                                         data-mov-moneda="{{ $mov->moneda->nombre_moneda ?? 'N/A' }}"
                                         data-mov-moneda-id="{{ $mov->id_moneda ?? '' }}"
                                         data-mov-estado="{{ $estadoMov }}"
@@ -346,6 +350,7 @@
                             document.getElementById('view-codigo-interbancario-cts').value = d.codigoInterbancarioCts || '';
                             document.getElementById('view-moneda').value = d.moneda || '';
                             document.getElementById('view-centro-costo').value = d.centroCosto || '';
+                            document.getElementById('view-familia').value = d.familia || '';
                             document.getElementById('view-periodo-prueba').value = d.periodoPrueba || '';
                             openModal('view-modal');
                         }
@@ -385,6 +390,7 @@
                                         document.getElementById('add-mov-condicion-id').value = lastMov.condicion_id || '';
                                         document.getElementById('add-mov-banco-id').value = lastMov.banco_id || '';
                                         document.getElementById('add-mov-centro-costo-id').value = lastMov.centro_costo_id || '';
+                                        document.getElementById('add-mov-familia-id').value = lastMov.familia_id || '';
                                         document.getElementById('add-mov-moneda-id').value = lastMov.moneda_id || '';
                                     }, 200);
                                 }
@@ -466,6 +472,7 @@
                             document.getElementById('view-mov-condicion').value = data.movCondicion || 'N/A';
                             document.getElementById('view-mov-banco').value = data.movBanco || 'N/A';
                             document.getElementById('view-mov-centro-costo').value = data.movCentroCosto || 'N/A';
+                            document.getElementById('view-mov-familia').value = data.movFamilia || 'N/A';
                             document.getElementById('view-mov-moneda').value = data.movMoneda || 'N/A';
                             document.getElementById('view-mov-estado').value = data.movEstado || 'N/A';
                             document.getElementById('view-mov-fecha-registro').value = data.movFechaRegistro || '-';
@@ -547,6 +554,7 @@
                                 document.getElementById('edit-mov-condicion-id').value = data.movCondicionId || '';
                                 document.getElementById('edit-mov-banco-id').value = data.movBancoId || '';
                                 document.getElementById('edit-mov-centro-costo-id').value = data.movCentroCostoId || '';
+                                document.getElementById('edit-mov-familia-id').value = data.movFamiliaId || '';
                                 document.getElementById('edit-mov-moneda-id').value = data.movMonedaId || '';
 
                                 console.log('Después de asignar - Cargo value:', document.getElementById('edit-mov-cargo-id').value);

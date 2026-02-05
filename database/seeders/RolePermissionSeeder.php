@@ -32,78 +32,46 @@ class RolePermissionSeeder extends Seeder
             'contratos.create',
             'contratos.edit',
             'contratos.delete',
+            'contratos.baja',
+
+            // Módulo Asistencia
+            'asistencia.view',
+            'asistencia.edit',
 
             // Módulo Dashboard
             'dashboard.view',
             'dashboard.export',
 
-            // Administración de Sistema
-            'users.manage',
-            'roles.manage',
+            // Administración de Sistema (permisos granulares)
+            'users.view',      // Ver listado de usuarios
+            'users.manage',    // Asignar/remover roles (excepto Administrador)
+            'roles.view',      // Ver roles y permisos
+            'roles.manage',    // Crear/editar/eliminar roles
+            'audit.view',      // Ver auditoría del sistema
         ];
 
         foreach ($permissions as $permission) {
-            Permission::create(['name' => $permission]);
+            Permission::firstOrCreate(['name' => $permission, 'guard_name' => 'web']);
         }
 
         // ==========================================
-        // CREAR ROLES Y ASIGNAR PERMISOS
+        // CREAR ROL ADMINISTRADOR
         // ==========================================
-
-        // 1. SUPER ADMIN - Acceso total al sistema
-        $superAdmin = Role::create(['name' => 'super_admin']);
-        $superAdmin->givePermissionTo(Permission::all());
-
-        // 2. ADMIN RRHH - Gestión completa de Personas y Contratos
-        $adminRrhh = Role::create(['name' => 'admin_rrhh']);
-        $adminRrhh->givePermissionTo([
-            'personas.view',
-            'personas.create',
-            'personas.edit',
-            'personas.delete',
-            'contratos.view',
-            'contratos.create',
-            'contratos.edit',
-            'contratos.delete',
-            'dashboard.view',
-            'dashboard.export',
-        ]);
-
-        // 3. SUPERVISOR - Puede ver y editar, pero no eliminar
-        $supervisor = Role::create(['name' => 'supervisor']);
-        $supervisor->givePermissionTo([
-            'personas.view',
-            'personas.edit',
-            'contratos.view',
-            'contratos.edit',
-            'dashboard.view',
-        ]);
-
-        // 4. VIEWER - Solo visualización
-        $viewer = Role::create(['name' => 'viewer']);
-        $viewer->givePermissionTo([
-            'personas.view',
-            'contratos.view',
-            'dashboard.view',
-        ]);
+        $admin = Role::firstOrCreate(['name' => 'Administrador', 'guard_name' => 'web']);
+        $admin->syncPermissions(Permission::all());
 
         // ==========================================
-        // ASIGNAR ROL SUPER ADMIN AL PRIMER USUARIO
+        // ASIGNAR ROL ADMINISTRADOR AL PRIMER USUARIO
         // ==========================================
         $firstUser = User::first();
-        if ($firstUser) {
-            $firstUser->assignRole('super_admin');
-            $this->command->info("✓ Usuario '{$firstUser->email}' asignado como super_admin");
-        } else {
-            $this->command->warn('⚠ No hay usuarios en la BD. Crea uno y asígnale rol manualmente.');
+        if ($firstUser && !$firstUser->hasRole('Administrador')) {
+            $firstUser->assignRole('Administrador');
+            $this->command->info("✓ Usuario '{$firstUser->email}' asignado como Administrador");
         }
 
-        $this->command->info('✓ Roles y permisos creados exitosamente');
+        $this->command->info('✓ Permisos creados/actualizados exitosamente');
+        $this->command->info('✓ Rol Administrador con acceso total');
         $this->command->info('');
-        $this->command->info('Roles creados:');
-        $this->command->info('  - super_admin: Acceso total');
-        $this->command->info('  - admin_rrhh: Gestión completa de RRHH');
-        $this->command->info('  - supervisor: Ver y editar (no eliminar)');
-        $this->command->info('  - viewer: Solo visualización');
+        $this->command->info('Los demás roles se crean desde la interfaz web.');
     }
 }
