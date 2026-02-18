@@ -57,6 +57,22 @@
                 </a>
             </li>
             @endcan
+            @can('adicionales.view')
+            <li>
+                <a href="{{ route('adicionales.index') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg {{ request()->routeIs('adicionales.*') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors group" title="Adicionales">
+                    <i class="fa-solid fa-hand-holding-dollar text-lg flex-shrink-0"></i>
+                    <span class="sidebar-text font-medium">Adicionales</span>
+                </a>
+            </li>
+            @endcan
+            @can('calculos.view')
+            <li>
+                <a href="{{ route('calculos.index') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg {{ request()->routeIs('calculos.*') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors group" title="Cálculos">
+                    <i class="fa-solid fa-calculator text-lg flex-shrink-0"></i>
+                    <span class="sidebar-text font-medium">Cálculos</span>
+                </a>
+            </li>
+            @endcan
             @can('dashboard.view')
             <li>
                 <a href="{{ route('dashboard') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg {{ request()->routeIs('dashboard') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors group" title="Dashboard">

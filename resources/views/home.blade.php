@@ -7,7 +7,7 @@
                 <p class="text-gray-500 mt-2">Selecciona un módulo para comenzar</p>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-8">
                 
                 <!-- Tarjeta Personas -->
                 <a href="{{ route('personas.index') }}" class="group bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg p-8 transition-all hover:shadow-lg hover:-translate-y-1 border-b-4 border-blue-500">
@@ -28,6 +28,28 @@
                         </div>
                         <h2 class="text-xl font-semibold text-gray-800 dark:text-white">Contratos</h2>
                         <p class="text-gray-500 text-center mt-2 text-sm">Gestiona altas, bajas, renovaciones y condiciones laborales.</p>
+                    </div>
+                </a>
+
+                <!-- Tarjeta Adicionales -->
+                <a href="{{ route('adicionales.index') }}" class="group bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg p-8 transition-all hover:shadow-lg hover:-translate-y-1 border-b-4 border-emerald-500">
+                    <div class="flex flex-col items-center">
+                        <div class="h-16 w-16 bg-emerald-100 rounded-full flex items-center justify-center mb-4 group-hover:bg-emerald-200 transition-colors">
+                            <i class="fa-solid fa-hand-holding-dollar text-2xl text-emerald-600"></i>
+                        </div>
+                        <h2 class="text-xl font-semibold text-gray-800 dark:text-white">Adicionales</h2>
+                        <p class="text-gray-500 text-center mt-2 text-sm">Gestiona bonos, descuentos, movilidad y reintegros.</p>
+                    </div>
+                </a>
+
+                <!-- Tarjeta Cálculos -->
+                <a href="{{ route('calculos.index') }}" class="group bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg p-8 transition-all hover:shadow-lg hover:-translate-y-1 border-b-4 border-orange-500">
+                    <div class="flex flex-col items-center">
+                        <div class="h-16 w-16 bg-orange-100 rounded-full flex items-center justify-center mb-4 group-hover:bg-orange-200 transition-colors">
+                            <i class="fa-solid fa-calculator text-2xl text-orange-600"></i>
+                        </div>
+                        <h2 class="text-xl font-semibold text-gray-800 dark:text-white">Cálculos</h2>
+                        <p class="text-gray-500 text-center mt-2 text-sm">Ejecuta cálculos de remuneraciones y proyecciones.</p>
                     </div>
                 </a>
 

@@ -38,6 +38,14 @@ class RolePermissionSeeder extends Seeder
             'asistencia.view',
             'asistencia.edit',
 
+            // Módulo Adicionales
+            'adicionales.view',
+            'adicionales.edit',
+
+            // Módulo Cálculos
+            'calculos.view',
+            'calculos.execute',
+
             // Módulo Dashboard
             'dashboard.view',
             'dashboard.export',

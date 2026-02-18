@@ -88,6 +88,11 @@ class Contrato extends Model
         return $this->hasOne(Baja::class, 'id_contrato', 'id_contrato');
     }
 
+    public function adicionales()
+    {
+        return $this->hasMany(Adicional::class, 'id_contrato', 'id_contrato');
+    }
+
     // Accessor para calcular el estado en tiempo real
     public function getEstadoAttribute(): string
     {

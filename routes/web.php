@@ -85,6 +85,25 @@ Route::middleware('auth')->group(function () {
         ->post('/asistencia/guardar', [App\Http\Controllers\AsistenciaController::class, 'guardar'])
         ->name('asistencia.guardar');
 
+    // 6. Rutas de Adicionales - Protegidas por permisos
+    Route::middleware(['permission:adicionales.view'])->group(function () {
+        Route::get('/adicionales', [App\Http\Controllers\AdicionalController::class, 'index'])->name('adicionales.index');
+    });
+
+    Route::middleware(['permission:adicionales.edit'])
+        ->post('/adicionales/guardar', [App\Http\Controllers\AdicionalController::class, 'guardar'])
+        ->name('adicionales.guardar');
+
+    // 7. Rutas de Cálculos - Protegidas por permisos
+    Route::middleware(['permission:calculos.view'])->group(function () {
+        Route::get('/calculos', [App\Http\Controllers\CalculoController::class, 'index'])->name('calculos.index');
+        Route::get('/calculos/resultados', [App\Http\Controllers\CalculoController::class, 'obtenerResultados'])->name('calculos.resultados');
+    });
+
+    Route::middleware(['permission:calculos.execute'])
+        ->post('/calculos/ejecutar', [App\Http\Controllers\CalculoController::class, 'ejecutar'])
+        ->name('calculos.ejecutar');
+
     // 6. Rutas de Perfil (sin restricciones)
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
