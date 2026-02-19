@@ -94,6 +94,10 @@ Route::middleware('auth')->group(function () {
         ->post('/adicionales/guardar', [App\Http\Controllers\AdicionalController::class, 'guardar'])
         ->name('adicionales.guardar');
 
+    Route::middleware(['permission:adicionales.edit'])
+        ->post('/adicionales/importar-movilidad', [App\Http\Controllers\AdicionalController::class, 'importMovilidad'])
+        ->name('adicionales.importar-movilidad');
+
     // 7. Rutas de Cálculos - Protegidas por permisos
     Route::middleware(['permission:calculos.view'])->group(function () {
         Route::get('/calculos', [App\Http\Controllers\CalculoController::class, 'index'])->name('calculos.index');

@@ -155,8 +155,15 @@ class AsistenciaController extends Controller
                     ->where(function ($q) use ($inicioConsulta, $finConsulta) {
                         $q->where('inicio_contrato', '<=', $finConsulta)
                             ->where(function ($q2) use ($inicioConsulta) {
-                                $q2->whereNull('fin_contrato')
-                                    ->orWhere('fin_contrato', '>=', $inicioConsulta);
+                                // Fin efectivo = fecha_renuncia si existe, si no fin_contrato
+                                $q2->where(function ($q3) {
+                                    $q3->whereNull('fin_contrato')->whereNull('fecha_renuncia');
+                                })->orWhereRaw("
+                                    CASE
+                                        WHEN fecha_renuncia IS NOT NULL THEN fecha_renuncia
+                                        ELSE fin_contrato
+                                    END >= ?
+                                ", [$inicioConsulta->toDateString()]);
                             });
                     });
 
@@ -172,10 +179,12 @@ class AsistenciaController extends Controller
 
                 $contratos = $query->get()->filter(function ($contrato) use ($fechasValidas) {
                     $inicioContrato = Carbon::parse($contrato->inicio_contrato);
-                    $finContrato = $contrato->fin_contrato ? Carbon::parse($contrato->fin_contrato) : null;
+                    $finEfectivo = $contrato->fecha_renuncia
+                        ? Carbon::parse($contrato->fecha_renuncia)
+                        : ($contrato->fin_contrato ? Carbon::parse($contrato->fin_contrato) : null);
 
                     foreach ($fechasValidas as $fecha) {
-                        if ($fecha->gte($inicioContrato) && (!$finContrato || $fecha->lte($finContrato))) {
+                        if ($fecha->gte($inicioContrato) && (!$finEfectivo || $fecha->lt($finEfectivo))) {
                             return true;
                         }
                     }
@@ -231,10 +240,12 @@ class AsistenciaController extends Controller
 
         $fecha = Carbon::parse($request->fecha);
         $inicioContrato = Carbon::parse($contrato->inicio_contrato);
-        $finContrato = $contrato->fin_contrato ? Carbon::parse($contrato->fin_contrato) : null;
+        $finEfectivo = $contrato->fecha_renuncia
+            ? Carbon::parse($contrato->fecha_renuncia)
+            : ($contrato->fin_contrato ? Carbon::parse($contrato->fin_contrato) : null);
 
-        // Validar que la fecha este dentro del rango del contrato
-        if ($fecha->lt($inicioContrato) || ($finContrato && $fecha->gt($finContrato))) {
+        // Validar que la fecha este dentro del rango del contrato (respetando fecha de baja)
+        if ($fecha->lt($inicioContrato) || ($finEfectivo && $fecha->gte($finEfectivo))) {
             return response()->json(['error' => 'Fecha fuera del rango del contrato'], 400);
         }
 

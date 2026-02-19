@@ -153,6 +153,9 @@
                         @php
                             $inicioContrato = \Carbon\Carbon::parse($contrato->inicio_contrato);
                             $finContrato = $contrato->fin_contrato ? \Carbon\Carbon::parse($contrato->fin_contrato) : null;
+                            $finEfectivo = $contrato->fecha_renuncia
+                                ? \Carbon\Carbon::parse($contrato->fecha_renuncia)
+                                : $finContrato;
                         @endphp
                         <tr class="hover:bg-gray-50 dark:hover:bg-[#323d4d] transition-colors">
                             <td class="sticky left-0 z-10 bg-white dark:bg-[#273142] px-4 py-2 border-r border-gray-200 dark:border-gray-700">
@@ -162,9 +165,9 @@
                                     </div>
                                     <div class="flex flex-col">
                                         <span class="text-sm font-bold text-gray-800 dark:text-white leading-tight">
-                                            {{ $contrato->persona->apellido_paterno ?? '' }} {{ $contrato->persona->apellido_materno ?? '' }} {{ $contrato->persona->nombres ?? 'Sin Asignar' }}
+                                            {{ $contrato->persona->apellido_paterno ?? '' }} {{ $contrato->persona->apellido_materno ?? '' }} {{ explode(' ', trim($contrato->persona->nombres ?? 'Sin Asignar'))[0] }}
                                         </span>
-                                        <span class="text-[11px] text-gray-500 font-medium">
+                                        <span class="text-[12px] text-gray-500 font-medium">
                                             {{ $contrato->persona->tipo_documento ?? 'DOC' }}: {{ $contrato->persona->numero_documento ?? '---' }}
                                         </span>
                                     </div>
@@ -185,7 +188,7 @@
                             @foreach($fechas as $fecha)
                                 @php
                                     $fechaStr = $fecha->format('Y-m-d');
-                                    $dentroRango = $fecha->gte($inicioContrato) && (!$finContrato || $fecha->lte($finContrato));
+                                    $dentroRango = $fecha->gte($inicioContrato) && (!$finEfectivo || $fecha->lt($finEfectivo));
                                     $asistencia = $contrato->asistencias_periodo[$fechaStr] ?? null;
                                     $valorActual = $asistencia ? $asistencia->id_cod_asistencia : '';
                                     $esFinSemana = $fecha->isWeekend();

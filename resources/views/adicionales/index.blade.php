@@ -14,8 +14,8 @@
 
     <!-- Filtros -->
     <div class="mb-6 bg-white dark:bg-[#273142] rounded-xl p-4 shadow-sm border border-light-border dark:border-dark-border">
-        <form method="GET" action="{{ route('adicionales.index') }}" class="flex flex-wrap items-end gap-4" id="adicionales-filtros">
-            <div class="min-w-[180px]">
+        <form method="GET" action="{{ route('adicionales.index') }}" class="flex flex-wrap items-end gap-3" id="adicionales-filtros">
+            <div class="min-w-[150px]">
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Periodo</label>
                 <select name="periodo" id="periodo" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50">
                     <option value="">Seleccione</option>
@@ -26,13 +26,35 @@
                     @endforeach
                 </select>
             </div>
-            <div class="min-w-[180px]">
+            <div class="min-w-[160px]">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Empresa</label>
+                <select name="nombre_empresa" id="nombre_empresa" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50">
+                    <option value="">Todas</option>
+                    @foreach($empresas as $emp)
+                        <option value="{{ $emp }}" {{ request('nombre_empresa') == $emp ? 'selected' : '' }}>
+                            {{ $emp }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="min-w-[160px]">
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Planilla</label>
                 <select name="id_planilla" id="id_planilla" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50">
                     <option value="">Todas</option>
                     @foreach($planillas as $planilla)
                         <option value="{{ $planilla->id_planilla }}" {{ request('id_planilla') == $planilla->id_planilla ? 'selected' : '' }}>
                             {{ $planilla->nombre_planilla }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="min-w-[160px]">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Familia</label>
+                <select name="id_familia" id="id_familia" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50">
+                    <option value="">Todas</option>
+                    @foreach($familias as $familia)
+                        <option value="{{ $familia->id_familia }}" {{ request('id_familia') == $familia->id_familia ? 'selected' : '' }}>
+                            {{ $familia->nombre_familia }}
                         </option>
                     @endforeach
                 </select>
@@ -45,6 +67,14 @@
                         class="w-full pl-10 pr-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50">
                 </div>
             </div>
+            @can('adicionales.edit')
+            <div class="ml-auto flex items-end">
+                <button type="button" onclick="document.getElementById('modal-importar').classList.remove('hidden')"
+                    class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium cursor-pointer whitespace-nowrap">
+                    <i class="fa-solid fa-file-excel mr-1"></i> Cargar Movilidad
+                </button>
+            </div>
+            @endcan
         </form>
     </div>
 
@@ -206,14 +236,75 @@
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const filtroForm = document.getElementById('adicionales-filtros');
-            const periodo = document.getElementById('periodo');
+            const periodo  = document.getElementById('periodo');
+            const empresa  = document.getElementById('nombre_empresa');
             const planilla = document.getElementById('id_planilla');
-            const doc = document.getElementById('numero_documento');
+            const familia  = document.getElementById('id_familia');
+            const doc      = document.getElementById('numero_documento');
 
             const submitForm = () => { if (filtroForm) filtroForm.submit(); };
 
+            // Combos {p, f, e} para el periodo actual
+            const combos = @json($combos);
+
+            // Snapshots completos de opciones antes de cualquier filtro
+            const allPlanillaOpts = planilla ? Array.from(planilla.options).map(o => ({ v: o.value, t: o.text })) : [];
+            const allFamiliaOpts  = familia  ? Array.from(familia.options).map(o => ({ v: o.value, t: o.text })) : [];
+
+            // Reconstruye un select manteniendo solo las opciones válidas
+            function rebuildSelect(sel, allOpts, valid) {
+                const cur = sel.value;
+                while (sel.options.length) sel.remove(0);
+                allOpts.forEach(o => {
+                    if (o.v === '' || !valid || valid.has(String(o.v))) sel.add(new Option(o.t, o.v));
+                });
+                if (Array.from(sel.options).some(o => o.value === cur)) sel.value = cur;
+            }
+
+            // Obtiene el conjunto válido de un campo dado los filtros activos (excluye el propio campo)
+            function validFor(field, filters) {
+                let rows = combos;
+                if (filters.e) rows = rows.filter(c => c.e === filters.e);
+                if (filters.p) rows = rows.filter(c => String(c.p) === filters.p);
+                if (filters.f) rows = rows.filter(c => String(c.f) === filters.f);
+                return rows.length ? new Set(rows.map(c => String(c[field]))) : null;
+            }
+
+            function applyInitialFilters() {
+                if (!combos.length) return;
+                const eVal = empresa  ? empresa.value  : '';
+                const pVal = planilla ? planilla.value : '';
+                const fVal = familia  ? familia.value  : '';
+                // Empresa no se reconstruye (es filtro raíz)
+                if (planilla) { rebuildSelect(planilla, allPlanillaOpts, validFor('p', { e: eVal, f: fVal })); planilla.value = pVal; }
+                if (familia)  { rebuildSelect(familia,  allFamiliaOpts,  validFor('f', { e: eVal, p: pVal })); familia.value  = fVal; }
+            }
+
+            applyInitialFilters();
+
             if (periodo) periodo.addEventListener('change', submitForm);
-            if (planilla) planilla.addEventListener('change', submitForm);
+
+            // Empresa: reconstruye planilla y familia
+            if (empresa) empresa.addEventListener('change', function () {
+                const eVal = this.value;
+                if (planilla) rebuildSelect(planilla, allPlanillaOpts, validFor('p', { e: eVal }));
+                if (familia)  rebuildSelect(familia,  allFamiliaOpts,  validFor('f', { e: eVal, p: planilla ? planilla.value : '' }));
+                submitForm();
+            });
+
+            // Planilla: reconstruye familia respetando empresa
+            if (planilla) planilla.addEventListener('change', function () {
+                const eVal = empresa ? empresa.value : '';
+                if (familia) rebuildSelect(familia, allFamiliaOpts, validFor('f', { e: eVal, p: this.value }));
+                submitForm();
+            });
+
+            // Familia: reconstruye planilla respetando empresa
+            if (familia) familia.addEventListener('change', function () {
+                const eVal = empresa ? empresa.value : '';
+                if (planilla) rebuildSelect(planilla, allPlanillaOpts, validFor('p', { e: eVal, f: this.value }));
+                submitForm();
+            });
 
             if (doc) {
                 let t = null;
@@ -347,4 +438,62 @@
         });
     </script>
     @endpush
+
+    <!-- Modal Importar Movilidad -->
+    @can('adicionales.edit')
+    <div id="modal-importar" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center">
+        <div class="bg-white dark:bg-[#273142] rounded-xl shadow-xl p-6 w-full max-w-md mx-4">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-bold text-gray-800 dark:text-white">
+                    <i class="fa-solid fa-file-excel text-green-600 mr-2"></i>Cargar Movilidad
+                </h3>
+                <button type="button" onclick="document.getElementById('modal-importar').classList.add('hidden')"
+                    class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xl cursor-pointer">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            @if(session('success'))
+                <div class="mb-4 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-300 text-sm">
+                    <i class="fa-solid fa-circle-check mr-1"></i> {{ session('success') }}
+                </div>
+            @endif
+            @if(session('error'))
+                <div class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-sm">
+                    <i class="fa-solid fa-circle-xmark mr-1"></i> {{ session('error') }}
+                </div>
+            @endif
+
+            <form action="{{ route('adicionales.importar-movilidad') }}" method="POST" enctype="multipart/form-data" class="space-y-4">
+                @csrf
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Periodo</label>
+                    <select name="periodo" required
+                        class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50">
+                        <option value="">Seleccione</option>
+                        @foreach($periodos as $p)
+                            <option value="{{ $p }}" {{ $periodoSeleccionado == $p ? 'selected' : '' }}>{{ $p }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Archivo Excel</label>
+                    <input type="file" name="archivo" accept=".xlsx,.xls" required
+                        class="w-full text-sm text-gray-700 dark:text-gray-300 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-primary/10 file:text-primary file:font-medium hover:file:bg-primary/20 cursor-pointer">
+                    <p class="mt-1 text-xs text-gray-400">Columnas requeridas: <strong>id_contrato</strong>, <strong>monto</strong></p>
+                </div>
+                <div class="flex gap-3 pt-2">
+                    <button type="submit"
+                        class="flex-1 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium cursor-pointer">
+                        <i class="fa-solid fa-upload mr-1"></i> Cargar
+                    </button>
+                    <button type="button" onclick="document.getElementById('modal-importar').classList.add('hidden')"
+                        class="flex-1 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors text-sm font-medium cursor-pointer">
+                        Cancelar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    @endcan
 </x-app-layout>
