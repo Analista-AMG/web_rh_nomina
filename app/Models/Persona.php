@@ -68,4 +68,17 @@ class Persona extends Model
             }
         );
     }
+
+    // Apellidos + primer nombre únicamente
+    protected function nombreCorto(): Attribute
+    {
+        return Attribute::make(
+            get: function () {
+                $pat       = $this->attributes['apellido_paterno'] ?? '';
+                $mat       = $this->attributes['apellido_materno'] ?? '';
+                $primerNom = explode(' ', trim($this->attributes['nombres'] ?? ''))[0] ?? '';
+                return trim("{$pat} {$mat} {$primerNom}");
+            }
+        );
+    }
 }

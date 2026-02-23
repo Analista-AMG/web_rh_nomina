@@ -108,6 +108,21 @@ Route::middleware('auth')->group(function () {
         ->post('/calculos/ejecutar', [App\Http\Controllers\CalculoController::class, 'ejecutar'])
         ->name('calculos.ejecutar');
 
+    // 8. Rutas de Equipos - Protegidas por permisos
+    Route::middleware(['permission:equipos.manage'])->group(function () {
+        Route::get('/equipos', [App\Http\Controllers\EquipoController::class, 'index'])->name('equipos.index');
+        Route::post('/equipos/agregar', [App\Http\Controllers\EquipoController::class, 'agregar'])->name('equipos.agregar');
+        Route::delete('/equipos/{asignacion}/retirar', [App\Http\Controllers\EquipoController::class, 'retirar'])->name('equipos.retirar');
+        Route::post('/equipos/solicitar', [App\Http\Controllers\EquipoController::class, 'solicitar'])->name('equipos.solicitar');
+    });
+
+    Route::middleware(['permission:equipos.approve'])->group(function () {
+        Route::get('/equipos/pendientes', [App\Http\Controllers\EquipoController::class, 'pendientes'])->name('equipos.pendientes');
+        Route::post('/equipos/solicitudes/{solicitud}/aprobar', [App\Http\Controllers\EquipoController::class, 'aprobar'])->name('equipos.aprobar');
+        Route::post('/equipos/solicitudes/{solicitud}/rechazar', [App\Http\Controllers\EquipoController::class, 'rechazar'])->name('equipos.rechazar');
+        Route::post('/equipos/auto-carry', [App\Http\Controllers\EquipoController::class, 'autoCarry'])->name('equipos.auto-carry');
+    });
+
     // 6. Rutas de Perfil (sin restricciones)
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');

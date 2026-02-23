@@ -73,7 +73,10 @@
                             $badgeClass = 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400';
                             $estadoTexto = 'Finalizado';
                         }
-                        $salario = 'S/ ' . number_format($contrato->haber_basico, 2);
+                        $puedeVerSalario = Auth::user()->can('contratos.edit');
+                        $salario = $puedeVerSalario
+                            ? 'S/ ' . number_format($contrato->haber_basico, 2)
+                            : 'S/ ••••••';
                     @endphp
                     
                     <!-- Celdas de la fila principal -->
@@ -129,7 +132,7 @@
                                 data-inicio="{{ $inicio }}"
                                 data-fin="{{ $fin }}"
                                 data-fecha-renuncia="{{ $contrato->fecha_renuncia ? \Carbon\Carbon::parse($contrato->fecha_renuncia)->format('d/m/Y') : 'No registrada' }}"
-                                data-haber="{{ number_format($contrato->haber_basico, 2) }}"
+                                data-haber="{{ $puedeVerSalario ? number_format($contrato->haber_basico, 2) : '••••••' }}"
                                 data-asignacion="{{ $contrato->asignacion_familiar ? 'Sí' : 'No' }}"
                                 data-movilidad="{{ number_format($contrato->movilidad ?? 0, 2) }}"
                                 data-numero-cuenta="{{ $contrato->numero_cuenta ?? 'N/A' }}"
@@ -232,8 +235,8 @@
                                         data-mov-inicio-raw="{{ $mov->inicio ? \Carbon\Carbon::parse($mov->inicio)->format('Y-m-d') : '' }}"
                                         data-mov-fin="{{ $finMov }}"
                                         data-mov-fin-raw="{{ $mov->fin ? \Carbon\Carbon::parse($mov->fin)->format('Y-m-d') : '' }}"
-                                        data-mov-haber="{{ number_format($mov->haber_basico, 2) }}"
-                                        data-mov-haber-raw="{{ $mov->haber_basico }}"
+                                        data-mov-haber="{{ $puedeVerSalario ? number_format($mov->haber_basico, 2) : '••••••' }}"
+                                        data-mov-haber-raw="{{ $puedeVerSalario ? $mov->haber_basico : '' }}"
                                         data-mov-asignacion="{{ $asignacionMov }}"
                                         data-mov-asignacion-raw="{{ $mov->asignacion_familiar ? 1 : 0 }}"
                                         data-mov-movilidad="{{ number_format($mov->movilidad ?? 0, 2) }}"
@@ -257,7 +260,7 @@
                                         data-contrato-fin="{{ $contrato->fin_contrato ? \Carbon\Carbon::parse($contrato->fin_contrato)->format('Y-m-d') : '' }}">
                                         <td class="py-2 px-3 text-gray-700 dark:text-gray-300">{{ $mov->tipo_movimiento ?? '-' }}</td>
                                         <td class="py-2 px-3 text-gray-700 dark:text-gray-300">{{ $inicioMov }}</td>
-                                        <td class="py-2 px-3 text-gray-700 dark:text-gray-300 font-mono">S/ {{ number_format($mov->haber_basico, 2) }}</td>
+                                        <td class="py-2 px-3 text-gray-700 dark:text-gray-300 font-mono">{{ $puedeVerSalario ? 'S/ ' . number_format($mov->haber_basico, 2) : 'S/ ••••••' }}</td>
                                         <td class="py-2 px-3 text-gray-700 dark:text-gray-300">{{ $mov->cargo->nombre_cargo ?? 'N/A' }}</td>
                                         <td class="py-2 px-3 text-gray-700 dark:text-gray-300">{{ $mov->planilla->nombre_planilla ?? 'N/A' }}</td>
                                         <td class="py-2 px-3 text-gray-700 dark:text-gray-300">{{ $mov->fondoPensiones->fondo_pension ?? 'N/A' }}</td>
@@ -265,8 +268,10 @@
                                         <td class="py-2 px-3 text-center">
                                             <div class="flex justify-center gap-2">
                                                 <x-ui.action-button type="view" class="btn-view-movimiento" />
-                                                <x-ui.action-button type="edit" class="btn-edit-movimiento" />
-                                                <x-ui.action-button type="delete" class="btn-delete-movimiento" />
+                                                @can('contratos.edit')
+                                                    <x-ui.action-button type="edit" class="btn-edit-movimiento" />
+                                                    <x-ui.action-button type="delete" class="btn-delete-movimiento" />
+                                                @endcan
                                             </div>
                                         </td>
                                     </tr>

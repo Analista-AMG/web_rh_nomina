@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Asistencia;
 use App\Models\Calendario;
 use App\Models\Contrato;
+use App\Models\EquipoDia;
 use App\Models\ItemAsistencia;
 use App\Models\Pago;
 use App\Models\Planilla;
@@ -12,6 +13,7 @@ use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class AsistenciaController extends Controller
 {
@@ -30,6 +32,7 @@ class AsistenciaController extends Controller
         $contratos = collect();
         $fechas = [];
         $feriados = [];
+        $misCeldas = null;
 
         $minFechaPago = $pagosAsc->isNotEmpty() ? Carbon::parse($pagosAsc->first()->inicio)->toDateString() : null;
         $maxFechaPago = $pagosAsc->isNotEmpty() ? Carbon::parse($pagosAsc->last()->fin)->toDateString() : null;
@@ -177,6 +180,27 @@ class AsistenciaController extends Controller
                     });
                 }
 
+                // Supervisor: solo ve los contratos de su equipo en el periodo
+                // $misCeldas = lookup "idcontrato_fecha" => true para saber qué celdas puede editar
+                $misCeldas = null;
+                if (Auth::user()->can('equipos.manage')) {
+                    $asignacionesSupervisor = EquipoDia::where('user_id', Auth::id())
+                        ->whereBetween('fecha', [
+                            $inicioConsulta->toDateString(),
+                            $finConsulta->toDateString(),
+                        ])
+                        ->get();
+
+                    $misIds = $asignacionesSupervisor->pluck('id_contrato')->unique()->values();
+                    $query->whereIn('id_contrato', $misIds);
+
+                    // Lookup por celda: "idcontrato_Y-m-d" => true
+                    $misCeldas = $asignacionesSupervisor
+                        ->mapWithKeys(fn($a) => [
+                            $a->id_contrato . '_' . Carbon::parse($a->fecha)->format('Y-m-d') => true
+                        ]);
+                }
+
                 $contratos = $query->get()->filter(function ($contrato) use ($fechasValidas) {
                     $inicioContrato = Carbon::parse($contrato->inicio_contrato);
                     $finEfectivo = $contrato->fecha_renuncia
@@ -191,7 +215,8 @@ class AsistenciaController extends Controller
                     return false;
                 });
 
-                $asistenciasExistentes = Asistencia::whereIn('id_contrato', $contratos->pluck('id_contrato'))
+                $asistenciasExistentes = Asistencia::with('itemAsistencia')
+                    ->whereIn('id_contrato', $contratos->pluck('id_contrato'))
                     ->whereBetween('fecha', [$inicioConsulta, $finConsulta])
                     ->get()
                     ->keyBy(function ($item) {
@@ -220,7 +245,8 @@ class AsistenciaController extends Controller
             'feriados',
             'minFechaPago',
             'maxFechaPago',
-            'rangosPago'
+            'rangosPago',
+            'misCeldas'
         ));
     }
 
@@ -236,6 +262,18 @@ class AsistenciaController extends Controller
 
         if (!$contrato) {
             return response()->json(['error' => 'Contrato no encontrado'], 404);
+        }
+
+        // Supervisor: solo puede guardar asistencia de su equipo en esa fecha
+        if (Auth::user()->can('equipos.manage')) {
+            $enEquipo = EquipoDia::where('user_id', Auth::id())
+                ->where('id_contrato', $request->id_contrato)
+                ->where('fecha', $request->fecha)
+                ->exists();
+
+            if (!$enEquipo) {
+                return response()->json(['error' => 'Este colaborador no pertenece a tu equipo en esa fecha.'], 403);
+            }
         }
 
         $fecha = Carbon::parse($request->fecha);

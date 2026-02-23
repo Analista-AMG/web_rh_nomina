@@ -1,4 +1,13 @@
-<aside id="sidebar" class="flex-shrink-0 bg-sidebar-theme border-r border-light-border dark:border-[#2d3748] flex flex-col relative transition-all duration-200 shadow-lg z-20" style="width: 260px;">
+<aside id="sidebar" class="flex-shrink-0 bg-sidebar-theme border-r border-light-border dark:border-[#2d3748] flex flex-col relative transition-all duration-200 shadow-lg z-20" style="width: 240px;">
+<script>
+    (function() {
+        var s = document.currentScript.parentElement;
+        if (localStorage.getItem('sidebar-collapsed') === '1') {
+            s.style.width = '80px';
+            s.classList.add('collapsed', 'no-transition');
+        }
+    })();
+</script>
     
     <!-- Header -->
     <div class="h-16 flex items-center justify-between px-4 logo-section overflow-hidden transition-all duration-300">
@@ -25,63 +34,118 @@
     </div>
 
     <!-- Navigation -->
+    @php
+        $personalActive     = request()->routeIs('personas.*') || request()->routeIs('contratos.*');
+        $operacionesActive  = request()->routeIs('asistencia.*') || request()->routeIs('equipos.*');
+        $remunerActive      = request()->routeIs('adicionales.*') || request()->routeIs('calculos.*') || request()->routeIs('dashboard');
+    @endphp
     <nav class="flex-1 overflow-y-auto py-4 overflow-x-hidden custom-scrollbar">
         <ul class="space-y-1 px-2">
+
+            {{-- Home --}}
             <li>
-                <a href="{{ route('home') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg {{ request()->routeIs('home') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors group" title="Home">
+                <a href="{{ route('home') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg {{ request()->routeIs('home') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors" title="Home">
                     <i class="fa-solid fa-house text-lg flex-shrink-0"></i>
                     <span class="sidebar-text font-medium">Home</span>
                 </a>
             </li>
-            @can('personas.view')
-            <li>
-                <a href="{{ route('personas.index') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg {{ request()->routeIs('personas.*') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors group" title="Personas">
-                    <i class="fa-solid fa-users text-lg flex-shrink-0"></i>
-                    <span class="sidebar-text font-medium">Personas</span>
-                </a>
-            </li>
-            @endcan
-            @can('contratos.view')
-            <li>
-                <a href="{{ route('contratos.index') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg {{ request()->routeIs('contratos.*') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors group" title="Contratos">
-                    <i class="fa-solid fa-file-contract text-lg flex-shrink-0"></i>
-                    <span class="sidebar-text font-medium">Contratos</span>
-                </a>
-            </li>
-            @endcan
-            @can('asistencia.view')
-            <li>
-                <a href="{{ route('asistencia.index') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg {{ request()->routeIs('asistencia.*') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors group" title="Asistencia">
-                    <i class="fa-solid fa-clipboard-user text-lg flex-shrink-0"></i>
-                    <span class="sidebar-text font-medium">Asistencia</span>
-                </a>
-            </li>
-            @endcan
-            @can('adicionales.view')
-            <li>
-                <a href="{{ route('adicionales.index') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg {{ request()->routeIs('adicionales.*') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors group" title="Adicionales">
-                    <i class="fa-solid fa-hand-holding-dollar text-lg flex-shrink-0"></i>
-                    <span class="sidebar-text font-medium">Adicionales</span>
-                </a>
-            </li>
-            @endcan
-            @can('calculos.view')
-            <li>
-                <a href="{{ route('calculos.index') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg {{ request()->routeIs('calculos.*') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors group" title="Cálculos">
-                    <i class="fa-solid fa-calculator text-lg flex-shrink-0"></i>
-                    <span class="sidebar-text font-medium">Cálculos</span>
-                </a>
-            </li>
-            @endcan
-            @can('dashboard.view')
-            <li>
-                <a href="{{ route('dashboard') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg {{ request()->routeIs('dashboard') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors group" title="Dashboard">
-                    <i class="fa-solid fa-chart-pie text-lg flex-shrink-0"></i>
-                    <span class="sidebar-text font-medium">Dashboard</span>
-                </a>
-            </li>
-            @endcan
 
+            {{-- GRUPO: Personal --}}
+            @canany(['personas.view', 'contratos.view'])
+            <li class="nav-group" data-group="personal" data-active="{{ $personalActive ? '1' : '0' }}">
+                <button class="nav-group-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg {{ $personalActive ? 'text-primary' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors cursor-pointer" title="Personal">
+                    <i class="fa-solid fa-id-card text-lg flex-shrink-0"></i>
+                    <span class="sidebar-text font-medium flex-1 text-left">Personal</span>
+                    <i class="fa-solid fa-chevron-down text-xs sidebar-text nav-group-chevron transition-transform duration-200 flex-shrink-0"></i>
+                </button>
+                <ul class="nav-group-items overflow-hidden transition-all duration-200 space-y-0.5" style="max-height:0;">
+                    @can('personas.view')
+                    <li>
+                        <a href="{{ route('personas.index') }}" class="nav-link flex items-center gap-3 pl-9 pr-4 py-2.5 rounded-lg {{ request()->routeIs('personas.*') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors" title="Personas">
+                            <i class="fa-solid fa-users text-sm flex-shrink-0"></i>
+                            <span class="sidebar-text font-medium">Personas</span>
+                        </a>
+                    </li>
+                    @endcan
+                    @can('contratos.view')
+                    <li>
+                        <a href="{{ route('contratos.index') }}" class="nav-link flex items-center gap-3 pl-9 pr-4 py-2.5 rounded-lg {{ request()->routeIs('contratos.*') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors" title="Contratos">
+                            <i class="fa-solid fa-file-contract text-sm flex-shrink-0"></i>
+                            <span class="sidebar-text font-medium">Contratos</span>
+                        </a>
+                    </li>
+                    @endcan
+                </ul>
+            </li>
+            @endcanany
+
+            {{-- GRUPO: Operaciones --}}
+            @canany(['asistencia.view', 'equipos.manage'])
+            <li class="nav-group" data-group="operaciones" data-active="{{ $operacionesActive ? '1' : '0' }}">
+                <button class="nav-group-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg {{ $operacionesActive ? 'text-primary' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors cursor-pointer" title="Operaciones">
+                    <i class="fa-solid fa-calendar-check text-lg flex-shrink-0"></i>
+                    <span class="sidebar-text font-medium flex-1 text-left">Operaciones</span>
+                    <i class="fa-solid fa-chevron-down text-xs sidebar-text nav-group-chevron transition-transform duration-200 flex-shrink-0"></i>
+                </button>
+                <ul class="nav-group-items overflow-hidden transition-all duration-200 space-y-0.5" style="max-height:0;">
+                    @can('asistencia.view')
+                    <li>
+                        <a href="{{ route('asistencia.index') }}" class="nav-link flex items-center gap-3 pl-9 pr-4 py-2.5 rounded-lg {{ request()->routeIs('asistencia.*') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors" title="Asistencia">
+                            <i class="fa-solid fa-clipboard-user text-sm flex-shrink-0"></i>
+                            <span class="sidebar-text font-medium">Asistencia</span>
+                        </a>
+                    </li>
+                    @endcan
+                    @can('equipos.manage')
+                    <li>
+                        <a href="{{ route('equipos.index') }}" class="nav-link flex items-center gap-3 pl-9 pr-4 py-2.5 rounded-lg {{ request()->routeIs('equipos.*') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors" title="Equipos">
+                            <i class="fa-solid fa-people-group text-sm flex-shrink-0"></i>
+                            <span class="sidebar-text font-medium">Equipos</span>
+                        </a>
+                    </li>
+                    @endcan
+                </ul>
+            </li>
+            @endcanany
+
+            {{-- GRUPO: Remuneraciones --}}
+            @canany(['adicionales.view', 'calculos.view', 'dashboard.view'])
+            <li class="nav-group" data-group="remuneraciones" data-active="{{ $remunerActive ? '1' : '0' }}">
+                <button class="nav-group-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg {{ $remunerActive ? 'text-primary' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors cursor-pointer" title="Remuneraciones">
+                    <i class="fa-solid fa-money-bill-wave text-lg flex-shrink-0"></i>
+                    <span class="sidebar-text font-medium flex-1 text-left">Remuneraciones</span>
+                    <i class="fa-solid fa-chevron-down text-xs sidebar-text nav-group-chevron transition-transform duration-200 flex-shrink-0"></i>
+                </button>
+                <ul class="nav-group-items overflow-hidden transition-all duration-200 space-y-0.5" style="max-height:0;">
+                    @can('adicionales.view')
+                    <li>
+                        <a href="{{ route('adicionales.index') }}" class="nav-link flex items-center gap-3 pl-9 pr-4 py-2.5 rounded-lg {{ request()->routeIs('adicionales.*') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors" title="Adicionales">
+                            <i class="fa-solid fa-hand-holding-dollar text-sm flex-shrink-0"></i>
+                            <span class="sidebar-text font-medium">Adicionales</span>
+                        </a>
+                    </li>
+                    @endcan
+                    @can('calculos.view')
+                    <li>
+                        <a href="{{ route('calculos.index') }}" class="nav-link flex items-center gap-3 pl-9 pr-4 py-2.5 rounded-lg {{ request()->routeIs('calculos.*') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors" title="Cálculos">
+                            <i class="fa-solid fa-calculator text-sm flex-shrink-0"></i>
+                            <span class="sidebar-text font-medium">Cálculos</span>
+                        </a>
+                    </li>
+                    @endcan
+                    @can('dashboard.view')
+                    <li>
+                        <a href="{{ route('dashboard') }}" class="nav-link flex items-center gap-3 pl-9 pr-4 py-2.5 rounded-lg {{ request()->routeIs('dashboard') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors" title="Dashboard">
+                            <i class="fa-solid fa-chart-pie text-sm flex-shrink-0"></i>
+                            <span class="sidebar-text font-medium">Dashboard</span>
+                        </a>
+                    </li>
+                    @endcan
+                </ul>
+            </li>
+            @endcanany
+
+            {{-- Administración (label estático, sin grupo desplegable) --}}
             @canany(['users.view', 'roles.view', 'audit.view'])
             <li class="pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
                 <p class="px-4 text-xs font-semibold text-gray-400 uppercase mb-2 sidebar-text">Administración</p>
@@ -89,7 +153,7 @@
             @endcanany
             @can('users.view')
             <li>
-                <a href="{{ route('admin.users.index') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg {{ request()->routeIs('admin.users.*') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors group" title="Gestión de Usuarios">
+                <a href="{{ route('admin.users.index') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg {{ request()->routeIs('admin.users.*') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors" title="Gestión de Usuarios">
                     <i class="fa-solid fa-users-cog text-lg flex-shrink-0"></i>
                     <span class="sidebar-text font-medium">Usuarios</span>
                 </a>
@@ -97,7 +161,7 @@
             @endcan
             @can('roles.view')
             <li>
-                <a href="{{ route('admin.roles.index') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg {{ request()->routeIs('admin.roles.*') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors group" title="Gestión de Roles">
+                <a href="{{ route('admin.roles.index') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg {{ request()->routeIs('admin.roles.*') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors" title="Gestión de Roles">
                     <i class="fa-solid fa-shield-halved text-lg flex-shrink-0"></i>
                     <span class="sidebar-text font-medium">Roles y Permisos</span>
                 </a>
@@ -105,12 +169,13 @@
             @endcan
             @can('audit.view')
             <li>
-                <a href="{{ route('admin.audit.index') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg {{ request()->routeIs('admin.audit.*') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors group" title="Auditoría">
+                <a href="{{ route('admin.audit.index') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg {{ request()->routeIs('admin.audit.*') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors" title="Auditoría">
                     <i class="fa-solid fa-clock-rotate-left text-lg flex-shrink-0"></i>
                     <span class="sidebar-text font-medium">Auditoría</span>
                 </a>
             </li>
             @endcan
+
         </ul>
     </nav>
     
@@ -170,7 +235,7 @@
 
                 sidebar.style.width = `${newWidth}px`;
 
-                if (newWidth < 180) {
+                if (newWidth < 220) {
                     if (!sidebar.classList.contains('collapsed')) collapseSidebar();
                 } else {
                     if (sidebar.classList.contains('collapsed')) expandSidebar();
@@ -184,7 +249,7 @@
                     body.style.userSelect = '';
                     sidebar.classList.remove('sidebar-resizing');
                     sidebar.classList.remove('no-transition');
-                    localStorage.setItem('sidebar-width', sidebar.style.width);
+                    localStorage.setItem('sidebar-collapsed', sidebar.classList.contains('collapsed') ? '1' : '0');
                 }
             });
         }
@@ -196,6 +261,8 @@
                 avatarContainer.classList.replace('w-20', 'w-16');
                 avatarContainer.classList.replace('h-20', 'h-16');
             }
+            localStorage.setItem('sidebar-collapsed', '1');
+            syncGroupsWithSidebarState();
         }
 
         function expandSidebar() {
@@ -204,13 +271,28 @@
                 avatarContainer.classList.replace('w-16', 'w-20');
                 avatarContainer.classList.replace('h-16', 'h-20');
             }
+            localStorage.setItem('sidebar-collapsed', '0');
+            hideFlyout();
+            syncGroupsWithSidebarState();
         }
+
+        // Restaurar estado colapsado: ancho y clase ya aplicados por el script inline
+        // Solo sincronizar avatar y grupos, luego quitar no-transition
+        if (localStorage.getItem('sidebar-collapsed') === '1') {
+            if(avatarContainer) {
+                avatarContainer.classList.replace('w-20', 'w-16');
+                avatarContainer.classList.replace('h-20', 'h-16');
+            }
+            syncGroupsWithSidebarState();
+        }
+        // Quitar no-transition tras el primer frame para que las interacciones futuras animen
+        requestAnimationFrame(() => sidebar.classList.remove('no-transition'));
 
         if(toggleBtn) {
             toggleBtn.addEventListener('click', () => {
                 if (sidebar.classList.contains('collapsed')) {
                     expandSidebar();
-                    sidebar.style.width = '260px';
+                    sidebar.style.width = '240px';
                 } else {
                     collapseSidebar();
                     sidebar.style.width = '80px';
@@ -218,7 +300,136 @@
             });
         }
 
-        // --- 3. Dark Mode Logic (Trigger) ---
+        // --- 3. Nav Groups (Accordion + Flyout en colapsado) ---
+
+        // Flyout flotante para modo colapsado
+        const flyout = document.createElement('div');
+        flyout.id = 'nav-flyout';
+        flyout.className = 'fixed z-[200] hidden bg-white dark:bg-[#1e293b] shadow-xl rounded-xl py-2 min-w-[180px] border border-gray-200 dark:border-gray-700';
+        document.body.appendChild(flyout);
+
+        function showFlyout(group, btn) {
+            const items = group.querySelector('.nav-group-items');
+            const links = items.querySelectorAll('a');
+            const rect = btn.getBoundingClientRect();
+
+            flyout.innerHTML = '';
+
+            // Título del grupo
+            const title = document.createElement('p');
+            title.className = 'px-4 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider';
+            title.textContent = btn.querySelector('span.sidebar-text')?.textContent?.trim() || '';
+            flyout.appendChild(title);
+
+            links.forEach(link => {
+                const a = document.createElement('a');
+                a.href = link.getAttribute('href');
+                const isActive = link.classList.contains('text-primary');
+                a.className = 'flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ' +
+                    (isActive ? 'text-primary font-medium bg-primary/10' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary');
+                const icon = link.querySelector('i')?.cloneNode(true);
+                if (icon) { icon.className = icon.className.replace('text-sm', 'text-base'); a.appendChild(icon); }
+                const span = document.createElement('span');
+                span.textContent = link.querySelector('span')?.textContent?.trim() || '';
+                a.appendChild(span);
+                flyout.appendChild(a);
+            });
+
+            // Posición: a la derecha del sidebar, alineado con el botón
+            flyout.style.top = Math.min(rect.top, window.innerHeight - flyout.offsetHeight - 16) + 'px';
+            flyout.style.left = (rect.right + 8) + 'px';
+            flyout.classList.remove('hidden');
+        }
+
+        function hideFlyout() {
+            flyout.classList.add('hidden');
+        }
+
+        document.addEventListener('click', (e) => {
+            if (!flyout.contains(e.target) && !e.target.closest('.nav-group-btn')) {
+                hideFlyout();
+            }
+        });
+        function openGroup(group) {
+            const items = group.querySelector('.nav-group-items');
+            const chevron = group.querySelector('.nav-group-chevron');
+            items.style.maxHeight = items.scrollHeight + 'px';
+            chevron.style.transform = 'rotate(180deg)';
+            localStorage.setItem('nav-group-' + group.dataset.group, 'open');
+        }
+
+        function closeGroup(group) {
+            const items = group.querySelector('.nav-group-items');
+            const chevron = group.querySelector('.nav-group-chevron');
+            items.style.maxHeight = '0';
+            chevron.style.transform = 'rotate(0deg)';
+            localStorage.setItem('nav-group-' + group.dataset.group, 'closed');
+        }
+
+        function initGroups() {
+            const isCollapsed = sidebar.classList.contains('collapsed');
+            document.querySelectorAll('.nav-group').forEach(group => {
+                const key = 'nav-group-' + group.dataset.group;
+                const isActive = group.dataset.active === '1';
+                const saved = localStorage.getItem(key);
+
+                // Solo abrir grupos si el sidebar está expandido
+                if (!isCollapsed && (isActive || saved === 'open')) {
+                    openGroup(group);
+                }
+
+                group.querySelector('.nav-group-btn').addEventListener('click', (e) => {
+                    if (sidebar.classList.contains('collapsed')) {
+                        e.stopPropagation();
+                        // Alternar flyout: si ya está visible para este grupo, cerrarlo
+                        if (!flyout.classList.contains('hidden') && flyout.dataset.group === group.dataset.group) {
+                            hideFlyout();
+                        } else {
+                            flyout.dataset.group = group.dataset.group;
+                            showFlyout(group, group.querySelector('.nav-group-btn'));
+                        }
+                        return;
+                    }
+                    const items = group.querySelector('.nav-group-items');
+                    if (items.style.maxHeight === '0px' || items.style.maxHeight === '') {
+                        openGroup(group);
+                    } else {
+                        closeGroup(group);
+                    }
+                });
+            });
+        }
+
+        function syncGroupsWithSidebarState() {
+            const isCollapsed = sidebar.classList.contains('collapsed');
+            document.querySelectorAll('.nav-group').forEach(group => {
+                const items = group.querySelector('.nav-group-items');
+                const btn = group.querySelector('.nav-group-btn');
+                if (isCollapsed) {
+                    // Sidebar colapsado: solo el icono del grupo centrado, items ocultos
+                    btn.classList.add('justify-center');
+                    btn.classList.remove('justify-start');
+                    items.style.maxHeight = '0';
+                } else {
+                    // Sidebar expandido: restaurar alineación y estado guardado
+                    btn.classList.remove('justify-center');
+                    const key = 'nav-group-' + group.dataset.group;
+                    const isActive = group.dataset.active === '1';
+                    const saved = localStorage.getItem(key);
+                    if (isActive || saved === 'open') {
+                        openGroup(group);
+                    } else {
+                        closeGroup(group);
+                    }
+                }
+            });
+        }
+
+        initGroups();
+        // Sincronizar por si el sidebar ya arranca colapsado
+        if (sidebar.classList.contains('collapsed')) syncGroupsWithSidebarState();
+
+        // --- 4. Dark Mode Logic (Trigger) ---
         const themeBtn = document.getElementById('theme-toggle');
         const themeIcon = document.getElementById('theme-icon');
         const themeText = document.getElementById('theme-text');

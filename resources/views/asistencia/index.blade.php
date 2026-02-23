@@ -127,7 +127,7 @@
                                 $esFinSemana = $fecha->isWeekend();
                                 $esFeriado = isset($feriados[$fecha->format('Y-m-d')]);
                             @endphp
-                            <th class="px-1 py-2 text-center text-xs font-semibold uppercase tracking-wider min-w-[55px] {{ $esFeriado ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400' : ($esFinSemana ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400' : 'text-gray-500 dark:text-gray-400') }}">
+                            <th class="px-1 py-2 text-center text-xs font-semibold uppercase tracking-wider min-w-[55px] {{ $esFeriado ? 'bg-red-50 dark:bg-[#2f1e1e] text-red-600 dark:text-red-400' : ($esFinSemana ? 'bg-orange-50 dark:bg-[#2f2a1e] text-orange-600 dark:text-orange-400' : 'text-gray-500 dark:text-gray-400') }}">
                                 <div class="flex flex-col items-center gap-1">
                                     <div class="flex flex-col">
                                         <span class="text-[10px]">{{ $diaSemana }}</span>
@@ -157,7 +157,7 @@
                                 ? \Carbon\Carbon::parse($contrato->fecha_renuncia)
                                 : $finContrato;
                         @endphp
-                        <tr class="hover:bg-gray-50 dark:hover:bg-[#323d4d] transition-colors">
+                        <tr class="group">
                             <td class="sticky left-0 z-10 bg-white dark:bg-[#273142] px-4 py-2 border-r border-gray-200 dark:border-gray-700">
                                 <div class="flex items-center gap-3">
                                     <div class="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary text-sm font-bold flex-shrink-0">
@@ -191,11 +191,30 @@
                                     $dentroRango = $fecha->gte($inicioContrato) && (!$finEfectivo || $fecha->lt($finEfectivo));
                                     $asistencia = $contrato->asistencias_periodo[$fechaStr] ?? null;
                                     $valorActual = $asistencia ? $asistencia->id_cod_asistencia : '';
+                                    $codigoActual = $asistencia?->itemAsistencia?->codigo_asistencia ?? '';
                                     $esFinSemana = $fecha->isWeekend();
                                     $esFeriado = isset($feriados[$fechaStr]);
+                                    // Editable solo si no es supervisor, o si es supervisor y tiene esta celda en su equipo
+                                    $esEditable = $misCeldas === null
+                                        ? true
+                                        : ($misCeldas->get($contrato->id_contrato . '_' . $fechaStr) ?? false);
+                                    // Clase de fondo: fuera de rango → gris; dentro de rango → colores opacos por tipo
+                                    if (!$dentroRango) {
+                                        $tdBg = 'bg-gray-100 dark:bg-gray-800';
+                                    } elseif ($esFeriado) {
+                                        $tdBg = 'bg-red-50 dark:bg-[#2f1e1e] group-hover:bg-red-100 dark:group-hover:bg-[#3a2424]';
+                                    } elseif ($esFinSemana) {
+                                        $tdBg = 'bg-orange-50 dark:bg-[#2f2a1e] group-hover:bg-orange-100 dark:group-hover:bg-[#3a3222]';
+                                    } else {
+                                        $tdBg = 'group-hover:bg-gray-50 dark:group-hover:bg-[#323d4d]';
+                                    }
                                 @endphp
-                                <td class="px-1 py-1 text-center {{ $esFeriado ? 'bg-red-50 dark:bg-red-900/20' : ($esFinSemana ? 'bg-orange-50 dark:bg-orange-900/20' : '') }} {{ !$dentroRango ? 'bg-gray-100 dark:bg-gray-800' : '' }}">
-                                    @if($dentroRango)
+                                <td class="px-1 py-1 text-center {{ $tdBg }}">
+                                    @if(!$dentroRango)
+                                        <span class="text-gray-400 dark:text-gray-600 text-xs">
+                                            <i class="fa-solid fa-lock text-[10px]"></i>
+                                        </span>
+                                    @elseif($esEditable)
                                         <select
                                             class="asistencia-select w-full text-xs px-1 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:outline-none focus:ring-1 focus:ring-primary/50 text-center"
                                             data-contrato="{{ $contrato->id_contrato }}"
@@ -217,9 +236,15 @@
                                             @endforeach
                                         </select>
                                     @else
-                                        <span class="text-gray-400 dark:text-gray-600 text-xs">
-                                            <i class="fa-solid fa-lock text-[10px]"></i>
-                                        </span>
+                                        {{-- Celda bloqueada: pertenece a otro supervisor ese día --}}
+                                        <div class="flex items-center justify-center gap-1 text-xs text-gray-400 dark:text-gray-500 w-full px-1 py-1 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800" title="No pertenecía a tu equipo este día">
+                                            @if($codigoActual)
+                                                <span class="font-medium text-gray-500 dark:text-gray-400">{{ $codigoActual }}</span>
+                                            @else
+                                                <span>-</span>
+                                            @endif
+                                            <i class="fa-solid fa-lock text-[9px]"></i>
+                                        </div>
                                     @endif
                                 </td>
                             @endforeach

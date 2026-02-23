@@ -50,6 +50,11 @@ class RolePermissionSeeder extends Seeder
             'dashboard.view',
             'dashboard.export',
 
+            // Módulo Equipos
+            'equipos.view',    // Ver su propio equipo del día
+            'equipos.manage',  // Gestionar equipo (agregar/retirar/solicitar)
+            'equipos.approve', // Aprobar/rechazar solicitudes + ver huérfanos
+
             // Administración de Sistema (permisos granulares)
             'users.view',      // Ver listado de usuarios
             'users.manage',    // Asignar/remover roles (excepto Administrador)
