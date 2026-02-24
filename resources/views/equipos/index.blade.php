@@ -289,7 +289,7 @@
                         <thead>
                             <tr class="text-xs text-gray-500 dark:text-gray-400 uppercase border-b border-light-border dark:border-dark-border">
                                 <th class="px-5 py-3 text-left font-medium">Colaborador</th>
-                                <th class="px-5 py-3 text-left font-medium">Solicitado por</th>
+                                <th class="px-5 py-3 text-left font-medium">Solicitado a</th>
                                 <th class="px-5 py-3 text-left font-medium">Solicitado el</th>
                             </tr>
                         </thead>
@@ -300,7 +300,7 @@
                                     {{ $sol->contrato->persona?->nombre_corto ?? '—' }}
                                 </td>
                                 <td class="px-5 py-3 text-gray-600 dark:text-gray-300">
-                                    {{ $sol->solicitadoPor->name ?? '—' }}
+                                    {{ $sol->prevSupervisor->name ?? '(sin equipo)' }}
                                 </td>
                                 <td class="px-5 py-3 text-gray-500 dark:text-gray-400 text-xs">
                                     {{ $sol->created_at->format('d/m/Y H:i') }}

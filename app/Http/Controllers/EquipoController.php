@@ -49,8 +49,8 @@ class EquipoController extends Controller
                 ->get();
         }
 
-        // Solicitudes hacia mi equipo que están pendientes ese día
-        $solicitudesPendientes = EquipoSolicitud::with(['contrato.persona', 'solicitadoPor'])
+        // Mis solicitudes pendientes ese día (yo pedí, espero aprobación)
+        $solicitudesPendientes = EquipoSolicitud::with(['contrato.persona', 'prevSupervisor'])
             ->where('user_id', $user->id)
             ->where('fecha', $fecha)
             ->pendientes()
@@ -80,12 +80,10 @@ class EquipoController extends Controller
             ->orderByDesc('updated_at')
             ->get();
 
-        // Badge para el aprobador: total pendientes desde hoy en adelante
+        // Badge para el aprobador: total pendientes sin importar fecha
         $totalPendientesAprobacion = 0;
         if ($user->can('equipos.approve')) {
-            $totalPendientesAprobacion = EquipoSolicitud::pendientes()
-                ->where('fecha', '>=', Carbon::today()->toDateString())
-                ->count();
+            $totalPendientesAprobacion = EquipoSolicitud::pendientes()->count();
         }
 
         // IDs ya en mi equipo ese día
@@ -214,21 +212,46 @@ class EquipoController extends Controller
     {
         $fecha = $request->filled('fecha')
             ? Carbon::parse($request->fecha)->toDateString()
-            : Carbon::today()->toDateString();
+            : null;
 
-        $solicitudes = EquipoSolicitud::with(['contrato.persona', 'supervisor', 'solicitadoPor'])
+        $qSolicitudes = EquipoSolicitud::with(['contrato.persona', 'supervisor', 'prevSupervisor'])
             ->pendientes()
-            ->where('fecha', $fecha)
-            ->orderBy('created_at')
-            ->get();
+            ->orderBy('fecha')
+            ->orderBy('created_at');
 
-        $historial = EquipoSolicitud::with(['contrato.persona', 'supervisor', 'solicitadoPor', 'aprobadoPor'])
+        $qHistorial = EquipoSolicitud::with(['contrato.persona', 'supervisor', 'aprobadoPor'])
             ->whereIn('estado', [EquipoSolicitud::APROBADO, EquipoSolicitud::RECHAZADO])
-            ->where('fecha', $fecha)
-            ->orderByDesc('updated_at')
-            ->get();
+            ->orderByDesc('updated_at');
 
-        $huerfanos = $this->calcularHuerfanos($fecha);
+        if ($fecha) {
+            $qSolicitudes->where('fecha', $fecha);
+            $qHistorial->where('fecha', $fecha);
+        }
+
+        $solicitudes = $qSolicitudes->get();
+
+        $historialAll = $qHistorial->get();
+        $historialPage = (int) $request->input('historial_page', 1);
+        $historial = new \Illuminate\Pagination\LengthAwarePaginator(
+            $historialAll->forPage($historialPage, 10),
+            $historialAll->count(),
+            10,
+            $historialPage,
+            ['pageName' => 'historial_page', 'path' => $request->url(), 'query' => $request->except('historial_page')]
+        );
+
+        $huerfanosAll = $this->calcularHuerfanos($fecha ?? Carbon::today()->toDateString())
+            ->sortBy(fn($c) => ($c->persona->apellido_paterno ?? '') . ' ' . ($c->persona->apellido_materno ?? '') . ' ' . ($c->persona->nombres ?? ''))
+            ->values();
+
+        $huerfanosPage = (int) $request->input('huerfanos_page', 1);
+        $huerfanos = new \Illuminate\Pagination\LengthAwarePaginator(
+            $huerfanosAll->forPage($huerfanosPage, 10),
+            $huerfanosAll->count(),
+            10,
+            $huerfanosPage,
+            ['pageName' => 'huerfanos_page', 'path' => $request->url(), 'query' => $request->except('huerfanos_page')]
+        );
 
         return view('equipos.pendientes', compact('solicitudes', 'historial', 'huerfanos', 'fecha'));
     }

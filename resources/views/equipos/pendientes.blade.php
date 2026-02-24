@@ -18,13 +18,19 @@
         <form method="GET" action="{{ route('equipos.pendientes') }}" class="flex items-end gap-4">
             <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Fecha</label>
-                <input type="date" name="fecha" value="{{ $fecha }}"
+                <input type="date" name="fecha" value="{{ $fecha ?? '' }}"
                     class="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50">
             </div>
             <button type="submit"
                 class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium cursor-pointer">
-                <i class="fa-solid fa-magnifying-glass mr-1"></i> Buscar
+                <i class="fa-solid fa-magnifying-glass mr-1"></i> Filtrar
             </button>
+            @if($fecha)
+            <a href="{{ route('equipos.pendientes') }}"
+               class="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                <i class="fa-solid fa-xmark mr-1"></i> Limpiar
+            </a>
+            @endif
         </form>
     </div>
 
@@ -45,7 +51,7 @@
             @if($solicitudes->isEmpty())
                 <div class="px-5 py-10 text-center text-gray-400 dark:text-gray-500">
                     <i class="fa-solid fa-inbox text-3xl mb-3"></i>
-                    <p class="text-sm">No hay solicitudes pendientes para este día.</p>
+                    <p class="text-sm">No hay solicitudes pendientes{{ $fecha ? ' para esta fecha' : '' }}.</p>
                 </div>
             @else
                 <div class="divide-y divide-light-border dark:divide-dark-border">
@@ -57,13 +63,16 @@
                                     {{ $sol->contrato->persona?->nombre_corto ?? '—' }}
                                 </p>
                                 <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                                    <span class="font-medium text-gray-700 dark:text-gray-300">Para:</span>
+                                    <span class="font-medium text-gray-700 dark:text-gray-300">Solicita:</span>
                                     {{ $sol->supervisor->name ?? '—' }}
                                 </p>
-                                <p class="text-xs text-gray-500 dark:text-gray-400">
-                                    <span class="font-medium text-gray-700 dark:text-gray-300">Solicita:</span>
-                                    {{ $sol->solicitadoPor->name ?? '—' }}
-                                    <span class="ml-1 text-gray-400">{{ $sol->created_at->format('d/m H:i') }}</span>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                    <span class="font-medium text-gray-700 dark:text-gray-300">Equipo actual:</span>
+                                    {{ $sol->prevSupervisor->name ?? '(sin equipo)' }}
+                                </p>
+                                <p class="text-xs text-gray-400 mt-0.5">
+                                    <i class="fa-regular fa-calendar mr-1"></i>{{ \Carbon\Carbon::parse($sol->fecha)->format('d/m/Y') }}
+                                    <span class="ml-2"><i class="fa-regular fa-clock mr-1"></i>{{ $sol->created_at->format('d/m H:i') }}</span>
                                 </p>
                             </div>
                             <div class="flex items-center gap-2 flex-shrink-0">
@@ -90,9 +99,9 @@
             <div class="px-5 py-4 border-b border-light-border dark:border-dark-border flex items-center gap-2">
                 <i class="fa-solid fa-user-clock text-gray-400"></i>
                 <h2 class="font-semibold text-gray-800 dark:text-white">
-                    Sin equipo — {{ \Carbon\Carbon::parse($fecha)->format('d/m/Y') }}
-                    <span class="ml-2 text-xs {{ $huerfanos->isNotEmpty() ? 'bg-orange-100 dark:bg-orange-900 text-orange-600 dark:text-orange-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-500' }} px-2 py-0.5 rounded-full">
-                        {{ $huerfanos->count() }}
+                    Sin equipo — {{ $fecha ? \Carbon\Carbon::parse($fecha)->format('d/m/Y') : 'Hoy' }}
+                    <span class="ml-2 text-xs {{ $huerfanos->total() > 0 ? 'bg-orange-100 dark:bg-orange-900 text-orange-600 dark:text-orange-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-500' }} px-2 py-0.5 rounded-full">
+                        {{ $huerfanos->total() }}
                     </span>
                 </h2>
             </div>
@@ -108,7 +117,7 @@
                         <thead>
                             <tr class="text-xs text-gray-500 dark:text-gray-400 uppercase border-b border-light-border dark:border-dark-border">
                                 <th class="px-5 py-3 text-left font-medium">Colaborador</th>
-                                <th class="px-5 py-3 text-left font-medium">Planilla</th>
+                                <th class="px-5 py-3 text-left font-medium">Documento</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-light-border dark:divide-dark-border">
@@ -118,30 +127,55 @@
                                     <p class="font-medium text-gray-800 dark:text-white">
                                         {{ $contrato->persona?->nombre_corto ?? '—' }}
                                     </p>
-                                    <p class="text-xs text-gray-400">{{ $contrato->persona->numero_documento ?? '' }}</p>
                                 </td>
-                                <td class="px-5 py-3 text-gray-600 dark:text-gray-300">
-                                    {{ $contrato->planilla->nombre_planilla ?? '—' }}
+                                <td class="px-5 py-3 text-gray-500 dark:text-gray-400 text-xs">
+                                    {{ $contrato->persona->numero_documento ?? '—' }}
                                 </td>
                             </tr>
                             @endforeach
                         </tbody>
                     </table>
                 </div>
+                @if($huerfanos->hasPages())
+                <div class="px-5 py-3 border-t border-light-border dark:border-dark-border text-xs text-gray-500 dark:text-gray-400 flex items-center justify-between">
+                    <span>{{ $huerfanos->firstItem() }}–{{ $huerfanos->lastItem() }} de {{ $huerfanos->total() }}</span>
+                    <div class="flex gap-1">
+                        @if($huerfanos->onFirstPage())
+                            <span class="px-2 py-1 rounded text-gray-300 dark:text-gray-600 cursor-default"><i class="fa-solid fa-chevron-left"></i></span>
+                        @else
+                            <a href="{{ $huerfanos->previousPageUrl() }}" class="px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"><i class="fa-solid fa-chevron-left"></i></a>
+                        @endif
+
+                        @foreach($huerfanos->getUrlRange(1, $huerfanos->lastPage()) as $page => $url)
+                            @if($page == $huerfanos->currentPage())
+                                <span class="px-2 py-1 rounded bg-primary text-white font-medium">{{ $page }}</span>
+                            @else
+                                <a href="{{ $url }}" class="px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">{{ $page }}</a>
+                            @endif
+                        @endforeach
+
+                        @if($huerfanos->hasMorePages())
+                            <a href="{{ $huerfanos->nextPageUrl() }}" class="px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"><i class="fa-solid fa-chevron-right"></i></a>
+                        @else
+                            <span class="px-2 py-1 rounded text-gray-300 dark:text-gray-600 cursor-default"><i class="fa-solid fa-chevron-right"></i></span>
+                        @endif
+                    </div>
+                </div>
+                @endif
             @endif
         </div>
 
     </div>
 
     {{-- Historial del día --}}
-    @if($historial->isNotEmpty())
+    @if($historial->total() > 0)
     <div class="mt-6 bg-white dark:bg-[#273142] rounded-xl shadow-sm border border-light-border dark:border-dark-border">
         <div class="px-5 py-4 border-b border-light-border dark:border-dark-border flex items-center gap-2">
             <i class="fa-solid fa-clock-rotate-left text-gray-400"></i>
             <h2 class="font-semibold text-gray-800 dark:text-white">
-                Historial del día
+                Historial
                 <span class="ml-2 text-xs bg-gray-100 dark:bg-gray-700 text-gray-500 px-2 py-0.5 rounded-full">
-                    {{ $historial->count() }} procesadas
+                    {{ $historial->total() }} procesadas
                 </span>
             </h2>
         </div>
@@ -150,10 +184,10 @@
                 <thead>
                     <tr class="text-xs text-gray-500 dark:text-gray-400 uppercase border-b border-light-border dark:border-dark-border">
                         <th class="px-5 py-3 text-left font-medium">Colaborador</th>
-                        <th class="px-5 py-3 text-left font-medium">Para supervisor</th>
+                        <th class="px-5 py-3 text-left font-medium">Supervisor</th>
                         <th class="px-5 py-3 text-left font-medium">Estado</th>
-                        <th class="px-5 py-3 text-left font-medium">Motivo / Procesado por</th>
-                        <th class="px-5 py-3 text-left font-medium">Solicitado / Respondido</th>
+                        <th class="px-5 py-3 text-left font-medium">Procesado por</th>
+                        <th class="px-5 py-3 text-left font-medium">Fechas</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-light-border dark:divide-dark-border">
@@ -163,7 +197,7 @@
                             <p class="font-medium text-gray-800 dark:text-white">
                                 {{ $h->contrato->persona?->nombre_corto ?? '—' }}
                             </p>
-                            <p class="text-xs text-gray-400">Solicita: {{ $h->solicitadoPor->name ?? '—' }}</p>
+                            <p class="text-xs text-gray-400">{{ \Carbon\Carbon::parse($h->fecha)->format('d/m/Y') }}</p>
                         </td>
                         <td class="px-5 py-3 text-gray-600 dark:text-gray-300">
                             {{ $h->supervisor->name ?? '—' }}
@@ -198,6 +232,32 @@
                 </tbody>
             </table>
         </div>
+        @if($historial->hasPages())
+        <div class="px-5 py-3 border-t border-light-border dark:border-dark-border text-xs text-gray-500 dark:text-gray-400 flex items-center justify-between">
+            <span>{{ $historial->firstItem() }}–{{ $historial->lastItem() }} de {{ $historial->total() }}</span>
+            <div class="flex gap-1">
+                @if($historial->onFirstPage())
+                    <span class="px-2 py-1 rounded text-gray-300 dark:text-gray-600 cursor-default"><i class="fa-solid fa-chevron-left"></i></span>
+                @else
+                    <a href="{{ $historial->previousPageUrl() }}" class="px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"><i class="fa-solid fa-chevron-left"></i></a>
+                @endif
+
+                @foreach($historial->getUrlRange(1, $historial->lastPage()) as $page => $url)
+                    @if($page == $historial->currentPage())
+                        <span class="px-2 py-1 rounded bg-primary text-white font-medium">{{ $page }}</span>
+                    @else
+                        <a href="{{ $url }}" class="px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">{{ $page }}</a>
+                    @endif
+                @endforeach
+
+                @if($historial->hasMorePages())
+                    <a href="{{ $historial->nextPageUrl() }}" class="px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"><i class="fa-solid fa-chevron-right"></i></a>
+                @else
+                    <span class="px-2 py-1 rounded text-gray-300 dark:text-gray-600 cursor-default"><i class="fa-solid fa-chevron-right"></i></span>
+                @endif
+            </div>
+        </div>
+        @endif
     </div>
     @endif
 

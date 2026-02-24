@@ -47,7 +47,7 @@
                 <input type="password" name="password" placeholder="Contraseña" required>
                 @error('password') <span class="error-message">{{ $message }}</span> @enderror
                 
-                <a href="{{ route('password.request') }}">¿Olvidaste tu contraseña?</a>
+                {{-- <a href="{{ route('password.request') }}">¿Olvidaste tu contraseña?</a> --}}
                 <button type="submit">Ingresar</button>
             </form>
         </div>
