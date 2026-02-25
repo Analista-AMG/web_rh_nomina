@@ -85,6 +85,10 @@
                             {{ $equipo->count() }} colaboradores
                         </span>
                     </h2>
+                    <button type="button" onclick="abrirModalReplicar()"
+                        class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 rounded-lg transition-colors cursor-pointer">
+                        <i class="fa-solid fa-copy"></i> Replicar equipo
+                    </button>
                 </div>
 
                 @if($equipo->isEmpty())
@@ -437,6 +441,43 @@
         </div>
     </div>
 
+{{-- Modal: Replicar equipo --}}
+<div id="modal-replicar" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-[#273142] rounded-xl shadow-xl w-full max-w-sm p-6">
+        <h3 class="font-semibold text-gray-800 dark:text-white text-lg mb-1">Replicar equipo</h3>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-5">
+            Copia tu equipo de una fecha a otra. Solo se asignan los colaboradores que estén libres ese día.
+        </p>
+
+        <div class="space-y-4 mb-6">
+            <div>
+                <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Copiar desde</label>
+                <input type="date" id="replicar-desde"
+                    class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50">
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Copiar a</label>
+                <input type="date" id="replicar-hasta"
+                    class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50">
+            </div>
+        </div>
+
+        {{-- Resultado --}}
+        <div id="replicar-resultado" class="hidden mb-4 text-sm rounded-lg p-3"></div>
+
+        <div class="flex gap-3 justify-end">
+            <button onclick="cerrarModalReplicar()"
+                class="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+                Cerrar
+            </button>
+            <button id="btn-confirmar-replicar" onclick="confirmarReplicar()"
+                class="px-4 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 cursor-pointer">
+                <i class="fa-solid fa-copy mr-1"></i> Replicar
+            </button>
+        </div>
+    </div>
+</div>
+
 @push('scripts')
 <script>
 const CSRF = document.querySelector('meta[name="csrf-token"]').content;
@@ -555,6 +596,72 @@ async function solicitar(idContrato, fecha) {
         }
     } catch (e) {
         alert('Error de conexión.');
+    }
+}
+
+// ── Replicar equipo ─────────────────────────────────────────
+function abrirModalReplicar() {
+    document.getElementById('replicar-desde').value = '{{ $fecha }}';
+    document.getElementById('replicar-hasta').value = '';
+    const res = document.getElementById('replicar-resultado');
+    res.className = 'hidden mb-4 text-sm rounded-lg p-3';
+    res.innerHTML = '';
+    document.getElementById('btn-confirmar-replicar').disabled = false;
+    document.getElementById('modal-replicar').classList.remove('hidden');
+}
+
+function cerrarModalReplicar() {
+    document.getElementById('modal-replicar').classList.add('hidden');
+}
+
+async function confirmarReplicar() {
+    const desde = document.getElementById('replicar-desde').value;
+    const hasta = document.getElementById('replicar-hasta').value;
+    const res   = document.getElementById('replicar-resultado');
+
+    if (!desde || !hasta) {
+        res.className = 'mb-4 text-sm rounded-lg p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300';
+        res.innerHTML = 'Completa ambas fechas.';
+        return;
+    }
+    if (desde === hasta) {
+        res.className = 'mb-4 text-sm rounded-lg p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300';
+        res.innerHTML = 'Las fechas deben ser distintas.';
+        return;
+    }
+
+    const btn = document.getElementById('btn-confirmar-replicar');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Procesando...';
+
+    try {
+        const response = await fetch('{{ route("equipos.replicar") }}', {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': CSRF, 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({ desde, hasta })
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            let html = `<strong>${data.copiados} colaborador${data.copiados !== 1 ? 'es' : ''} asignado${data.copiados !== 1 ? 's' : ''}.</strong>`;
+            if (data.omitidos.length > 0) {
+                html += `<p class="mt-1 text-xs">Omitidos (ya tenían equipo): ${data.omitidos.join(', ')}</p>`;
+            }
+            res.className = 'mb-4 text-sm rounded-lg p-3 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300';
+            res.innerHTML = html;
+            btn.innerHTML = '<i class="fa-solid fa-copy mr-1"></i> Replicar';
+            btn.disabled  = false;
+        } else {
+            res.className = 'mb-4 text-sm rounded-lg p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300';
+            res.innerHTML = data.error ?? 'Error al replicar.';
+            btn.innerHTML = '<i class="fa-solid fa-copy mr-1"></i> Replicar';
+            btn.disabled  = false;
+        }
+    } catch (e) {
+        res.className = 'mb-4 text-sm rounded-lg p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300';
+        res.innerHTML = 'Error de conexión.';
+        btn.innerHTML = '<i class="fa-solid fa-copy mr-1"></i> Replicar';
+        btn.disabled  = false;
     }
 }
 </script>

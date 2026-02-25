@@ -184,7 +184,8 @@
                 <thead>
                     <tr class="text-xs text-gray-500 dark:text-gray-400 uppercase border-b border-light-border dark:border-dark-border">
                         <th class="px-5 py-3 text-left font-medium">Colaborador</th>
-                        <th class="px-5 py-3 text-left font-medium">Supervisor</th>
+                        <th class="px-5 py-3 text-left font-medium">Equipo anterior</th>
+                        <th class="px-5 py-3 text-left font-medium">Solicitante</th>
                         <th class="px-5 py-3 text-left font-medium">Estado</th>
                         <th class="px-5 py-3 text-left font-medium">Procesado por</th>
                         <th class="px-5 py-3 text-left font-medium">Fechas</th>
@@ -198,6 +199,9 @@
                                 {{ $h->contrato->persona?->nombre_corto ?? '—' }}
                             </p>
                             <p class="text-xs text-gray-400">{{ \Carbon\Carbon::parse($h->fecha)->format('d/m/Y') }}</p>
+                        </td>
+                        <td class="px-5 py-3 text-gray-600 dark:text-gray-300">
+                            {{ $h->prevSupervisor->name ?? '(sin equipo)' }}
                         </td>
                         <td class="px-5 py-3 text-gray-600 dark:text-gray-300">
                             {{ $h->supervisor->name ?? '—' }}

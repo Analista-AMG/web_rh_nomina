@@ -102,6 +102,7 @@ Route::middleware('auth')->group(function () {
     Route::middleware(['permission:calculos.view'])->group(function () {
         Route::get('/calculos', [App\Http\Controllers\CalculoController::class, 'index'])->name('calculos.index');
         Route::get('/calculos/resultados', [App\Http\Controllers\CalculoController::class, 'obtenerResultados'])->name('calculos.resultados');
+        Route::get('/calculos/exportar', [App\Http\Controllers\CalculoController::class, 'exportar'])->name('calculos.exportar');
     });
 
     Route::middleware(['permission:calculos.execute'])
@@ -114,6 +115,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/equipos/agregar', [App\Http\Controllers\EquipoController::class, 'agregar'])->name('equipos.agregar');
         Route::delete('/equipos/{asignacion}/retirar', [App\Http\Controllers\EquipoController::class, 'retirar'])->name('equipos.retirar');
         Route::post('/equipos/solicitar', [App\Http\Controllers\EquipoController::class, 'solicitar'])->name('equipos.solicitar');
+        Route::post('/equipos/replicar', [App\Http\Controllers\EquipoController::class, 'replicar'])->name('equipos.replicar');
     });
 
     Route::middleware(['permission:equipos.approve'])->group(function () {

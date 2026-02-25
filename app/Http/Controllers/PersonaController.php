@@ -48,13 +48,16 @@ class PersonaController extends Controller
         $hoy = Carbon::now()->format('Y-m-d');
         $activas = Persona::whereHas('contratos', function($q) use ($hoy) {
             $q->where('inicio_contrato', '<=', $hoy)
-              ->where(function($sub) use ($hoy) {
-                  $sub->whereNull('fecha_renuncia')
-                      ->whereNull('fin_contrato')
-                      ->orWhere('fecha_renuncia', '>=', $hoy)
-                      ->orWhere('fin_contrato', '>=', $hoy);
-              });
-        })->count();
+            ->where(function($sub) use ($hoy) {
+                $sub->whereNull('fecha_renuncia')
+                    ->orWhere('fecha_renuncia', '>=', $hoy);
+            })
+            ->where(function($sub) use ($hoy) {
+                $sub->whereNull('fin_contrato')
+                    ->orWhere('fin_contrato', '>=', $hoy);
+            });
+        })
+        ->count('id_persona');
 
         $kpis = [
             'total' => $totalPersonas,

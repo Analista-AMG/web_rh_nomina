@@ -83,11 +83,11 @@
                     <td class="bg-white dark:bg-[#273142] px-6 py-2.5 text-left rounded-l-xl border-y border-l border-light-border dark:border-dark-border group-hover:bg-gray-50 dark:group-hover:bg-[#323d4d] transition-all duration-300 shadow-sm">
                         <div class="flex items-center gap-3">
                             <div class="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold">
-                                {{ mb_substr($contrato->persona->apellido_paterno ?? '?', 0, 1, 'UTF-8') }}{{ mb_substr($contrato->persona->nombres ?? '?', 0, 1, 'UTF-8') }}
+                                {{ mb_substr($contrato->persona->apellido_paterno ?? '?', 0, 1, 'UTF-8') }}{{ mb_substr(explode(' ', trim($contrato->persona->nombres ?? '?'))[0], 0, 1, 'UTF-8') }}
                             </div>
                             <div class="flex flex-col">
                                 <span class="text-sm font-bold text-gray-800 dark:text-white leading-tight">
-                                    {{ $contrato->persona->apellido_paterno ?? '' }} {{ $contrato->persona->nombres ?? 'Sin Asignar' }}
+                                    {{ $contrato->persona->nombre_corto ?? 'Sin Asignar' }}
                                 </span>
                                 <span class="text-[14px] text-gray-500 font-bold mt-0.5">
                                     {{ $contrato->persona->tipo_documento ?? 'DOC' }}: {{ $contrato->persona->numero_documento ?? '---' }}
@@ -119,7 +119,7 @@
                         <div class="flex justify-center items-center gap-2">
                             {{-- Botón Ver Contrato --}}
                             <x-ui.action-button type="view" title="Ver Contrato" class="btn-view-contrato"
-                                data-colaborador="{{ ($contrato->persona->apellido_paterno ?? '') . ' ' . ($contrato->persona->apellido_materno ?? '') . ', ' . ($contrato->persona->nombres ?? 'Sin Asignar') }}"
+                                data-colaborador="{{ $contrato->persona->nombre_corto ?? 'Sin Asignar' }}"
                                 data-documento="{{ ($contrato->persona->tipo_documento ?? 'DOC') . ': ' . ($contrato->persona->numero_documento ?? '---') }}"
                                 data-cargo="{{ $contrato->cargo->nombre_cargo ?? 'Sin Cargo' }}"
                                 data-planilla="{{ $contrato->planilla->nombre_planilla ?? 'N/A' }}"
@@ -183,7 +183,7 @@
                             @endphp
                             <x-ui.action-button type="baja" class="btn-baja-contrato"
                                 data-contrato-id="{{ $contrato->id_contrato }}"
-                                data-colaborador-nombre="{{ ($contrato->persona->apellido_paterno ?? '') . ' ' . ($contrato->persona->apellido_materno ?? '') . ', ' . ($contrato->persona->nombres ?? '') }}"
+                                data-colaborador-nombre="{{ $contrato->persona->nombre_corto ?? '' }}"
                                 data-colaborador-doc="{{ ($contrato->persona->tipo_documento ?? 'DOC') . ': ' . ($contrato->persona->numero_documento ?? '---') }}"
                                 data-contrato-inicio="{{ \Carbon\Carbon::parse($contrato->inicio_contrato)->format('Y-m-d') }}"
                                 data-contrato-fin="{{ $contrato->fin_contrato ? \Carbon\Carbon::parse($contrato->fin_contrato)->format('Y-m-d') : '' }}"

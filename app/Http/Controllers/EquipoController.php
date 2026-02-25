@@ -219,7 +219,7 @@ class EquipoController extends Controller
             ->orderBy('fecha')
             ->orderBy('created_at');
 
-        $qHistorial = EquipoSolicitud::with(['contrato.persona', 'supervisor', 'aprobadoPor'])
+        $qHistorial = EquipoSolicitud::with(['contrato.persona', 'supervisor', 'prevSupervisor', 'aprobadoPor'])
             ->whereIn('estado', [EquipoSolicitud::APROBADO, EquipoSolicitud::RECHAZADO])
             ->orderByDesc('updated_at');
 
@@ -311,6 +311,60 @@ class EquipoController extends Controller
         ]);
 
         return response()->json(['success' => true]);
+    }
+
+    // Replicar equipo de una fecha a otra (solo libres)
+    public function replicar(Request $request): JsonResponse
+    {
+        $request->validate([
+            'desde' => 'required|date',
+            'hasta' => 'required|date|different:desde',
+        ]);
+
+        $user  = Auth::user();
+        $desde = Carbon::parse($request->desde)->toDateString();
+        $hasta = Carbon::parse($request->hasta)->toDateString();
+
+        // Mi equipo en la fecha origen
+        $equipoOrigen = EquipoDia::where('user_id', $user->id)
+            ->where('fecha', $desde)
+            ->pluck('id_contrato');
+
+        if ($equipoOrigen->isEmpty()) {
+            return response()->json(['error' => 'No tienes equipo asignado en la fecha origen.'], 422);
+        }
+
+        // IDs ya ocupados en la fecha destino (por cualquier supervisor)
+        $ocupadosDestino = EquipoDia::where('fecha', $hasta)
+            ->pluck('id_contrato')
+            ->map(fn($v) => (int)$v)
+            ->toArray();
+
+        $copiados  = 0;
+        $omitidos  = [];
+
+        foreach ($equipoOrigen as $idContrato) {
+            $idContrato = (int)$idContrato;
+
+            if (in_array($idContrato, $ocupadosDestino)) {
+                // Ya tiene equipo ese día → omitir
+                $nombre = Contrato::with('persona')->find($idContrato)?->persona?->nombre_corto ?? "Contrato #{$idContrato}";
+                $omitidos[] = $nombre;
+                continue;
+            }
+
+            EquipoDia::firstOrCreate(
+                ['fecha' => $hasta, 'id_contrato' => $idContrato],
+                ['user_id' => $user->id]
+            );
+            $copiados++;
+        }
+
+        return response()->json([
+            'success'  => true,
+            'copiados' => $copiados,
+            'omitidos' => $omitidos,
+        ]);
     }
 
     // Auto-carry: copia equipo de 'fecha' a 'fecha+1' (llamado por comando artisan)

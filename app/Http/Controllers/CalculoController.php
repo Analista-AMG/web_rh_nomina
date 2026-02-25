@@ -47,7 +47,7 @@ class CalculoController extends Controller
     public function obtenerResultados(Request $request): JsonResponse
     {
         $request->validate([
-            'periodo' => 'required|string|max:10',
+            'periodo'     => 'required|string|max:10',
             'id_planilla' => 'nullable|integer',
         ]);
 
@@ -61,5 +61,18 @@ class CalculoController extends Controller
         }
 
         return response()->json($resultado, 500);
+    }
+
+    public function exportar(Request $request)
+    {
+        $request->validate([
+            'periodo'     => 'required|string|max:10',
+            'id_planilla' => 'nullable|integer',
+        ]);
+
+        return $this->calculoService->exportarExcel(
+            $request->periodo,
+            $request->id_planilla ? (int)$request->id_planilla : null
+        );
     }
 }
