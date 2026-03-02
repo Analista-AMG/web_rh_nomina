@@ -10,8 +10,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        DB::statement('CREATE SCHEMA IF NOT EXISTS bronze');
-        DB::statement('CREATE SCHEMA IF NOT EXISTS gold');
+        DB::statement("IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name='nomina') EXEC('CREATE SCHEMA nomina')");
     }
 
     /**
@@ -19,7 +18,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        DB::statement('DROP SCHEMA IF EXISTS gold CASCADE');
-        DB::statement('DROP SCHEMA IF EXISTS bronze CASCADE');
+        DB::statement('DROP SCHEMA IF EXISTS nomina');
     }
 };

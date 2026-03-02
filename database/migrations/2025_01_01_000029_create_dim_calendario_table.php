@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('bronze.dim_calendario', function (Blueprint $table) {
+        Schema::create('nomina.dim_calendarios', function (Blueprint $table) {
             $table->date('fecha')->primary();
             $table->integer('nro_dia_mes');
             $table->integer('year');
@@ -24,6 +24,7 @@ return new class extends Migration
             $table->string('nombre_dia_abrev', 5);
             $table->string('tipo_dia', 20)->nullable();
             $table->string('detalle_dia', 100)->nullable();
+            $table->timestamps();
         });
     }
 
@@ -32,6 +33,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('bronze.dim_calendario');
+        Schema::dropIfExists('nomina.dim_calendarios');
     }
 };

@@ -2,9 +2,17 @@
 
 use App\Http\Controllers\PersonaController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\Admin\EmpresaController;
+use App\Http\Controllers\Admin\CampanaController;
+use App\Http\Controllers\Admin\AsignacionController;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'asignacion'])->group(function () {
+    // Sin asignación activa — excluida del middleware internamente
+    Route::get('/sin-asignacion', function () {
+        return view('sin-asignacion', ['estado' => request('estado'), 'motivo' => request('motivo')]);
+    })->name('sin-asignacion');
+
     // 1. Página de Inicio (Menú Principal)
     Route::get('/', function () {
         return view('home');
@@ -36,24 +44,18 @@ Route::middleware('auth')->group(function () {
         ->name('personas.destroy');
 
     // 4. Rutas de Contratos - Protegidas por permisos
-    Route::middleware(['permission:contratos.view'])->group(function () {
-        Route::get('/contratos', [App\Http\Controllers\ContratoController::class, 'index'])->name('contratos.index');
-        Route::get('/contratos/{contrato}', [App\Http\Controllers\ContratoController::class, 'show'])->name('contratos.show');
-    });
+    Route::middleware(['permission:contratos.view'])
+        ->get('/contratos', [App\Http\Controllers\ContratoController::class, 'index'])
+        ->name('contratos.index');
 
     Route::middleware(['permission:contratos.create'])
         ->post('/contratos', [App\Http\Controllers\ContratoController::class, 'store'])
         ->name('contratos.store');
 
     Route::middleware(['permission:contratos.edit'])->group(function () {
-        Route::get('/contratos/{contrato}/edit', [App\Http\Controllers\ContratoController::class, 'edit'])->name('contratos.edit');
         Route::put('/contratos/{contrato}', [App\Http\Controllers\ContratoController::class, 'update'])->name('contratos.update');
         Route::patch('/contratos/{contrato}', [App\Http\Controllers\ContratoController::class, 'update']);
     });
-
-    Route::middleware(['permission:contratos.delete'])
-        ->delete('/contratos/{contrato}', [App\Http\Controllers\ContratoController::class, 'destroy'])
-        ->name('contratos.destroy');
 
     // Rutas para Dar de Baja
     Route::middleware(['permission:contratos.baja'])->group(function () {
@@ -65,11 +67,11 @@ Route::middleware('auth')->group(function () {
 
     // Rutas para Movimientos de Contratos
     Route::middleware(['permission:contratos.create'])
-        ->post('/contratos/movimientos', [App\Http\Controllers\ContratoController::class, 'storeMovimiento'])
+        ->post('/contratos/movimientos', [App\Http\Controllers\ContratoMovimientoController::class, 'store'])
         ->name('contratos.movimientos.store');
 
     Route::middleware(['permission:contratos.edit'])
-        ->put('/contratos/movimientos/{movimiento}', [App\Http\Controllers\ContratoController::class, 'updateMovimiento'])
+        ->put('/contratos/movimientos/{movimiento}', [App\Http\Controllers\ContratoMovimientoController::class, 'update'])
         ->name('contratos.movimientos.update');
 
     // 5. Rutas de Asistencia - Protegidas por permisos
@@ -78,7 +80,7 @@ Route::middleware('auth')->group(function () {
     });
 
     Route::middleware(['permission:contratos.delete'])
-        ->delete('/contratos/movimientos/{movimiento}', [App\Http\Controllers\ContratoController::class, 'destroyMovimiento'])
+        ->delete('/contratos/movimientos/{movimiento}', [App\Http\Controllers\ContratoMovimientoController::class, 'destroy'])
         ->name('contratos.movimientos.destroy');
 
     Route::middleware(['permission:asistencia.edit'])
@@ -98,20 +100,23 @@ Route::middleware('auth')->group(function () {
         ->post('/adicionales/importar-movilidad', [App\Http\Controllers\AdicionalController::class, 'importMovilidad'])
         ->name('adicionales.importar-movilidad');
 
-    // 7. Rutas de Cálculos - Protegidas por permisos
-    Route::middleware(['permission:calculos.view'])->group(function () {
+    // 7. Rutas de Cálculos - Restringidas a Admin y Jefe Operaciones
+    Route::middleware(['role:Administrador|Jefe Operaciones', 'permission:calculos.view'])->group(function () {
         Route::get('/calculos', [App\Http\Controllers\CalculoController::class, 'index'])->name('calculos.index');
         Route::get('/calculos/resultados', [App\Http\Controllers\CalculoController::class, 'obtenerResultados'])->name('calculos.resultados');
         Route::get('/calculos/exportar', [App\Http\Controllers\CalculoController::class, 'exportar'])->name('calculos.exportar');
     });
 
-    Route::middleware(['permission:calculos.execute'])
+    Route::middleware(['role:Administrador', 'permission:calculos.execute'])
         ->post('/calculos/ejecutar', [App\Http\Controllers\CalculoController::class, 'ejecutar'])
         ->name('calculos.ejecutar');
 
-    // 8. Rutas de Equipos - Protegidas por permisos
+    // 8. Rutas de Equipos
     Route::middleware(['permission:equipos.manage'])->group(function () {
         Route::get('/equipos', [App\Http\Controllers\EquipoController::class, 'index'])->name('equipos.index');
+        Route::post('/equipos/prestamos', [App\Http\Controllers\EquipoController::class, 'crearPrestamo'])->name('equipos.prestamos.crear');
+        Route::delete('/equipos/prestamos/{prestamo}', [App\Http\Controllers\EquipoController::class, 'cancelarPrestamo'])->name('equipos.prestamos.cancelar');
+        // Legacy (asistencia día a día — migrar a AsistenciaController en siguiente iteración)
         Route::post('/equipos/agregar', [App\Http\Controllers\EquipoController::class, 'agregar'])->name('equipos.agregar');
         Route::delete('/equipos/{asignacion}/retirar', [App\Http\Controllers\EquipoController::class, 'retirar'])->name('equipos.retirar');
         Route::post('/equipos/solicitar', [App\Http\Controllers\EquipoController::class, 'solicitar'])->name('equipos.solicitar');
@@ -119,6 +124,9 @@ Route::middleware('auth')->group(function () {
     });
 
     Route::middleware(['permission:equipos.approve'])->group(function () {
+        Route::post('/equipos/prestamos/{prestamo}/aprobar', [App\Http\Controllers\EquipoController::class, 'aprobarPrestamo'])->name('equipos.prestamos.aprobar');
+        Route::post('/equipos/prestamos/{prestamo}/rechazar', [App\Http\Controllers\EquipoController::class, 'rechazarPrestamo'])->name('equipos.prestamos.rechazar');
+        // Legacy solicitudes
         Route::get('/equipos/pendientes', [App\Http\Controllers\EquipoController::class, 'pendientes'])->name('equipos.pendientes');
         Route::post('/equipos/solicitudes/{solicitud}/aprobar', [App\Http\Controllers\EquipoController::class, 'aprobar'])->name('equipos.aprobar');
         Route::post('/equipos/solicitudes/{solicitud}/rechazar', [App\Http\Controllers\EquipoController::class, 'rechazar'])->name('equipos.rechazar');
@@ -147,6 +155,33 @@ Route::middleware('auth')->group(function () {
         Route::middleware(['permission:audit.view'])
             ->get('/audit', [App\Http\Controllers\Admin\AuditController::class, 'index'])->name('audit.index');
 
+        // Empresas — solo Administrador
+        Route::middleware(['role:Administrador'])->group(function () {
+            Route::get('/empresas', [EmpresaController::class, 'index'])->name('empresas.index');
+            Route::post('/empresas', [EmpresaController::class, 'store'])->name('empresas.store');
+            Route::put('/empresas/{id}', [EmpresaController::class, 'update'])->name('empresas.update');
+            Route::patch('/empresas/{id}/toggle', [EmpresaController::class, 'toggle'])->name('empresas.toggle');
+            Route::patch('/empresas/{id}/cerrar', [EmpresaController::class, 'cerrar'])->name('empresas.cerrar');
+        });
+
+        // Asignaciones — Admin, JO, Coordinador (scope filtrado en controller)
+        Route::get('/asignaciones/usuarios-disponibles', [AsignacionController::class, 'usuariosDisponibles'])->name('asignaciones.usuarios-disponibles');
+        Route::get('/asignaciones/superiores-disponibles', [AsignacionController::class, 'superioresDisponibles'])->name('asignaciones.superiores-disponibles');
+        Route::get('/asignaciones', [AsignacionController::class, 'index'])->name('asignaciones.index');
+        Route::post('/asignaciones', [AsignacionController::class, 'store'])->name('asignaciones.store');
+        Route::patch('/asignaciones/{id}/aprobar', [AsignacionController::class, 'aprobar'])->name('asignaciones.aprobar');
+        Route::patch('/asignaciones/{id}/rechazar', [AsignacionController::class, 'rechazar'])->name('asignaciones.rechazar');
+        Route::patch('/asignaciones/{id}/pausar', [AsignacionController::class, 'pausar'])->name('asignaciones.pausar');
+        Route::patch('/asignaciones/{id}/cerrar', [AsignacionController::class, 'cerrar'])->name('asignaciones.cerrar');
+        Route::patch('/asignaciones/{id}/transferir', [AsignacionController::class, 'transferir'])->name('asignaciones.transferir');
+
+        // Campañas — Coordinador, JO y Administrador (scope filtrado en controller)
+        Route::get('/campanas', [CampanaController::class, 'index'])->name('campanas.index');
+        Route::post('/campanas', [CampanaController::class, 'store'])->name('campanas.store');
+        Route::put('/campanas/{id}', [CampanaController::class, 'update'])->name('campanas.update');
+        Route::patch('/campanas/{id}/toggle', [CampanaController::class, 'toggle'])->name('campanas.toggle');
+        Route::patch('/campanas/{id}/cerrar', [CampanaController::class, 'cerrar'])->name('campanas.cerrar');
+
         // Gestión de Roles
         Route::middleware(['permission:roles.view'])->group(function () {
             Route::get('/roles', [App\Http\Controllers\Admin\RoleController::class, 'index'])->name('roles.index');
@@ -162,28 +197,40 @@ Route::middleware('auth')->group(function () {
     // API Routes para cargar datos de tablas dimension
     Route::prefix('api')->group(function () {
         Route::get('/cargos', function () {
-            return response()->json(\App\Models\Cargo::select('id_cargo', 'nombre_cargo')->get());
+            return response()->json(\App\Models\Cargo::select('id as id_cargo', 'nombre_cargo')->get());
         });
         Route::get('/planillas', function () {
-            return response()->json(\App\Models\Planilla::select('id_planilla', 'nombre_planilla')->get());
+            return response()->json(\App\Models\Planilla::select('id as id_planilla', 'nombre_planilla')->get());
         });
         Route::get('/fondos-pensiones', function () {
-            return response()->json(\App\Models\FondoPensiones::select('id_fondo', 'fondo_pension')->get());
+            return response()->json(\App\Models\FondoPension::select('id as id_fondo', 'fondo_pension')->get());
         });
         Route::get('/condiciones', function () {
-            return response()->json(\App\Models\Condicion::select('id_condicion', 'nombre_condicion')->get());
+            return response()->json(\App\Models\Condicion::select('id as id_condicion', 'nombre_condicion')->get());
         });
         Route::get('/bancos', function () {
-            return response()->json(\App\Models\Banco::select('id_banco', 'nombre_banco')->get());
+            return response()->json(\App\Models\Banco::select('id as id_banco', 'nombre_banco')->get());
         });
         Route::get('/centros-costo', function () {
-            return response()->json(\App\Models\CentroCosto::select('id_centro_costo', 'nombre_centro_costo as nombre')->get());
+            return response()->json(\App\Models\CentroCosto::select('id as id_centro_costo', 'nombre_centro_costo as nombre')->get());
         });
         Route::get('/familias', function () {
-            return response()->json(\App\Models\Familia::select('id_familia', 'nombre_familia as nombre')->get());
+            return response()->json(\App\Models\Familia::select('id as id_familia', 'nombre_familia as nombre')->get());
         });
         Route::get('/monedas', function () {
-            return response()->json(\App\Models\Moneda::select('id_moneda', 'nombre_moneda')->get());
+            return response()->json(\App\Models\Moneda::select('id as id_moneda', 'nombre_moneda')->get());
+        });
+
+        Route::get('/distritos', function () {
+            $provinciaId = request('provincia_id');
+            if (!$provinciaId) return response()->json([]);
+            return response()->json(
+                \Illuminate\Support\Facades\DB::table('nomina.dim_distritos')
+                    ->select('id', 'nombre')
+                    ->where('provincia_id', $provinciaId)
+                    ->orderBy('nombre')
+                    ->get()
+            );
         });
 
         Route::get('/personas/reniec/{numero_documento}', [PersonaController::class, 'lookupReniec'])

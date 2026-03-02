@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('gold.reniec', function (Blueprint $table) {
+        Schema::create('nomina.reniec', function (Blueprint $table) {
             $table->id();
             $table->string('nro_documento', 20)->unique();
             $table->string('ap_pat', 100)->nullable();
@@ -19,6 +19,7 @@ return new class extends Migration
             $table->string('nombres', 150)->nullable();
             $table->date('fecha_nac')->nullable();
             $table->string('sexo', 10)->nullable();
+            $table->timestamps();
         });
     }
 
@@ -27,6 +28,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('gold.reniec');
+        Schema::dropIfExists('nomina.reniec');
     }
 };

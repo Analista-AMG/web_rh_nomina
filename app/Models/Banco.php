@@ -6,9 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Banco extends Model
 {
-    protected $table = 'bronze.dim_banco';
-    protected $primaryKey = 'id_banco';
-    public $timestamps = false;
+    protected $table = 'nomina.dim_bancos';
 
     protected $fillable = ['nombre_banco'];
 }

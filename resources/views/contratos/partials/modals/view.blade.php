@@ -1,154 +1,184 @@
 <!-- MODAL VER CONTRATO -->
-<div id="view-modal" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true">
-    <div class="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
-        <div class="fixed inset-0 bg-gray-900/60 transition-opacity" onclick="closeModal('view-modal')" style="backdrop-filter: blur(5px);"></div>
+<x-ui.modal-shell id="view-modal" max-width="900px">
 
-        <div class="relative z-10 w-full transform overflow-hidden rounded-xl bg-white dark:bg-dark-card text-left shadow-2xl border border-light-border dark:border-dark-border" style="max-width: 900px;">
-            <div class="bg-white dark:bg-dark-card px-8 py-6 border-b border-light-border dark:border-dark-border flex justify-between items-center">
-                <h3 class="text-xl font-bold text-gray-900 dark:text-white">Detalle del Contrato</h3>
-                <button onclick="closeModal('view-modal')" class="text-gray-400 hover:text-gray-600 transition-colors"><i class="fa-solid fa-times text-xl"></i></button>
+    <!-- ══ HERO ══ -->
+    <div id="view-hero" class="relative px-8 pt-8 pb-7 transition-all duration-300">
+
+        <button onclick="closeModal('view-modal')"
+            class="absolute top-4 right-4 w-8 h-8 rounded-full flex items-center justify-center text-light-muted hover:text-light-text dark:hover:text-dark-text hover:bg-black/8 dark:hover:bg-white/10 transition-colors z-10">
+            <i class="fa-solid fa-times"></i>
+        </button>
+
+        <div class="flex items-end gap-6">
+            <!-- Avatar -->
+            <div id="view-avatar"
+                class="w-20 h-20 rounded-2xl flex-shrink-0 flex items-center justify-center text-white text-2xl font-black shadow-lg ring-4 ring-white dark:ring-dark-card transition-colors duration-300">
+                <span id="view-avatar-initials">?</span>
             </div>
 
-            <div class="p-8">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <!-- Colaborador -->
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-500 mb-1">Colaborador</label>
-                        <input type="text" id="view-colaborador" class="w-full bg-gray-100 dark:bg-gray-800 border-none rounded-lg text-gray-800 dark:text-gray-200 font-semibold" readonly>
-                    </div>
-
-                    <!-- Documento -->
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-500 mb-1">Documento</label>
-                        <input type="text" id="view-documento" class="w-full bg-gray-100 dark:bg-gray-800 border-none rounded-lg text-gray-800 dark:text-gray-200" readonly>
-                    </div>
-
-                    <!-- Cargo -->
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-500 mb-1">Cargo</label>
-                        <input type="text" id="view-cargo" class="w-full bg-gray-100 dark:bg-gray-800 border-none rounded-lg text-gray-800 dark:text-gray-200" readonly>
-                    </div>
-
-                    <!-- Planilla -->
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-500 mb-1">Planilla</label>
-                        <input type="text" id="view-planilla" class="w-full bg-gray-100 dark:bg-gray-800 border-none rounded-lg text-gray-800 dark:text-gray-200" readonly>
-                    </div>
-
-                    <!-- Fecha Inicio -->
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-500 mb-1">Fecha Inicio</label>
-                        <input type="text" id="view-inicio" class="w-full bg-gray-100 dark:bg-gray-800 border-none rounded-lg text-gray-800 dark:text-gray-200" readonly>
-                    </div>
-
-                    <!-- Fecha Fin -->
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-500 mb-1">Fecha Fin</label>
-                        <input type="text" id="view-fin" class="w-full bg-gray-100 dark:bg-gray-800 border-none rounded-lg text-gray-800 dark:text-gray-200" readonly>
-                    </div>
-
-                    <!-- Fecha de Baja -->
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-500 mb-1">Fecha de Baja</label>
-                        <input type="text" id="view-fecha-renuncia" class="w-full bg-gray-100 dark:bg-gray-800 border-none rounded-lg text-gray-800 dark:text-gray-200" readonly>
-                    </div>
-
-                    <!-- Estado -->
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-500 mb-1">Estado</label>
-                        <input type="text" id="view-estado" class="w-full bg-gray-100 dark:bg-gray-800 border-none rounded-lg text-gray-800 dark:text-gray-200" readonly>
-                    </div>
-
-                    <!-- Haber Básico -->
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-500 mb-1">Haber Básico</label>
-                        <input type="text" id="view-haber" class="w-full bg-gray-100 dark:bg-gray-800 border-none rounded-lg text-gray-800 dark:text-gray-200 font-mono" readonly>
-                    </div>
-
-                    <!-- Asignación Familiar -->
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-500 mb-1">Asignación Familiar</label>
-                        <input type="text" id="view-asignacion" class="w-full bg-gray-100 dark:bg-gray-800 border-none rounded-lg text-gray-800 dark:text-gray-200" readonly>
-                    </div>
-
-                    <!-- Movilidad -->
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-500 mb-1">Movilidad</label>
-                        <input type="text" id="view-movilidad" class="w-full bg-gray-100 dark:bg-gray-800 border-none rounded-lg text-gray-800 dark:text-gray-200 font-mono" readonly>
-                    </div>
-
-                    <!-- Fondo de Pensiones -->
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-500 mb-1">Fondo de Pensiones</label>
-                        <input type="text" id="view-fp" class="w-full bg-gray-100 dark:bg-gray-800 border-none rounded-lg text-gray-800 dark:text-gray-200" readonly>
-                    </div>
-
-                    <!-- Condición -->
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-500 mb-1">Condición</label>
-                        <input type="text" id="view-condicion" class="w-full bg-gray-100 dark:bg-gray-800 border-none rounded-lg text-gray-800 dark:text-gray-200" readonly>
-                    </div>
-
-                    <!-- Banco -->
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-500 mb-1">Banco</label>
-                        <input type="text" id="view-banco" class="w-full bg-gray-100 dark:bg-gray-800 border-none rounded-lg text-gray-800 dark:text-gray-200" readonly>
-                    </div>
-
-                    <!-- Número de Cuenta -->
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-500 mb-1">Número de Cuenta</label>
-                        <input type="text" id="view-numero-cuenta" class="w-full bg-gray-100 dark:bg-gray-800 border-none rounded-lg text-gray-800 dark:text-gray-200" readonly>
-                    </div>
-
-                    <!-- Código Interbancario -->
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-500 mb-1">Código Interbancario</label>
-                        <input type="text" id="view-codigo-interbancario" class="w-full bg-gray-100 dark:bg-gray-800 border-none rounded-lg text-gray-800 dark:text-gray-200" readonly>
-                    </div>
-
-                    <!-- Número de Cuenta CTS -->
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-500 mb-1">Número de Cuenta CTS</label>
-                        <input type="text" id="view-numero-cuenta-cts" class="w-full bg-gray-100 dark:bg-gray-800 border-none rounded-lg text-gray-800 dark:text-gray-200" readonly>
-                    </div>
-
-                    <!-- Código Interbancario CTS -->
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-500 mb-1">Código Interbancario CTS</label>
-                        <input type="text" id="view-codigo-interbancario-cts" class="w-full bg-gray-100 dark:bg-gray-800 border-none rounded-lg text-gray-800 dark:text-gray-200" readonly>
-                    </div>
-
-                    <!-- Moneda -->
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-500 mb-1">Moneda</label>
-                        <input type="text" id="view-moneda" class="w-full bg-gray-100 dark:bg-gray-800 border-none rounded-lg text-gray-800 dark:text-gray-200" readonly>
-                    </div>
-
-                    <!-- Centro de Costo -->
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-500 mb-1">Centro de Costo</label>
-                        <input type="text" id="view-centro-costo" class="w-full bg-gray-100 dark:bg-gray-800 border-none rounded-lg text-gray-800 dark:text-gray-200" readonly>
-                    </div>
-
-                    <!-- Familia -->
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-500 mb-1">Familia</label>
-                        <input type="text" id="view-familia" class="w-full bg-gray-100 dark:bg-gray-800 border-none rounded-lg text-gray-800 dark:text-gray-200" readonly>
-                    </div>
-
-
-                    <!-- Periodo de Prueba -->
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-500 mb-1">Periodo de Prueba</label>
-                        <input type="text" id="view-periodo-prueba" class="w-full bg-gray-100 dark:bg-gray-800 border-none rounded-lg text-gray-800 dark:text-gray-200" readonly>
-                    </div>
+            <!-- Info principal -->
+            <div class="flex-1 min-w-0 pb-0.5">
+                <!-- Badge estado -->
+                <div class="mb-2">
+                    <span id="view-estado-badge"
+                        class="inline-flex items-center gap-1.5 text-[14px] font-bold uppercase tracking-wide transition-colors duration-300">
+                        <span class="w-2 h-2 rounded-full bg-current"></span>
+                        <span id="view-estado-label">—</span>
+                    </span>
                 </div>
 
-                <div class="mt-8 flex justify-end">
-                    <x-forms.secondary-button onclick="closeModal('view-modal')">Cerrar</x-forms.secondary-button>
+                <!-- Nombre -->
+                <p id="view-nombre" class="text-2xl font-extrabold text-light-text dark:text-dark-text leading-tight truncate">—</p>
+
+                <!-- Chips -->
+                <div class="flex items-center gap-3 mt-2 flex-wrap text-sm text-light-muted dark:text-dark-muted">
+                    <span class="font-mono font-bold text-light-text dark:text-dark-text tracking-widest">
+                        <span id="view-documento-chip">—</span>
+                    </span>
+                    <span class="opacity-30 hidden sm:inline">|</span>
+                    <span class="hidden sm:flex items-center gap-1.5">
+                        <i class="fa-solid fa-calendar text-xs opacity-60"></i>
+                        <span id="view-inicio-chip">—</span>
+                        <span class="opacity-40 mx-0.5">→</span>
+                        <span id="view-fin-chip">—</span>
+                    </span>
                 </div>
             </div>
         </div>
     </div>
-</div>
+
+    <!-- ══ BODY — 2 columnas ══ -->
+    <div class="border-t border-light-border dark:border-dark-border grid grid-cols-1 sm:grid-cols-11 sm:divide-x divide-light-border dark:divide-dark-border">
+
+        <!-- Izquierda: Contrato + Fechas (6/11) -->
+        <div class="sm:col-span-6 px-6 py-5 space-y-4">
+
+            <p class="text-[12px] font-bold uppercase tracking-widest text-light-muted dark:text-dark-muted flex items-center gap-1.5">
+                <i class="fa-solid fa-file-contract view-status-icon text-[15px]"></i>
+                Contrato
+            </p>
+
+            <div class="grid grid-cols-2 gap-x-5 gap-y-3">
+                <div>
+                    <p class="text-[10px] font-semibold uppercase tracking-wider text-light-muted dark:text-dark-muted mb-0.5">Cargo</p>
+                    <p id="view-cargo" class="text-sm font-semibold text-light-text dark:text-dark-text">—</p>
+                </div>
+                <div>
+                    <p class="text-[10px] font-semibold uppercase tracking-wider text-light-muted dark:text-dark-muted mb-0.5">Planilla</p>
+                    <p id="view-planilla" class="text-sm font-semibold text-light-text dark:text-dark-text">—</p>
+                </div>
+                <div>
+                    <p class="text-[10px] font-semibold uppercase tracking-wider text-light-muted dark:text-dark-muted mb-0.5">Condición</p>
+                    <p id="view-condicion" class="text-sm font-semibold text-light-text dark:text-dark-text">—</p>
+                </div>
+                <div>
+                    <p class="text-[10px] font-semibold uppercase tracking-wider text-light-muted dark:text-dark-muted mb-0.5">Centro de Costo</p>
+                    <p id="view-centro-costo" class="text-sm font-semibold text-light-text dark:text-dark-text">—</p>
+                </div>
+                <div>
+                    <p class="text-[10px] font-semibold uppercase tracking-wider text-light-muted dark:text-dark-muted mb-0.5">Familia</p>
+                    <p id="view-familia" class="text-sm font-semibold text-light-text dark:text-dark-text">—</p>
+                </div>
+                <div>
+                    <p class="text-[10px] font-semibold uppercase tracking-wider text-light-muted dark:text-dark-muted mb-0.5">Período de Prueba</p>
+                    <p id="view-periodo-prueba" class="text-sm font-semibold text-light-text dark:text-dark-text">—</p>
+                </div>
+            </div>
+
+            <!-- Fechas card -->
+            <p class="text-[12px] font-bold uppercase tracking-widest text-light-muted dark:text-dark-muted flex items-center gap-1.5">
+                <i class="fa-solid fa-calendar-days view-status-icon text-[15px]"></i>
+                Vigencia
+            </p>
+            <div class="flex items-start gap-2.5 bg-light-bg dark:bg-dark-bg rounded-lg border border-light-border dark:border-dark-border px-3.5 py-2.5">
+                <div class="grid grid-cols-3 gap-4 flex-1">
+                    <div>
+                        <p class="text-[9px] font-semibold uppercase tracking-wider text-light-muted dark:text-dark-muted mb-0.5">Inicio</p>
+                        <p id="view-inicio" class="text-xs font-bold font-mono text-light-text dark:text-dark-text">—</p>
+                    </div>
+                    <div>
+                        <p class="text-[9px] font-semibold uppercase tracking-wider text-light-muted dark:text-dark-muted mb-0.5">Fin</p>
+                        <p id="view-fin" class="text-xs font-bold font-mono text-light-text dark:text-dark-text">—</p>
+                    </div>
+                    <div>
+                        <p class="text-[9px] font-semibold uppercase tracking-wider text-light-muted dark:text-dark-muted mb-0.5">Baja</p>
+                        <p id="view-fecha-renuncia" class="text-xs font-bold font-mono text-light-text dark:text-dark-text">—</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Derecha: Remuneración + Banco (5/11) -->
+        <div class="sm:col-span-5 px-6 py-5 space-y-5 border-t sm:border-t-0 border-light-border dark:border-dark-border">
+
+            <!-- Remuneración -->
+            <div>
+                <p class="text-[12px] font-bold uppercase tracking-widest text-light-muted dark:text-dark-muted mb-3 flex items-center gap-1.5">
+                    <i class="fa-solid fa-money-bill-wave view-status-icon text-[15px]"></i>
+                    Remuneración
+                </p>
+                <div class="grid grid-cols-2 gap-x-5 gap-y-3">
+                    <div>
+                        <p class="text-[10px] font-semibold uppercase tracking-wider text-light-muted dark:text-dark-muted mb-0.5">Haber Básico</p>
+                        <p id="view-haber" class="text-sm font-bold font-mono text-light-text dark:text-dark-text">—</p>
+                    </div>
+                    <div>
+                        <p class="text-[10px] font-semibold uppercase tracking-wider text-light-muted dark:text-dark-muted mb-0.5">Asig. Familiar</p>
+                        <p id="view-asignacion" class="text-sm font-semibold text-light-text dark:text-dark-text">—</p>
+                    </div>
+                    <div>
+                        <p class="text-[10px] font-semibold uppercase tracking-wider text-light-muted dark:text-dark-muted mb-0.5">Movilidad</p>
+                        <p id="view-movilidad" class="text-sm font-semibold font-mono text-light-text dark:text-dark-text">—</p>
+                    </div>
+                    <div>
+                        <p class="text-[10px] font-semibold uppercase tracking-wider text-light-muted dark:text-dark-muted mb-0.5">Moneda</p>
+                        <p id="view-moneda" class="text-sm font-semibold text-light-text dark:text-dark-text">—</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Banco / Previsional -->
+            <div>
+                <p class="text-[12px] font-bold uppercase tracking-widest text-light-muted dark:text-dark-muted mb-3 flex items-center gap-1.5">
+                    <i class="fa-solid fa-building-columns view-status-icon text-[15px]"></i>
+                    DATOS BANCARIOS
+                </p>
+                <div class="space-y-2.5">
+                    <div class="grid grid-cols-2 gap-x-5">
+                        <div>
+                            <p class="text-[10px] font-semibold uppercase tracking-wider text-light-muted dark:text-dark-muted mb-0.5">Fondo Pensiones</p>
+                            <p id="view-fp" class="text-sm font-semibold text-light-text dark:text-dark-text">—</p>
+                        </div>
+                        <div>
+                            <p class="text-[10px] font-semibold uppercase tracking-wider text-light-muted dark:text-dark-muted mb-0.5">Banco</p>
+                            <p id="view-banco" class="text-sm font-semibold text-light-text dark:text-dark-text">—</p>
+                        </div>
+                    </div>
+                    <div class="bg-light-bg dark:bg-dark-bg rounded-lg border border-light-border dark:border-dark-border px-3 py-2 space-y-1.5">
+                        <div class="flex justify-between items-center gap-2">
+                            <p class="text-[9px] font-semibold uppercase tracking-wider text-light-muted dark:text-dark-muted flex-shrink-0">Cuenta</p>
+                            <p id="view-numero-cuenta" class="text-xs font-mono font-bold text-light-text dark:text-dark-text truncate">—</p>
+                        </div>
+                        <div class="flex justify-between items-center gap-2">
+                            <p class="text-[9px] font-semibold uppercase tracking-wider text-light-muted dark:text-dark-muted flex-shrink-0">CCI</p>
+                            <p id="view-codigo-interbancario" class="text-xs font-mono font-bold text-light-text dark:text-dark-text truncate">—</p>
+                        </div>
+                        <div class="border-t border-light-border dark:border-dark-border pt-1.5 flex justify-between items-center gap-2">
+                            <p class="text-[9px] font-semibold uppercase tracking-wider text-light-muted dark:text-dark-muted flex-shrink-0">Cuenta CTS</p>
+                            <p id="view-numero-cuenta-cts" class="text-xs font-mono font-bold text-light-text dark:text-dark-text truncate">—</p>
+                        </div>
+                        <div class="flex justify-between items-center gap-2">
+                            <p class="text-[9px] font-semibold uppercase tracking-wider text-light-muted dark:text-dark-muted flex-shrink-0">CCI CTS</p>
+                            <p id="view-codigo-interbancario-cts" class="text-xs font-mono font-bold text-light-text dark:text-dark-text truncate">—</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ══ FOOTER ══ -->
+    <x-ui.modal-footer modal-id="view-modal" cancel-label="Cerrar" />
+
+</x-ui.modal-shell>

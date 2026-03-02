@@ -3,42 +3,66 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Spatie\Activitylog\LogOptions;
-use Spatie\Activitylog\Traits\LogsActivity;
 
 class EquipoDia extends Model
 {
-    use LogsActivity;
+    protected $table = 'dbo.equipo_dia';
 
-    public function getActivitylogOptions(): LogOptions
-    {
-        return LogOptions::defaults()
-            ->logAll()
-            ->logOnlyDirty()
-            ->useLogName('equipos');
-    }
-
-    protected $table = 'bronze.fact_equipo_dia';
-    protected $primaryKey = 'id_asignacion';
-    public $timestamps = true;
+    const ORIGEN_BASE     = 'base';
+    const ORIGEN_PRESTAMO = 'prestamo';
 
     protected $fillable = [
+        'supervisor_id',
+        'empleado_id',
+        'campana_id',
         'fecha',
-        'user_id',
-        'id_contrato',
+        'origen',
+        'prestamo_id',
     ];
 
     protected $casts = [
         'fecha' => 'date',
     ];
 
+    // Relaciones
     public function supervisor()
     {
-        return $this->belongsTo(User::class, 'user_id', 'id');
+        return $this->belongsTo(User::class, 'supervisor_id');
     }
 
-    public function contrato()
+    public function empleado()
     {
-        return $this->belongsTo(Contrato::class, 'id_contrato', 'id_contrato');
+        return $this->belongsTo(Persona::class, 'empleado_id');
+    }
+
+    public function campana()
+    {
+        return $this->belongsTo(Campana::class, 'campana_id');
+    }
+
+    public function prestamo()
+    {
+        return $this->belongsTo(EquipoPrestamo::class, 'prestamo_id');
+    }
+
+    // Scopes
+    public function scopeHoy($query)
+    {
+        return $query->where('fecha', now()->toDateString());
+    }
+
+    public function scopeFecha($query, string $fecha)
+    {
+        return $query->where('fecha', $fecha);
+    }
+
+    public function scopeDeSupervisor($query, int $supervisorId)
+    {
+        return $query->where('supervisor_id', $supervisorId);
+    }
+
+    public function scopeSinSupervisor($query)
+    {
+        return $query->whereNull('supervisor_id');
     }
 }

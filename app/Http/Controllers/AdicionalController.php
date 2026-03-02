@@ -7,6 +7,7 @@ use App\Models\Contrato;
 use App\Models\Familia;
 use App\Models\Pago;
 use App\Models\Planilla;
+use App\Services\JerarquiaService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -14,6 +15,8 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class AdicionalController extends Controller
 {
+    public function __construct(protected JerarquiaService $jerarquia) {}
+
     public function index(Request $request)
     {
         $periodos = Pago::select('periodo')
@@ -40,53 +43,49 @@ class AdicionalController extends Controller
                 ->selectRaw('MIN(inicio) as inicio_periodo, MAX(fin) as fin_periodo')
                 ->first();
 
-            // Pares planilla-familia de todos los contratos del periodo (sin filtros extra)
-            $combos = Contrato::where('inicio_contrato', '<=', $fechasPeriodo->fin_periodo)
-                ->where(function ($q) use ($fechasPeriodo) {
-                    $q->where(function ($subQ) {
-                        $subQ->whereNull('fin_contrato')->whereNull('fecha_renuncia');
-                    })->orWhereRaw("
-                        CASE
-                            WHEN fecha_renuncia IS NOT NULL THEN fecha_renuncia
-                            ELSE fin_contrato
-                        END >= ?
-                    ", [$fechasPeriodo->inicio_periodo]);
-                })
-                ->whereNotNull('id_planilla')
-                ->whereNotNull('id_familia')
-                ->select('id_planilla', 'id_familia')
+            $personaIds = $this->jerarquia->personaIdsVisibles(auth()->user());
+
+            $finEfectivoCondicion = function ($q) use ($fechasPeriodo) {
+                $q->where(function ($subQ) {
+                    $subQ->whereNull('fin_contrato')->whereNull('fecha_renuncia');
+                })->orWhereRaw("
+                    CASE
+                        WHEN fecha_renuncia IS NOT NULL THEN fecha_renuncia
+                        ELSE fin_contrato
+                    END >= ?
+                ", [$fechasPeriodo->inicio_periodo]);
+            };
+
+            $baseContratos = Contrato::where('inicio_contrato', '<=', $fechasPeriodo->fin_periodo)
+                ->where($finEfectivoCondicion);
+            $this->jerarquia->aplicarFiltroPersonas($baseContratos, $personaIds, 'persona_id');
+
+            // Pares planilla-familia de los contratos visibles del periodo
+            $combos = (clone $baseContratos)
+                ->whereNotNull('planilla_id')
+                ->whereNotNull('familia_id')
+                ->select('planilla_id', 'familia_id')
                 ->distinct()
                 ->get()
                 ->map(fn($c) => [
-                    'p' => $c->id_planilla,
-                    'f' => $c->id_familia,
-                    'e' => $planillas->firstWhere('id_planilla', $c->id_planilla)?->nombre_empresa,
+                    'p' => $c->planilla_id,
+                    'f' => $c->familia_id,
+                    'e' => $planillas->firstWhere('id', $c->planilla_id)?->nombre_empresa,
                 ])
                 ->values();
 
-            $query = Contrato::with(['persona', 'condicion', 'planilla'])
-                ->where('inicio_contrato', '<=', $fechasPeriodo->fin_periodo)
-                ->where(function ($q) use ($fechasPeriodo) {
-                    $q->where(function ($subQ) {
-                        $subQ->whereNull('fin_contrato')->whereNull('fecha_renuncia');
-                    })->orWhereRaw("
-                        CASE
-                            WHEN fecha_renuncia IS NOT NULL THEN fecha_renuncia
-                            ELSE fin_contrato
-                        END >= ?
-                    ", [$fechasPeriodo->inicio_periodo]);
-                });
+            $query = (clone $baseContratos)->with(['persona', 'condicion', 'planilla']);
 
             if ($request->filled('nombre_empresa')) {
                 $query->whereHas('planilla', fn($q) => $q->where('nombre_empresa', $request->nombre_empresa));
             }
 
             if ($request->filled('id_planilla')) {
-                $query->where('id_planilla', $request->id_planilla);
+                $query->where('planilla_id', $request->id_planilla);
             }
 
             if ($request->filled('id_familia')) {
-                $query->where('id_familia', $request->id_familia);
+                $query->where('familia_id', $request->id_familia);
             }
 
             if ($request->filled('numero_documento')) {
@@ -97,13 +96,13 @@ class AdicionalController extends Controller
 
             $contratos = $query->get();
 
-            $adicionales = Adicional::whereIn('id_contrato', $contratos->pluck('id_contrato'))
+            $adicionales = Adicional::whereIn('contrato_id', $contratos->pluck('id'))
                 ->where('periodo', $periodoSeleccionado)
                 ->get()
-                ->groupBy('id_contrato');
+                ->groupBy('contrato_id');
 
             $contratos = $contratos->map(function ($contrato) use ($adicionales) {
-                $adicionalesContrato = $adicionales->get($contrato->id_contrato, collect());
+                $adicionalesContrato = $adicionales->get($contrato->id, collect());
                 $mapped = [];
                 foreach (Adicional::TIPOS as $tipo) {
                     $adicional = $adicionalesContrato->firstWhere('tipo_adicional', $tipo);
@@ -143,14 +142,14 @@ class AdicionalController extends Controller
     public function guardar(Request $request): JsonResponse
     {
         $request->validate([
-            'id_contrato' => 'required|integer',
+            'contrato_id' => 'required|integer',
             'periodo' => 'required|string|max:10',
             'tipo_adicional' => 'required|string|in:' . implode(',', Adicional::TIPOS),
             'monto' => 'nullable|numeric',
             'motivo' => 'nullable|string|max:500',
         ]);
 
-        $contrato = Contrato::find($request->id_contrato);
+        $contrato = Contrato::find($request->contrato_id);
         if (!$contrato) {
             return response()->json(['error' => 'Contrato no encontrado'], 404);
         }
@@ -158,7 +157,7 @@ class AdicionalController extends Controller
         $monto = $request->monto;
 
         if ($monto === null || $monto === '' || floatval($monto) == 0) {
-            Adicional::where('id_contrato', $request->id_contrato)
+            Adicional::where('contrato_id', $request->contrato_id)
                 ->where('periodo', $request->periodo)
                 ->where('tipo_adicional', $request->tipo_adicional)
                 ->delete();
@@ -168,7 +167,7 @@ class AdicionalController extends Controller
 
         $adicional = Adicional::updateOrCreate(
             [
-                'id_contrato' => $request->id_contrato,
+                'contrato_id' => $request->contrato_id,
                 'periodo' => $request->periodo,
                 'tipo_adicional' => $request->tipo_adicional,
             ],
@@ -199,11 +198,11 @@ class AdicionalController extends Controller
 
             // Mapear headers (primera fila)
             $headers = array_map(fn($h) => strtolower(trim((string) $h)), $filas[0]);
-            $colIdContrato = array_search('id_contrato', $headers);
+            $colIdContrato = array_search('contrato_id', $headers);
             $colMonto      = array_search('monto', $headers);
 
             if ($colIdContrato === false || $colMonto === false) {
-                return back()->with('error', 'El archivo no tiene las columnas requeridas: id_contrato, monto.')->withInput();
+                return back()->with('error', 'El archivo no tiene las columnas requeridas: contrato_id, monto.')->withInput();
             }
 
             $periodo   = $request->periodo;
@@ -219,7 +218,7 @@ class AdicionalController extends Controller
                 }
 
                 $registros[] = [
-                    'id_contrato'    => (int) $idContrato,
+                    'contrato_id'    => (int) $idContrato,
                     'periodo'        => $periodo,
                     'tipo_adicional' => Adicional::TIPO_MOVILIDAD,
                     'monto'          => floatval($monto),
@@ -229,13 +228,13 @@ class AdicionalController extends Controller
             }
 
             DB::transaction(function () use ($periodo, $registros) {
-                DB::table('bronze.fact_adicionales')
+                DB::table('nomina.fact_adicionales')
                     ->where('periodo', $periodo)
                     ->where('tipo_adicional', Adicional::TIPO_MOVILIDAD)
                     ->delete();
 
                 if (!empty($registros)) {
-                    DB::table('bronze.fact_adicionales')->insert($registros);
+                    DB::table('nomina.fact_adicionales')->insert($registros);
                 }
             });
 

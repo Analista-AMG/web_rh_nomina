@@ -18,14 +18,13 @@ class EquipoSolicitud extends Model
             ->useLogName('equipos');
     }
 
-    protected $table = 'bronze.fact_equipo_solicitudes';
-    protected $primaryKey = 'id_solicitud';
+    protected $table = 'nomina.fact_equipo_solicitudes';
     public $timestamps = true;
 
     protected $fillable = [
         'fecha',
         'user_id',
-        'id_contrato',
+        'contrato_id',
         'estado',
         'solicitado_por',
         'prev_user_id',
@@ -49,7 +48,7 @@ class EquipoSolicitud extends Model
 
     public function contrato()
     {
-        return $this->belongsTo(Contrato::class, 'id_contrato', 'id_contrato');
+        return $this->belongsTo(Contrato::class, 'contrato_id');
     }
 
     public function solicitadoPor()

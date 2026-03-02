@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration {
     public function up(): void
     {
-        Schema::create('bronze.dim_paises', function (Blueprint $table) {
+        Schema::create('nomina.dim_paises', function (Blueprint $table) {
             $table->id();
             $table->string('nombre', 120);
             $table->string('codigo_pais', 8);
@@ -17,6 +17,6 @@ return new class extends Migration {
 
     public function down(): void
     {
-        Schema::dropIfExists('bronze.dim_paises');
+        Schema::dropIfExists('nomina.dim_paises');
     }
 };

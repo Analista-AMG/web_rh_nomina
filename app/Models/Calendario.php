@@ -6,8 +6,9 @@ use Illuminate\Database\Eloquent\Model;
 
 class Calendario extends Model
 {
-    protected $table = 'bronze.dim_calendario';
-    public $timestamps = false;
+    protected $table = 'nomina.dim_calendarios';
+    protected $primaryKey = 'fecha';
+    protected $keyType = 'string';
     public $incrementing = false;
 
     protected $fillable = [

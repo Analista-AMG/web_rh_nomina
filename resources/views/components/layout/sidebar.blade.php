@@ -38,6 +38,13 @@
         $personalActive     = request()->routeIs('personas.*') || request()->routeIs('contratos.*');
         $operacionesActive  = request()->routeIs('asistencia.*') || request()->routeIs('equipos.*');
         $remunerActive      = request()->routeIs('adicionales.*') || request()->routeIs('calculos.*') || request()->routeIs('dashboard');
+        $puedeVerCampanas   = auth()->user()->hasRole('Administrador')
+            || \App\Models\UserAsignacion::where('user_id', (int) auth()->id())
+                ->whereIn('rol', [\App\Models\UserAsignacion::ROL_JEFE_OPERACIONES, \App\Models\UserAsignacion::ROL_COORDINADOR])
+                ->vigentes()
+                ->exists();
+        $gestionActive      = request()->routeIs('admin.users.*') || request()->routeIs('admin.roles.*') || request()->routeIs('admin.audit.*');
+        $orgActive          = request()->routeIs('admin.empresas.*') || request()->routeIs('admin.campanas.*') || request()->routeIs('admin.asignaciones.*');
     @endphp
     <nav class="flex-1 overflow-y-auto py-4 overflow-x-hidden custom-scrollbar">
         <ul class="space-y-1 px-2">
@@ -145,36 +152,82 @@
             </li>
             @endcanany
 
-            {{-- Administración (label estático, sin grupo desplegable) --}}
-            @canany(['users.view', 'roles.view', 'audit.view'])
+            {{-- SECCIÓN: Administración --}}
+            @if(auth()->user()->canAny(['users.view', 'roles.view', 'audit.view']) || $puedeVerCampanas)
             <li class="pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
                 <p class="px-4 text-xs font-semibold text-gray-400 uppercase mb-2 sidebar-text">Administración</p>
             </li>
+            @endif
+
+            {{-- GRUPO: Gestión (Usuarios / Roles / Auditoría) --}}
+            @canany(['users.view', 'roles.view', 'audit.view'])
+            <li class="nav-group" data-group="gestion" data-active="{{ $gestionActive ? '1' : '0' }}">
+                <button class="nav-group-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg {{ $gestionActive ? 'text-primary' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors cursor-pointer" title="Gestión">
+                    <i class="fa-solid fa-users-gear text-lg flex-shrink-0"></i>
+                    <span class="sidebar-text font-medium flex-1 text-left">Gestión</span>
+                    <i class="fa-solid fa-chevron-down text-xs sidebar-text nav-group-chevron transition-transform duration-200 flex-shrink-0"></i>
+                </button>
+                <ul class="nav-group-items overflow-hidden transition-all duration-200 space-y-0.5" style="max-height:0;">
+                    @can('users.view')
+                    <li>
+                        <a href="{{ route('admin.users.index') }}" class="nav-link flex items-center gap-3 pl-9 pr-4 py-2.5 rounded-lg {{ request()->routeIs('admin.users.*') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors" title="Gestión de Usuarios">
+                            <i class="fa-solid fa-users-cog text-sm flex-shrink-0"></i>
+                            <span class="sidebar-text font-medium">Usuarios</span>
+                        </a>
+                    </li>
+                    @endcan
+                    @can('roles.view')
+                    <li>
+                        <a href="{{ route('admin.roles.index') }}" class="nav-link flex items-center gap-3 pl-9 pr-4 py-2.5 rounded-lg {{ request()->routeIs('admin.roles.*') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors" title="Gestión de Roles">
+                            <i class="fa-solid fa-shield-halved text-sm flex-shrink-0"></i>
+                            <span class="sidebar-text font-medium">Roles y Permisos</span>
+                        </a>
+                    </li>
+                    @endcan
+                    @can('audit.view')
+                    <li>
+                        <a href="{{ route('admin.audit.index') }}" class="nav-link flex items-center gap-3 pl-9 pr-4 py-2.5 rounded-lg {{ request()->routeIs('admin.audit.*') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors" title="Auditoría">
+                            <i class="fa-solid fa-clock-rotate-left text-sm flex-shrink-0"></i>
+                            <span class="sidebar-text font-medium">Auditoría</span>
+                        </a>
+                    </li>
+                    @endcan
+                </ul>
+            </li>
             @endcanany
-            @can('users.view')
-            <li>
-                <a href="{{ route('admin.users.index') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg {{ request()->routeIs('admin.users.*') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors" title="Gestión de Usuarios">
-                    <i class="fa-solid fa-users-cog text-lg flex-shrink-0"></i>
-                    <span class="sidebar-text font-medium">Usuarios</span>
-                </a>
+
+            {{-- GRUPO: Organización (Empresas / Campañas) --}}
+            @if($puedeVerCampanas)
+            <li class="nav-group" data-group="organizacion" data-active="{{ $orgActive ? '1' : '0' }}">
+                <button class="nav-group-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg {{ $orgActive ? 'text-primary' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors cursor-pointer" title="Organización">
+                    <i class="fa-solid fa-sitemap text-lg flex-shrink-0"></i>
+                    <span class="sidebar-text font-medium flex-1 text-left">Organización</span>
+                    <i class="fa-solid fa-chevron-down text-xs sidebar-text nav-group-chevron transition-transform duration-200 flex-shrink-0"></i>
+                </button>
+                <ul class="nav-group-items overflow-hidden transition-all duration-200 space-y-0.5" style="max-height:0;">
+                    @role('Administrador')
+                    <li>
+                        <a href="{{ route('admin.empresas.index') }}" class="nav-link flex items-center gap-3 pl-9 pr-4 py-2.5 rounded-lg {{ request()->routeIs('admin.empresas.*') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors" title="Empresas">
+                            <i class="fa-solid fa-building text-sm flex-shrink-0"></i>
+                            <span class="sidebar-text font-medium">Empresas</span>
+                        </a>
+                    </li>
+                    @endrole
+                    <li>
+                        <a href="{{ route('admin.campanas.index') }}" class="nav-link flex items-center gap-3 pl-9 pr-4 py-2.5 rounded-lg {{ request()->routeIs('admin.campanas.*') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors" title="Campañas">
+                            <i class="fa-solid fa-bullhorn text-sm flex-shrink-0"></i>
+                            <span class="sidebar-text font-medium">Campañas</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{{ route('admin.asignaciones.index') }}" class="nav-link flex items-center gap-3 pl-9 pr-4 py-2.5 rounded-lg {{ request()->routeIs('admin.asignaciones.*') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors" title="Asignaciones">
+                            <i class="fa-solid fa-user-tag text-sm flex-shrink-0"></i>
+                            <span class="sidebar-text font-medium">Asignaciones</span>
+                        </a>
+                    </li>
+                </ul>
             </li>
-            @endcan
-            @can('roles.view')
-            <li>
-                <a href="{{ route('admin.roles.index') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg {{ request()->routeIs('admin.roles.*') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors" title="Gestión de Roles">
-                    <i class="fa-solid fa-shield-halved text-lg flex-shrink-0"></i>
-                    <span class="sidebar-text font-medium">Roles y Permisos</span>
-                </a>
-            </li>
-            @endcan
-            @can('audit.view')
-            <li>
-                <a href="{{ route('admin.audit.index') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg {{ request()->routeIs('admin.audit.*') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors" title="Auditoría">
-                    <i class="fa-solid fa-clock-rotate-left text-lg flex-shrink-0"></i>
-                    <span class="sidebar-text font-medium">Auditoría</span>
-                </a>
-            </li>
-            @endcan
+            @endif
 
         </ul>
     </nav>

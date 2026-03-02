@@ -11,9 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('bronze.dim_moneda', function (Blueprint $table) {
-            $table->id('id_moneda');
+        Schema::create('nomina.dim_monedas', function (Blueprint $table) {
+            $table->id();
             $table->string('nombre_moneda', 50);
+            $table->timestamps();
         });
     }
 
@@ -22,6 +23,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('bronze.dim_moneda');
+        Schema::dropIfExists('nomina.dim_monedas');
     }
 };

@@ -78,10 +78,10 @@ class GeografiaSeeder extends Seeder
                 );
             }
 
-            $sql = "SET IDENTITY_INSERT [bronze].[dim_paises] ON; ";
-            $sql .= "INSERT INTO [bronze].[dim_paises] (id, nombre, codigo_pais, created_at, updated_at) VALUES ";
+            $sql = "SET IDENTITY_INSERT [nomina].[dim_paises] ON; ";
+            $sql .= "INSERT INTO [nomina].[dim_paises] (id, nombre, codigo_pais, created_at, updated_at) VALUES ";
             $sql .= implode(', ', $values) . "; ";
-            $sql .= "SET IDENTITY_INSERT [bronze].[dim_paises] OFF;";
+            $sql .= "SET IDENTITY_INSERT [nomina].[dim_paises] OFF;";
 
             DB::unprepared($sql);
         }
@@ -144,13 +144,13 @@ class GeografiaSeeder extends Seeder
             ];
 
             if (count($batch) >= 400) {
-                DB::table('bronze.dim_provincias')->insert($batch);
+                DB::table('nomina.dim_provincias')->insert($batch);
                 $batch = [];
             }
         }
 
         if ($batch) {
-            DB::table('bronze.dim_provincias')->insert($batch);
+            DB::table('nomina.dim_provincias')->insert($batch);
         }
     }
 
@@ -172,19 +172,18 @@ class GeografiaSeeder extends Seeder
             $batch[] = [
                 'nombre' => trim($row['A']),
                 'provincia_id' => (int) $row['B'],
-                'departamento_id' => (int) $row['C'],
                 'created_at' => $now,
                 'updated_at' => $now,
             ];
 
             if (count($batch) >= 300) {
-                DB::table('bronze.dim_distritos')->insert($batch);
+                DB::table('nomina.dim_distritos')->insert($batch);
                 $batch = [];
             }
         }
 
         if ($batch) {
-            DB::table('bronze.dim_distritos')->insert($batch);
+            DB::table('nomina.dim_distritos')->insert($batch);
         }
     }
 
@@ -220,10 +219,10 @@ class GeografiaSeeder extends Seeder
             );
         }
 
-        $sql = "SET IDENTITY_INSERT [bronze].[dim_departamentos] ON; ";
-        $sql .= "INSERT INTO [bronze].[dim_departamentos] (id, pais_id, nombre, created_at, updated_at) VALUES ";
+        $sql = "SET IDENTITY_INSERT [nomina].[dim_departamentos] ON; ";
+        $sql .= "INSERT INTO [nomina].[dim_departamentos] (id, pais_id, nombre, created_at, updated_at) VALUES ";
         $sql .= implode(', ', $values) . "; ";
-        $sql .= "SET IDENTITY_INSERT [bronze].[dim_departamentos] OFF;";
+        $sql .= "SET IDENTITY_INSERT [nomina].[dim_departamentos] OFF;";
 
         DB::unprepared($sql);
     }
@@ -233,7 +232,7 @@ class GeografiaSeeder extends Seeder
      */
     private function limpiarTabla(string $table): void
     {
-        DB::table("bronze.{$table}")->delete();
-        DB::statement("DBCC CHECKIDENT ('bronze.{$table}', RESEED, 0)");
+        DB::table("nomina.{$table}")->delete();
+        DB::statement("DBCC CHECKIDENT ('nomina.{$table}', RESEED, 0)");
     }
 }

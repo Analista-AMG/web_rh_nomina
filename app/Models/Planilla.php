@@ -6,9 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Planilla extends Model
 {
-    protected $table = 'bronze.dim_planilla';
-    protected $primaryKey = 'id_planilla';
-    public $timestamps = false;
+    protected $table = 'nomina.dim_planillas';
 
     protected $fillable = [
         'nombre_empresa', 'ruc', 'razon_social', 'direccion', 

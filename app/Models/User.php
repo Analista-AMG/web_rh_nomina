@@ -35,6 +35,7 @@ class User extends Authenticatable
         'numero_documento',
         'email',
         'password',
+        'activo',
     ];
 
     /**
@@ -57,6 +58,48 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'activo' => 'boolean',
         ];
     }
+
+    // Relaciones con sistema de jerarquía
+    public function asignaciones()
+    {
+        return $this->hasMany(UserAsignacion::class, 'user_id');
+    }
+
+    public function asignacionVigente()
+    {
+        return $this->hasOne(UserAsignacion::class, 'user_id')
+                    ->where('estado', UserAsignacion::ESTADO_APROBADO)
+                    ->where('activo', true)
+                    ->whereNull('fecha_fin');
+    }
+
+    public function subordinados()
+    {
+        return $this->hasMany(UserAsignacion::class, 'superior_id')
+                    ->where('estado', UserAsignacion::ESTADO_APROBADO)
+                    ->where('activo', true)
+                    ->whereNull('fecha_fin');
+    }
+
+    public function delegacionesComoDelgante()
+    {
+        return $this->hasMany(Delegacion::class, 'delegante_id');
+    }
+
+    public function delegacionesComodelegado()
+    {
+        return $this->hasMany(Delegacion::class, 'delegado_id');
+    }
+
+    public function delegacionVigente()
+    {
+        $hoy = now()->toDateString();
+        return $this->hasMany(Delegacion::class, 'delegado_id')
+                    ->where('fecha_inicio', '<=', $hoy)
+                    ->where('fecha_fin', '>=', $hoy);
+    }
+
 }

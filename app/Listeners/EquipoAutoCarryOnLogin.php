@@ -3,8 +3,10 @@
 namespace App\Listeners;
 
 use App\Models\EquipoDia;
+use App\Models\UserAsignacion;
 use Carbon\Carbon;
 use Illuminate\Auth\Events\Login;
+use Illuminate\Support\Facades\Artisan;
 
 class EquipoAutoCarryOnLogin
 {
@@ -12,33 +14,38 @@ class EquipoAutoCarryOnLogin
     {
         $user = $event->user;
 
-        // Solo aplica a supervisores con permiso de gestionar equipos
-        if (!$user->can('equipos.manage')) {
+        if (!UserAsignacion::where('superior_id', $user->id)->vigentes()->exists()) {
             return;
         }
 
         $hoy = Carbon::today()->toDateString();
-        $ayer = Carbon::yesterday()->toDateString();
 
-        // Si ya tiene equipo hoy, no hace nada
-        $tieneEquipoHoy = EquipoDia::where('user_id', $user->id)
+        $this->carryParaSupervisor($user->id, $hoy);
+    }
+
+    private function carryParaSupervisor(int $supervisorId, string $hoy): void
+    {
+        $tieneEquipoHoy = EquipoDia::where('supervisor_id', $supervisorId)
             ->where('fecha', $hoy)
             ->exists();
 
-        if ($tieneEquipoHoy) {
-            return;
+        if (!$tieneEquipoHoy) {
+            Artisan::call('equipo:auto-carry', ['--supervisor' => $supervisorId]);
         }
 
-        // Copiar asignaciones de ayer a hoy
-        $equipoAyer = EquipoDia::where('user_id', $user->id)
-            ->where('fecha', $ayer)
-            ->get();
+        $subordinados = UserAsignacion::where('superior_id', $supervisorId)
+            ->vigentes()
+            ->pluck('user_id')
+            ->unique();
 
-        foreach ($equipoAyer as $asignacion) {
-            EquipoDia::firstOrCreate(
-                ['fecha' => $hoy, 'id_contrato' => (int)$asignacion->id_contrato],
-                ['user_id' => $user->id]
-            );
+        foreach ($subordinados as $subId) {
+            $tieneSubordinados = UserAsignacion::where('superior_id', $subId)
+                ->vigentes()
+                ->exists();
+
+            if ($tieneSubordinados) {
+                $this->carryParaSupervisor((int) $subId, $hoy);
+            }
         }
     }
 }

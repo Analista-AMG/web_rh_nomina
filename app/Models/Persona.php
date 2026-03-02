@@ -2,11 +2,10 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Casts\Attribute;
+use Illuminate\Database\Eloquent\Model;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
-use Carbon\Carbon;
 
 class Persona extends Model
 {
@@ -20,43 +19,70 @@ class Persona extends Model
             ->useLogName('personas');
     }
 
-    protected $table = 'bronze.dim_persona';
-    protected $primaryKey = 'id_persona';
-    public $timestamps = false;
+    protected $table = 'nomina.dim_personas';
 
     protected $fillable = [
         'numero_documento', 'apellido_paterno', 'apellido_materno', 'nombres',
         'tipo_documento', 'fecha_nacimiento', 'genero', 'pais', 'departamento',
         'provincia', 'distrito', 'numero_telefonico', 'correo_electronico_personal',
-        'correo_electronico_corporativo', 'direccion', 'fecha_registro'
+        'correo_electronico_corporativo', 'direccion',
+    ];
+
+    protected $casts = [
+        'fecha_nacimiento' => 'date',
+        'genero'           => 'integer',
     ];
 
     public function contratos()
     {
-        return $this->hasMany(Contrato::class, 'id_persona', 'id_persona');
+        return $this->hasMany(Contrato::class, 'persona_id');
     }
 
-    public function getContratoActivoAttribute()
+    protected function contratoActivo(): Attribute
     {
-        return $this->contratos->first(function ($contrato) {
-            $hoy = Carbon::now();
-            $inicio = Carbon::parse($contrato->inicio_contrato);
-            $fin = $contrato->fecha_renuncia 
-                ? Carbon::parse($contrato->fecha_renuncia) 
-                : ($contrato->fin_contrato ? Carbon::parse($contrato->fin_contrato) : null);
-
-            if (!$fin) return $hoy->gte($inicio);
-            return $hoy->between($inicio, $fin);
-        });
+        return Attribute::make(
+            get: function () {
+                $hoy = now()->startOfDay();
+                return $this->contratos->first(function ($contrato) use ($hoy) {
+                    $finEfectivo = $contrato->fecha_renuncia ?? $contrato->fin_contrato;
+                    return $finEfectivo ? $hoy->between($contrato->inicio_contrato, $finEfectivo) : $hoy->gte($contrato->inicio_contrato);
+                });
+            }
+        );
     }
 
-    public function getEstadoAttribute()
+    protected function estado(): Attribute
     {
-        if ($this->contratos->isEmpty()) return 2;
-        return $this->contrato_activo ? 1 : 0;
+        return Attribute::make(
+            get: function () {
+                if ($this->contratos->isEmpty()) return 2;
+                return $this->contrato_activo ? 1 : 0;
+            }
+        );
     }
-    
-    // NUEVA SINTAXIS DE ACCESSOR (LARAVEL 9/10/11)
+
+    protected function estadoLabel(): Attribute
+    {
+        return Attribute::make(
+            get: fn() => match($this->estado) {
+                1 => 'Activo',
+                2 => 'Pendiente',
+                default => 'Inactivo',
+            }
+        );
+    }
+
+    protected function estadoBadgeClass(): Attribute
+    {
+        return Attribute::make(
+            get: fn() => match($this->estado) {
+                1 => 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
+                2 => 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
+                default => 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
+            }
+        );
+    }
+
     protected function nombreCompleto(): Attribute
     {
         return Attribute::make(

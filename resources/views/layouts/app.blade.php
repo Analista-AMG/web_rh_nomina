@@ -89,7 +89,7 @@
 <body class="bg-light-bg text-light-text dark:bg-dark-bg dark:text-dark-text font-sans antialiased transition-colors duration-300 overflow-hidden">
     
     <div class="flex h-screen w-full">
-        @if(!request()->routeIs('home'))
+        @if(!request()->routeIs('home') && !request()->routeIs('sin-asignacion'))
             <!-- Sidebar Component -->
             <x-layout.sidebar />
         @endif

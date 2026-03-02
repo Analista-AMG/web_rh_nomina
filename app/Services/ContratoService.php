@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Persona;
 use App\Models\Contrato;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Str;
 
@@ -31,7 +32,7 @@ class ContratoService
         }
 
         // 2. Obtener contratos de la persona
-        $contratos = Contrato::where('id_persona', $persona->id_persona)
+        $contratos = Contrato::where('persona_id', $persona->id)
             ->orderBy('inicio_contrato', 'desc')
             ->get();
 
@@ -48,16 +49,17 @@ class ContratoService
 
             // --- Verificación de Solapamiento ---
             foreach ($contratos as $contrato) {
-                $inicioContrato = Carbon::parse($contrato->inicio_contrato);
-                $finEfectivo = $contrato->fecha_renuncia ? Carbon::parse($contrato->fecha_renuncia) : ($contrato->fin_contrato ? Carbon::parse($contrato->fin_contrato) : null);
+                $finEfectivo = $contrato->fecha_renuncia ?? $contrato->fin_contrato;
 
-                if ($finEfectivo && $fechaInicioCarbon->between($inicioContrato, $finEfectivo)) {
+                if ($finEfectivo && $fechaInicioCarbon->between($contrato->inicio_contrato, $finEfectivo)) {
                     $puedeCrear = false;
+                    $contratoActivo = $contrato;
                     $mensaje = 'La fecha de inicio se solapa con un contrato existente que finalizó el ' . $finEfectivo->format('d/m/Y') . '.';
                     break;
                 }
-                if (!$finEfectivo && $fechaInicioCarbon->gte($inicioContrato)) {
+                if (!$finEfectivo && $fechaInicioCarbon->gte($contrato->inicio_contrato)) {
                     $puedeCrear = false;
+                    $contratoActivo = $contrato;
                     $mensaje = 'La persona ya tiene un contrato activo indefinido. Debe finalizarlo antes de crear uno nuevo.';
                     break;
                 }
@@ -66,8 +68,8 @@ class ContratoService
             // --- Lógica de Clasificación (si no hay solapamiento) ---
             if ($puedeCrear) {
                 $ultimoContrato = $contratos->first();
-                $finContratoOriginal = $ultimoContrato->fin_contrato ? Carbon::parse($ultimoContrato->fin_contrato) : null;
-                $fechaRenuncia = $ultimoContrato->fecha_renuncia ? Carbon::parse($ultimoContrato->fecha_renuncia) : null;
+                $finContratoOriginal = $ultimoContrato->fin_contrato;
+                $fechaRenuncia = $ultimoContrato->fecha_renuncia;
 
                 // 2. Regla "Contrato por baja" (Máxima prioridad si hay historial)
                 if ($fechaRenuncia && $finContratoOriginal && $fechaInicioCarbon->between($fechaRenuncia->copy()->addDay(), $finContratoOriginal)) {
@@ -87,7 +89,7 @@ class ContratoService
                 'error' => $mensaje,
                 'puede_crear' => false,
                 'contrato_activo' => $contratoActivo ? [
-                    'id' => $contratoActivo->id_contrato,
+                    'id' => $contratoActivo->id,
                     'inicio' => $contratoActivo->inicio_contrato,
                     'fin' => $contratoActivo->fin_contrato
                 ] : null
@@ -100,7 +102,7 @@ class ContratoService
         // Guardar token en sesion para validar en el store
         session()->put('contrato_token', [
             'token' => $token,
-            'id_persona' => $persona->id_persona,
+            'persona_id' => $persona->id,
             'fecha_inicio' => $fechaInicio,
             'tipo_movimiento' => $tipoMovimiento,
             'expires_at' => now()->addMinutes(30)
@@ -112,20 +114,20 @@ class ContratoService
             $ultimoContrato = $contratos->first();
 
             // Obtener el ultimo movimiento del contrato (el mas reciente)
-            $ultimoMovimiento = \App\Models\ContratoMovimiento::where('id_contrato', $ultimoContrato->id_contrato)
+            $ultimoMovimiento = \App\Models\ContratoMovimiento::where('contrato_id', $ultimoContrato->id)
                 ->orderBy('inicio', 'desc')
                 ->first();
 
             // Usar datos del movimiento si existe, sino del contrato
             $datosUltimoContrato = [
-                'id_cargo' => $ultimoMovimiento->id_cargo ?? $ultimoContrato->id_cargo,
-                'id_planilla' => $ultimoMovimiento->id_planilla ?? $ultimoContrato->id_planilla,
-                'id_fp' => $ultimoMovimiento->id_fp ?? $ultimoContrato->id_fp,
-                'id_condicion' => $ultimoMovimiento->id_condicion ?? $ultimoContrato->id_condicion,
-                'id_banco' => $ultimoMovimiento->id_banco ?? $ultimoContrato->id_banco,
-                'id_moneda' => $ultimoMovimiento->id_moneda ?? $ultimoContrato->id_moneda,
-                'id_centro_costo' => $ultimoMovimiento->id_centro_costo ?? $ultimoContrato->id_centro_costo,
-                'id_familia' => $ultimoMovimiento->id_familia ?? $ultimoContrato->id_familia,
+                'cargo_id' => $ultimoMovimiento->cargo_id ?? $ultimoContrato->cargo_id,
+                'planilla_id' => $ultimoMovimiento->planilla_id ?? $ultimoContrato->planilla_id,
+                'fondo_pensiones_id' => $ultimoMovimiento->fondo_pensiones_id ?? $ultimoContrato->fondo_pensiones_id,
+                'condicion_id' => $ultimoMovimiento->condicion_id ?? $ultimoContrato->condicion_id,
+                'banco_id' => $ultimoMovimiento->banco_id ?? $ultimoContrato->banco_id,
+                'moneda_id' => $ultimoMovimiento->moneda_id ?? $ultimoContrato->moneda_id,
+                'centro_costo_id' => $ultimoMovimiento->centro_costo_id ?? $ultimoContrato->centro_costo_id,
+                'familia_id' => $ultimoMovimiento->familia_id ?? $ultimoContrato->familia_id,
                 'haber_basico' => $ultimoMovimiento->haber_basico ?? $ultimoContrato->haber_basico,
                 'movilidad' => $ultimoMovimiento->movilidad ?? $ultimoContrato->movilidad ?? 0,
                 'asignacion_familiar' => $ultimoMovimiento->asignacion_familiar ?? $ultimoContrato->asignacion_familiar ?? false,
@@ -141,13 +143,13 @@ class ContratoService
             'ok' => true,
             'puede_crear' => true,
             'token' => $token,
-            'id_persona' => $persona->id_persona,
+            'persona_id' => $persona->id,
             'tipo_movimiento' => $tipoMovimiento,
             'tiene_historial' => $tieneHistorial,
             'total_contratos' => $contratos->count(),
             'datos_ultimo_contrato' => $datosUltimoContrato,
             'persona' => [
-                'id_persona' => $persona->id_persona,
+                'persona_id' => $persona->id,
                 'numero_documento' => $persona->numero_documento,
                 'tipo_documento' => $persona->tipo_documento,
                 'nombres' => $persona->nombres,
@@ -172,7 +174,7 @@ class ContratoService
             'movimientos.planilla',
             'movimientos.cargo'
         ])
-        ->where('id_persona', $idPersona)
+        ->where('persona_id', $idPersona)
         ->orderBy('inicio_contrato', 'desc')
         ->limit(5)
         ->get();
@@ -190,53 +192,60 @@ class ContratoService
         try {
             \DB::beginTransaction();
 
-            // 1. Crear el contrato
-            $contrato = Contrato::create([
-                'id_persona' => $datos['id_persona'],
-                'id_cargo' => $datos['id_cargo'],
-                'id_planilla' => $datos['id_planilla'],
-                'id_fp' => $datos['id_fp'],
-                'id_condicion' => $datos['id_condicion'],
-                'asignacion_familiar' => $datos['asignacion_familiar'] ?? false,
-                'haber_basico' => $datos['haber_basico'],
-                'movilidad' => $datos['movilidad'] ?? 0,
-                'id_banco' => $datos['id_banco'],
-                'numero_cuenta' => $datos['numero_cuenta'] ?? null,
-                'codigo_interbancario' => $datos['codigo_interbancario'] ?? null,
-                'numero_cuenta_cts' => $datos['numero_cuenta_cts'] ?? null,
+            // Campos compartidos entre contrato y movimiento inicial
+            $camposComunes = [
+                'cargo_id'               => $datos['cargo_id'],
+                'planilla_id'            => $datos['planilla_id'],
+                'fondo_pensiones_id'     => $datos['fondo_pensiones_id'],
+                'condicion_id'           => $datos['condicion_id'],
+                'asignacion_familiar'    => $datos['asignacion_familiar'] ?? false,
+                'haber_basico'           => $datos['haber_basico'],
+                'movilidad'              => $datos['movilidad'] ?? 0,
+                'banco_id'               => $datos['banco_id'],
+                'numero_cuenta'          => $datos['numero_cuenta'] ?? null,
+                'codigo_interbancario'   => $datos['codigo_interbancario'] ?? null,
+                'numero_cuenta_cts'      => $datos['numero_cuenta_cts'] ?? null,
                 'codigo_interbancario_cts' => $datos['codigo_interbancario_cts'] ?? null,
-                'id_moneda' => $datos['id_moneda'],
-                'id_familia' => $datos['id_familia'] ?? null,
+                'moneda_id'              => $datos['moneda_id'],
+                'familia_id'             => $datos['familia_id'] ?? null,
+                'centro_costo_id'        => $datos['centro_costo_id'],
+            ];
+
+            // 1. Crear el contrato
+            $contrato = Contrato::create(array_merge($camposComunes, [
+                'persona_id'      => $datos['persona_id'],
                 'inicio_contrato' => $datos['inicio_contrato'],
-                'fin_contrato' => $datos['fin_contrato'],
-                'periodo_prueba' => $datos['periodo_prueba'] ?? false,
-                'id_centro_costo' => $datos['id_centro_costo'],
-                'fecha_insercion' => now(),
-            ]);
+                'fin_contrato'    => $datos['fin_contrato'],
+                'periodo_prueba'  => $datos['periodo_prueba'] ?? false,
+            ]));
 
             // 2. Crear el movimiento inicial
-            \App\Models\ContratoMovimiento::create([
-                'id_contrato' => $contrato->id_contrato,
-                'id_cargo' => $datos['id_cargo'],
-                'id_planilla' => $datos['id_planilla'],
-                'id_fp' => $datos['id_fp'],
-                'id_condicion' => $datos['id_condicion'],
-                'asignacion_familiar' => $datos['asignacion_familiar'] ?? false,
-                'haber_basico' => $datos['haber_basico'],
-                'movilidad' => $datos['movilidad'] ?? 0,
-                'id_banco' => $datos['id_banco'],
-                'numero_cuenta' => $datos['numero_cuenta'] ?? null,
-                'codigo_interbancario' => $datos['codigo_interbancario'] ?? null,
-                'numero_cuenta_cts' => $datos['numero_cuenta_cts'] ?? null,
-                'codigo_interbancario_cts' => $datos['codigo_interbancario_cts'] ?? null,
-                'id_moneda' => $datos['id_moneda'],
-                'id_familia' => $datos['id_familia'] ?? null,
-                'inicio' => $datos['inicio_contrato'],
-                'fin' => $datos['fin_contrato'],
-                'id_centro_costo' => $datos['id_centro_costo'],
-                'tipo_movimiento' => $tipoMovimiento,
-                'fecha_insercion' => now(),
-            ]);
+            \App\Models\ContratoMovimiento::create(array_merge($camposComunes, [
+                'contrato_id'    => $contrato->id,
+                'inicio'         => $datos['inicio_contrato'],
+                'fin'            => $datos['fin_contrato'],
+                'tipo_movimiento'=> $tipoMovimiento,
+            ]));
+
+            // 3. Crear cuenta de usuario si no existe aún
+            $persona = Persona::find($datos['persona_id']);
+            if ($persona && $persona->numero_documento) {
+                $existeUser = User::where('numero_documento', $persona->numero_documento)->exists();
+                if (!$existeUser) {
+                    $primerNombre = explode(' ', trim($persona->nombres))[0] ?? '';
+                    User::create([
+                        'name'             => trim(implode(' ', array_filter([
+                            $persona->apellido_paterno,
+                            $persona->apellido_materno,
+                            $primerNombre,
+                        ]))),
+                        'numero_documento' => $persona->numero_documento,
+                        'email'            => "{$persona->numero_documento}@amg.local",
+                        'password'         => 'password123',
+                        'activo'           => true,
+                    ]);
+                }
+            }
 
             \DB::commit();
 
@@ -244,7 +253,7 @@ class ContratoService
                 'ok' => true,
                 'success' => true,
                 'mensaje' => 'Contrato creado exitosamente',
-                'id_contrato' => $contrato->id_contrato
+                'contrato_id' => $contrato->id
             ];
 
         } catch (\Exception $e) {

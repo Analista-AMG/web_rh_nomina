@@ -48,12 +48,12 @@ class CalculoController extends Controller
     {
         $request->validate([
             'periodo'     => 'required|string|max:10',
-            'id_planilla' => 'nullable|integer',
+            'planilla_id' => 'nullable|integer',
         ]);
 
         $resultado = $this->calculoService->obtenerResultados(
             $request->periodo,
-            $request->id_planilla
+            $request->planilla_id
         );
 
         if ($resultado['success']) {
@@ -67,12 +67,12 @@ class CalculoController extends Controller
     {
         $request->validate([
             'periodo'     => 'required|string|max:10',
-            'id_planilla' => 'nullable|integer',
+            'planilla_id' => 'nullable|integer',
         ]);
 
         return $this->calculoService->exportarExcel(
             $request->periodo,
-            $request->id_planilla ? (int)$request->id_planilla : null
+            $request->planilla_id ? (int)$request->planilla_id : null
         );
     }
 }

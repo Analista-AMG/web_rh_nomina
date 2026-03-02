@@ -49,7 +49,7 @@ class CalculoService
     }
 
     /**
-     * Obtener resultados desde gold.fact_resultados_nomina.
+     * Obtener resultados desde nomina.fact_resultados_nomina.
      */
     public function obtenerResultados(string $periodo, ?int $idPlanilla = null): array
     {
@@ -105,7 +105,7 @@ class CalculoService
         $rowNum = 2;
         foreach ($rows as $row) {
             $values = [
-                $row->id_contrato, $row->colaborador, $row->numero_documento, $row->planilla, $row->tipo_calculo,
+                $row->contrato_id, $row->colaborador, $row->numero_documento, $row->planilla, $row->tipo_calculo,
                 $row->dias_calculo, $row->dias_trabajados,
                 $row->haber_basico, $row->asig_familiar, $row->movilidad, $row->comision, $row->bono,
                 $row->rv, $row->pago_descanso_medico, $row->pago_feriado, $row->reintegro_afecto, $row->tardanza,
@@ -155,13 +155,13 @@ class CalculoService
      */
     private function queryResultados(string $periodo, ?int $idPlanilla = null)
     {
-        $query = DB::table('gold.fact_resultados_nomina as r')
-            ->join('bronze.fact_contratos as c', 'r.id_contrato', '=', 'c.id_contrato')
-            ->join('bronze.dim_persona as p', 'c.id_persona', '=', 'p.id_persona')
-            ->join('bronze.dim_planilla as pl', 'c.id_planilla', '=', 'pl.id_planilla')
+        $query = DB::table('nomina.fact_resultados_nomina as r')
+            ->join('nomina.fact_contratos as c', 'r.contrato_id', '=', 'c.id')
+            ->join('nomina.dim_personas as p', 'c.persona_id', '=', 'p.id')
+            ->join('nomina.dim_planillas as pl', 'c.planilla_id', '=', 'pl.id')
             ->where('r.periodo', $periodo)
             ->select(
-                'r.id_contrato',
+                'r.contrato_id',
                 DB::raw("p.apellido_paterno + ' ' + p.apellido_materno + ' ' + LEFT(p.nombres, CHARINDEX(' ', p.nombres + ' ') - 1) as colaborador"),
                 'p.numero_documento',
                 'pl.nombre_planilla as planilla',
@@ -196,7 +196,7 @@ class CalculoService
             );
 
         if ($idPlanilla) {
-            $query->where('c.id_planilla', $idPlanilla);
+            $query->where('c.planilla_id', $idPlanilla);
         }
 
         return $query->orderBy('p.apellido_paterno')->orderBy('p.apellido_materno');

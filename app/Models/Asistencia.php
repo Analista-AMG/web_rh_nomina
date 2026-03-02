@@ -18,14 +18,12 @@ class Asistencia extends Model
             ->useLogName('asistencia');
     }
 
-    protected $table = 'bronze.fact_asistencia';
-    protected $primaryKey = 'id_asistencia';
-    public $timestamps = false;
+    protected $table = 'nomina.fact_asistencias';
 
     protected $fillable = [
-        'id_contrato',
+        'contrato_id',
         'fecha',
-        'id_cod_asistencia',
+        'item_asistencia_id',
     ];
 
     protected $casts = [
@@ -34,11 +32,11 @@ class Asistencia extends Model
 
     public function contrato()
     {
-        return $this->belongsTo(Contrato::class, 'id_contrato', 'id_contrato');
+        return $this->belongsTo(Contrato::class, 'contrato_id');
     }
 
     public function itemAsistencia()
     {
-        return $this->belongsTo(ItemAsistencia::class, 'id_cod_asistencia', 'id_cod_asistencia');
+        return $this->belongsTo(ItemAsistencia::class, 'item_asistencia_id');
     }
 }

@@ -6,9 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Familia extends Model
 {
-    protected $table = 'bronze.dim_familia';
-    protected $primaryKey = 'id_familia';
-    public $timestamps = false;
+    protected $table = 'nomina.dim_familias';
 
     protected $fillable = [
         'nombre_familia',

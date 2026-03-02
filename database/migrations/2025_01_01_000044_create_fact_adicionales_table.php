@@ -11,11 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('bronze.fact_adicionales', function (Blueprint $table) {
+        Schema::create('nomina.fact_adicionales', function (Blueprint $table) {
             $table->id();
 
             // Foreign key
-            $table->unsignedBigInteger('id_contrato');
+            $table->unsignedBigInteger('contrato_id');
 
             // Campos
             $table->string('periodo', 10);
@@ -25,7 +25,9 @@ return new class extends Migration
             $table->text('motivo')->nullable();
 
             // Constraints
-            $table->foreign('id_contrato')->references('id_contrato')->on('bronze.fact_contratos')->onDelete('cascade');
+            $table->foreign('contrato_id')->references('id')->on('nomina.fact_contratos')->onDelete('cascade');
+            $table->unique(['contrato_id', 'periodo', 'tipo_adicional'], 'uq_adicionales_contrato_periodo_tipo');
+            $table->timestamps();
         });
     }
 
@@ -34,6 +36,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('bronze.fact_adicionales');
+        Schema::dropIfExists('nomina.fact_adicionales');
     }
 };

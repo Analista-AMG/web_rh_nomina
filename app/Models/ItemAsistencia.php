@@ -6,9 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class ItemAsistencia extends Model
 {
-    protected $table = 'bronze.dim_item_asistencia';
-    protected $primaryKey = 'id_cod_asistencia';
-    public $timestamps = false;
+    protected $table = 'nomina.dim_items_asistencias';
 
     protected $fillable = [
         'codigo_asistencia',

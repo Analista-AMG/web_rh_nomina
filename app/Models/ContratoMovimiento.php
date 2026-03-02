@@ -10,6 +10,14 @@ class ContratoMovimiento extends Model
 {
     use LogsActivity;
 
+    // Tipos generados por el sistema que sincronizan datos al contrato padre
+    const TIPOS_SISTEMA = [
+        'Contrato inicial',
+        'Contrato por reingreso',
+        'Contrato por baja',
+        'Contrato por renovación',
+    ];
+
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
@@ -18,84 +26,80 @@ class ContratoMovimiento extends Model
             ->useLogName('movimientos');
     }
 
-    protected $table = 'bronze.fact_contratos_movimientos';
-    protected $primaryKey = 'id_movimiento';
-    public $timestamps = false;
+    protected $table = 'nomina.fact_contratos_movimientos';
 
     protected $fillable = [
-        'id_contrato',
-        'id_cargo',
-        'id_planilla',
-        'id_fp',
-        'id_condicion',
+        'contrato_id',
+        'cargo_id',
+        'planilla_id',
+        'fondo_pensiones_id',
+        'condicion_id',
         'asignacion_familiar',
         'haber_basico',
         'movilidad',
-        'id_banco',
+        'banco_id',
         'numero_cuenta',
         'codigo_interbancario',
         'numero_cuenta_cts',
         'codigo_interbancario_cts',
-        'id_moneda',
+        'moneda_id',
         'inicio',
         'fin',
-        'id_centro_costo',
-        'id_familia',
+        'centro_costo_id',
+        'familia_id',
         'estado',
         'tipo_movimiento',
-        'fecha_insercion',
     ];
 
     protected $casts = [
         'inicio' => 'date',
         'fin' => 'date',
-        'fecha_insercion' => 'datetime',
         'asignacion_familiar' => 'boolean',
         'estado' => 'boolean',
     ];
 
     public function contrato()
     {
-        return $this->belongsTo(Contrato::class, 'id_contrato', 'id_contrato');
+        return $this->belongsTo(Contrato::class, 'contrato_id');
     }
 
     public function cargo()
     {
-        return $this->belongsTo(Cargo::class, 'id_cargo', 'id_cargo');
+        return $this->belongsTo(Cargo::class, 'cargo_id');
     }
 
     public function planilla()
     {
-        return $this->belongsTo(Planilla::class, 'id_planilla', 'id_planilla');
+        return $this->belongsTo(Planilla::class, 'planilla_id');
     }
 
-    public function fondoPensiones()
+    public function fondoPension()
     {
-        return $this->belongsTo(FondoPensiones::class, 'id_fp', 'id_fondo');
+        return $this->belongsTo(FondoPension::class, 'fondo_pensiones_id');
     }
 
     public function condicion()
     {
-        return $this->belongsTo(Condicion::class, 'id_condicion', 'id_condicion');
+        return $this->belongsTo(Condicion::class, 'condicion_id');
     }
 
     public function banco()
     {
-        return $this->belongsTo(Banco::class, 'id_banco', 'id_banco');
+        return $this->belongsTo(Banco::class, 'banco_id');
     }
 
     public function moneda()
     {
-        return $this->belongsTo(Moneda::class, 'id_moneda', 'id_moneda');
+        return $this->belongsTo(Moneda::class, 'moneda_id');
     }
 
     public function centroCosto()
     {
-        return $this->belongsTo(CentroCosto::class, 'id_centro_costo', 'id_centro_costo');
+        return $this->belongsTo(CentroCosto::class, 'centro_costo_id');
     }
 
     public function familia()
     {
-        return $this->belongsTo(Familia::class, 'id_familia', 'id_familia');
+        return $this->belongsTo(Familia::class, 'familia_id');
     }
 }

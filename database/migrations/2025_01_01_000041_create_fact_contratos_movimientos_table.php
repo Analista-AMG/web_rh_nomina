@@ -11,19 +11,19 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('bronze.fact_contratos_movimientos', function (Blueprint $table) {
-            $table->id('id_movimiento');
+        Schema::create('nomina.fact_contratos_movimientos', function (Blueprint $table) {
+            $table->id();
 
             // Foreign keys
-            $table->unsignedBigInteger('id_contrato');
-            $table->unsignedBigInteger('id_cargo')->nullable();
-            $table->unsignedBigInteger('id_planilla')->nullable();
-            $table->unsignedBigInteger('id_fp')->nullable();
-            $table->unsignedBigInteger('id_condicion')->nullable();
-            $table->unsignedBigInteger('id_banco')->nullable();
-            $table->unsignedBigInteger('id_moneda')->nullable();
-            $table->unsignedBigInteger('id_centro_costo')->nullable();
-            $table->unsignedBigInteger('id_familia')->nullable();
+            $table->unsignedBigInteger('contrato_id');
+            $table->unsignedBigInteger('cargo_id')->nullable();
+            $table->unsignedBigInteger('planilla_id')->nullable();
+            $table->unsignedBigInteger('fondo_pensiones_id')->nullable();
+            $table->unsignedBigInteger('condicion_id')->nullable();
+            $table->unsignedBigInteger('banco_id')->nullable();
+            $table->unsignedBigInteger('moneda_id')->nullable();
+            $table->unsignedBigInteger('centro_costo_id')->nullable();
+            $table->unsignedBigInteger('familia_id')->nullable();
 
             // Campos de movimiento
             $table->string('tipo_movimiento', 50)->nullable();
@@ -39,18 +39,10 @@ return new class extends Migration
             $table->date('inicio');
             $table->date('fin')->nullable();
             $table->boolean('estado')->default(true);
-            $table->timestamp('fecha_insercion')->nullable();
 
-            // Constraints
-            $table->foreign('id_contrato')->references('id_contrato')->on('bronze.fact_contratos')->onDelete('cascade');
-            $table->foreign('id_cargo')->references('id_cargo')->on('bronze.dim_cargo')->onDelete('set null');
-            $table->foreign('id_planilla')->references('id_planilla')->on('bronze.dim_planilla')->onDelete('set null');
-            $table->foreign('id_fp')->references('id_fondo')->on('bronze.dim_fondo_pensiones')->onDelete('set null');
-            $table->foreign('id_condicion')->references('id_condicion')->on('bronze.dim_condicion')->onDelete('set null');
-            $table->foreign('id_banco')->references('id_banco')->on('bronze.dim_banco')->onDelete('set null');
-            $table->foreign('id_moneda')->references('id_moneda')->on('bronze.dim_moneda')->onDelete('set null');
-            $table->foreign('id_centro_costo')->references('id_centro_costo')->on('bronze.dim_centro_costo')->onDelete('set null');
-            $table->foreign('id_familia')->references('id_familia')->on('bronze.dim_familia')->onDelete('set null');
+            // Índice para búsquedas por contrato
+            $table->index('contrato_id');
+            $table->timestamps();
         });
     }
 
@@ -59,6 +51,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('bronze.fact_contratos_movimientos');
+        Schema::dropIfExists('nomina.fact_contratos_movimientos');
     }
 };

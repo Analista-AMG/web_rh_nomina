@@ -7,9 +7,9 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration {
     public function up(): void
     {
-        Schema::create('bronze.dim_departamentos', function (Blueprint $table) {
+        Schema::create('nomina.dim_departamentos', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('pais_id')->constrained('bronze.dim_paises')->cascadeOnDelete();
+            $table->foreignId('pais_id')->constrained('nomina.dim_paises')->cascadeOnDelete();
             $table->string('nombre', 120);
             $table->timestamps();
         });
@@ -17,6 +17,6 @@ return new class extends Migration {
 
     public function down(): void
     {
-        Schema::dropIfExists('bronze.dim_departamentos');
+        Schema::dropIfExists('nomina.dim_departamentos');
     }
 };

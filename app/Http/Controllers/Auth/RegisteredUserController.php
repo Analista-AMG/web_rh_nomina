@@ -57,7 +57,7 @@ class RegisteredUserController extends Controller
             'existe' => true,
             'registrado' => false,
             'persona' => [
-                'id_persona' => $persona->id_persona,
+                'persona_id' => $persona->id,
                 'nombre_completo' => $persona->nombre_completo,
                 'email' => $persona->correo_electronico_corporativo ?? $persona->correo_electronico_personal ?? '',
             ]

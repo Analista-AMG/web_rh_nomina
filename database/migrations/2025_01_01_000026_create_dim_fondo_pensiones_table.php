@@ -11,8 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('bronze.dim_fondo_pensiones', function (Blueprint $table) {
-            $table->id('id_fondo');
+        Schema::create('nomina.dim_fondos_pensiones', function (Blueprint $table) {
+            $table->id();
             $table->string('fondo_pension', 50)->nullable();
             $table->string('nombre_fp', 150)->nullable();
             $table->string('tipo', 50)->nullable();
@@ -22,6 +22,7 @@ return new class extends Migration
             $table->decimal('prima', 8, 4)->nullable();
             $table->decimal('comision', 8, 4)->nullable();
             $table->boolean('activo')->default(true);
+            $table->timestamps();
         });
     }
 
@@ -30,6 +31,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('bronze.dim_fondo_pensiones');
+        Schema::dropIfExists('nomina.dim_fondos_pensiones');
     }
 };

@@ -6,9 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Condicion extends Model
 {
-    protected $table = 'bronze.dim_condicion';
-    protected $primaryKey = 'id_condicion';
-    public $timestamps = false;
+    protected $table = 'nomina.dim_condiciones';
 
     protected $fillable = [
         'nombre_condicion',

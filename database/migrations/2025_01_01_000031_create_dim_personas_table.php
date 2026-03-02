@@ -11,8 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('bronze.dim_persona', function (Blueprint $table) {
-            $table->id('id_persona');
+        Schema::create('nomina.dim_personas', function (Blueprint $table) {
+            $table->id();
             $table->string('numero_documento', 20)->unique();
             $table->string('apellido_paterno', 100)->nullable();
             $table->string('apellido_materno', 100)->nullable();
@@ -28,7 +28,7 @@ return new class extends Migration
             $table->string('correo_electronico_personal', 150)->nullable();
             $table->string('correo_electronico_corporativo', 150)->nullable();
             $table->string('direccion', 300)->nullable();
-            $table->timestamp('fecha_registro')->nullable();
+            $table->timestamps();
         });
     }
 
@@ -37,6 +37,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('bronze.dim_persona');
+        Schema::dropIfExists('nomina.dim_personas');
     }
 };

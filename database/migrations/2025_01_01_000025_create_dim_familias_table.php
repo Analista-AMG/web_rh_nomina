@@ -11,9 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('bronze.dim_familia', function (Blueprint $table) {
-            $table->id('id_familia');
+        Schema::create('nomina.dim_familias', function (Blueprint $table) {
+            $table->id();
             $table->string('nombre_familia', 150);
+            $table->timestamps();
         });
     }
 
@@ -22,6 +23,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('bronze.dim_familia');
+        Schema::dropIfExists('nomina.dim_familias');
     }
 };

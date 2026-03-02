@@ -6,9 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Cargo extends Model
 {
-    protected $table = 'bronze.dim_cargo';
-    protected $primaryKey = 'id_cargo';
-    public $timestamps = false;
+    protected $table = 'nomina.dim_cargos';
 
     protected $fillable = ['nombre_cargo'];
 }

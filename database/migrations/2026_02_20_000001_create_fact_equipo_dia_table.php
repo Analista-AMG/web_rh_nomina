@@ -8,25 +8,25 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('bronze.fact_equipo_dia', function (Blueprint $table) {
-            $table->id('id_asignacion');
+        Schema::create('nomina.fact_equipos_dia', function (Blueprint $table) {
+            $table->id();
 
             $table->date('fecha');
             $table->unsignedBigInteger('user_id');        // supervisor (users)
-            $table->integer('id_contrato');               // colaborador (fact_contratos) — int en BD
+            $table->unsignedBigInteger('contrato_id');    // colaborador (fact_contratos)
 
             $table->timestamps();
 
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
-            $table->foreign('id_contrato')->references('id_contrato')->on('bronze.fact_contratos')->onDelete('cascade');
+            $table->foreign('contrato_id')->references('id')->on('nomina.fact_contratos')->onDelete('cascade');
 
             // Una persona en UN SOLO equipo por día
-            $table->unique(['fecha', 'id_contrato']);
+            $table->unique(['fecha', 'contrato_id']);
         });
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('bronze.fact_equipo_dia');
+        Schema::dropIfExists('nomina.fact_equipos_dia');
     }
 };

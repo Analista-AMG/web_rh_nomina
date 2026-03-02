@@ -1,669 +1,492 @@
 <x-app-layout>
-    @section('title', 'Mi Equipo - AMG')
+    @section('title', 'Equipos — Préstamos')
 
-    <header class="mb-6 flex items-center justify-between">
+    {{-- ── Header ──────────────────────────────────────────────────────────── --}}
+    <header class="mb-6 flex items-center justify-between gap-4 flex-wrap">
         <div>
-            <h1 class="text-2xl font-bold text-gray-800 dark:text-white">Mi Equipo</h1>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Gestión de colaboradores asignados</p>
+            <h1 class="text-2xl font-bold text-gray-800 dark:text-white">Equipos — Préstamos</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Gestión de préstamos temporales entre supervisores</p>
         </div>
-        @can('equipos.approve')
-        <a href="{{ route('equipos.pendientes') }}"
-           class="relative flex items-center gap-2 px-4 py-2 bg-white dark:bg-[#273142] border border-light-border dark:border-dark-border rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-primary transition-colors shadow-sm">
-            <i class="fa-solid fa-inbox text-lg"></i>
-            <span>Cola de Aprobación</span>
-            @if($totalPendientesAprobacion > 0)
-                <span class="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                    {{ $totalPendientesAprobacion > 9 ? '9+' : $totalPendientesAprobacion }}
-                </span>
+        <div class="flex items-center gap-3">
+            @if($totalPendientes > 0)
+            <span class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-sm font-medium rounded-lg">
+                <i class="fa-solid fa-clock-rotate-left"></i>
+                {{ $totalPendientes }} pendiente{{ $totalPendientes > 1 ? 's' : '' }} de aprobación
+            </span>
             @endif
-        </a>
-        @endcan
+            <button type="button" onclick="abrirModalSolicitar()"
+                class="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 hover:border-primary hover:text-primary transition-colors cursor-pointer bg-white dark:bg-[#273142]">
+                <i class="fa-solid fa-arrow-down-to-bracket"></i>
+                Solicitar colaborador
+            </button>
+            <button type="button" onclick="abrirModalPrestar()"
+                class="btn btn-primary flex items-center gap-2 cursor-pointer">
+                <i class="fa-solid fa-arrow-up-from-bracket"></i>
+                Prestar colaborador
+            </button>
+        </div>
     </header>
 
-    {{-- Filtro de fecha --}}
-    <div class="mb-6 bg-white dark:bg-[#273142] rounded-xl p-4 shadow-sm border border-light-border dark:border-dark-border">
-        <form method="GET" action="{{ route('equipos.index') }}" class="flex items-end gap-4">
-            <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Fecha</label>
-                <input type="date" name="fecha" value="{{ $fecha }}"
-                    class="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50">
-            </div>
-            <button type="submit"
-                class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium cursor-pointer">
-                <i class="fa-solid fa-magnifying-glass mr-1"></i> Buscar
-            </button>
-        </form>
-    </div>
-
-    <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
-
-        {{-- Panel izquierdo: Mi equipo del día --}}
-        <div class="xl:col-span-2 space-y-6">
-
-            {{-- ALERTA: intentos de quitar personas de mi equipo --}}
-            @if($alertasEquipo->isNotEmpty())
-            <div class="bg-amber-50 dark:bg-amber-900/20 rounded-xl border-2 border-amber-400 dark:border-amber-600 shadow-sm">
-                <div class="px-5 py-4 flex items-center gap-3 border-b border-amber-300 dark:border-amber-700">
-                    <span class="flex-shrink-0 w-8 h-8 rounded-full bg-amber-400 dark:bg-amber-600 flex items-center justify-center animate-pulse">
-                        <i class="fa-solid fa-triangle-exclamation text-white text-sm"></i>
-                    </span>
-                    <div>
-                        <h2 class="font-bold text-amber-800 dark:text-amber-200 text-sm">
-                            Están intentando transferir {{ $alertasEquipo->count() === 1 ? 'a una persona' : $alertasEquipo->count() . ' personas' }} de tu equipo
-                        </h2>
-                        <p class="text-xs text-amber-600 dark:text-amber-400">Pendiente de aprobación — aún no se ha tomado una decisión</p>
-                    </div>
-                </div>
-                <div class="divide-y divide-amber-200 dark:divide-amber-800">
-                    @foreach($alertasEquipo as $alerta)
-                    <div class="px-5 py-3 flex items-center justify-between">
-                        <div>
-                            <p class="text-sm font-semibold text-amber-900 dark:text-amber-100">
-                                {{ $alerta->contrato->persona?->nombre_corto ?? '—' }}
-                            </p>
-                            <p class="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
-                                <i class="fa-solid fa-arrow-right mr-1"></i>
-                                Lo solicita: <span class="font-medium">{{ $alerta->supervisor->name ?? '—' }}</span>
-                            </p>
-                        </div>
-                        <span class="text-xs text-amber-500 dark:text-amber-400 whitespace-nowrap ml-4">
-                            <i class="fa-regular fa-clock mr-1"></i>{{ $alerta->created_at->format('d/m/Y H:i') }}
-                        </span>
-                    </div>
-                    @endforeach
-                </div>
-            </div>
-            @endif
-
-            {{-- Equipo actual --}}
-            <div class="bg-white dark:bg-[#273142] rounded-xl shadow-sm border border-light-border dark:border-dark-border">
-                <div class="px-5 py-4 border-b border-light-border dark:border-dark-border flex items-center justify-between">
-                    <h2 class="font-semibold text-gray-800 dark:text-white flex items-center gap-2">
-                        <i class="fa-solid fa-users text-primary"></i>
-                        Mi equipo — {{ \Carbon\Carbon::parse($fecha)->format('d/m/Y') }}
-                        <span class="ml-2 text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
-                            {{ $equipo->count() }} colaboradores
-                        </span>
-                    </h2>
-                    <button type="button" onclick="abrirModalReplicar()"
-                        class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 rounded-lg transition-colors cursor-pointer">
-                        <i class="fa-solid fa-copy"></i> Replicar equipo
-                    </button>
-                </div>
-
-                @if($equipo->isEmpty())
-                    <div class="px-5 py-10 text-center text-gray-400 dark:text-gray-500">
-                        <i class="fa-solid fa-users-slash text-3xl mb-3"></i>
-                        <p class="text-sm">No tienes colaboradores asignados para este día.</p>
-                        <p class="text-xs mt-1">Agrega desde la sección de Huérfanos.</p>
-                    </div>
-                @else
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-sm">
-                            <thead>
-                                <tr class="text-xs text-gray-500 dark:text-gray-400 uppercase border-b border-light-border dark:border-dark-border">
-                                    <th class="px-5 py-3 text-left font-medium">Colaborador</th>
-                                    <th class="px-5 py-3 text-center font-medium">Documento</th>
-                                    <th class="px-5 py-3 text-center font-medium">Condición</th>
-                                    <th class="px-5 py-3 text-center font-medium">Cargo</th>
-                                    <th class="px-5 py-3 text-center font-medium">Empresa</th>
-                                    <th class="px-5 py-3 text-center font-medium">Familia</th>
-                                    <th class="px-5 py-3 text-center font-medium">Acción</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-light-border dark:divide-dark-border">
-                                @foreach($equipo as $asignacion)
-                                <tr class="hover:bg-gray-50 dark:hover:bg-[#1b2431] transition-colors">
-                                    <td class="px-5 py-3 font-medium text-gray-800 dark:text-white">
-                                        {{ $asignacion->contrato->persona?->nombre_corto ?? '—' }}
-                                    </td>
-                                    <td class="px-5 py-3 text-center text-gray-600 dark:text-gray-300">
-                                        {{ $asignacion->contrato->persona->numero_documento ?? '—' }}
-                                    </td>
-                                    <td class="px-5 py-3 text-center text-gray-600 dark:text-gray-300">
-                                        {{ $asignacion->contrato->condicion->nombre_condicion ?? '—' }}
-                                    </td>
-                                    <td class="px-5 py-3 text-center text-gray-600 dark:text-gray-300">
-                                        {{ $asignacion->contrato->cargo->nombre_cargo ?? '—' }}
-                                    </td>
-                                    <td class="px-5 py-3 text-center text-gray-600 dark:text-gray-300">
-                                        {{ $asignacion->contrato->planilla->nombre_empresa ?? '—' }}
-                                    </td>
-                                    <td class="px-5 py-3 text-center text-gray-600 dark:text-gray-300">
-                                        {{ $asignacion->contrato->familia->nombre_familia ?? '—' }}
-                                    </td>
-                                    <td class="px-5 py-3 text-center">
-                                        <button type="button"
-                                            onclick="retirar({{ $asignacion->id_asignacion }}, '{{ addslashes($asignacion->contrato->persona?->nombre_corto ?? '') }}')"
-                                            class="text-red-500 hover:text-red-700 transition-colors cursor-pointer"
-                                            title="Retirar del equipo">
-                                            <i class="fa-solid fa-user-minus"></i>
-                                        </button>
-                                    </td>
-                                </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
+    {{-- ── Tabs ─────────────────────────────────────────────────────────────── --}}
+    <div class="mb-4 border-b border-light-border dark:border-dark-border">
+        <nav class="flex gap-1" id="tabs-nav">
+            @php
+                $tabs = [
+                    ['key' => 'activos',    'label' => 'Activos',    'count' => $activos->count(),    'color' => 'green'],
+                    ['key' => 'pendientes', 'label' => 'Pendientes', 'count' => $pendientes->count(), 'color' => 'amber'],
+                    ['key' => 'proximos',   'label' => 'Próximos',   'count' => $proximos->count(),   'color' => 'blue'],
+                    ['key' => 'historial',  'label' => 'Historial',  'count' => $historial->count(),  'color' => 'gray'],
+                ];
+                $firstTab = 'pendientes';
+                if ($pendientes->isEmpty()) $firstTab = 'activos';
+                if ($activos->isEmpty() && $pendientes->isEmpty()) $firstTab = 'proximos';
+            @endphp
+            @foreach($tabs as $tab)
+            <button type="button"
+                id="tab-btn-{{ $tab['key'] }}"
+                onclick="switchTab('{{ $tab['key'] }}')"
+                class="tab-btn flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors cursor-pointer
+                       {{ $tab['key'] === $firstTab
+                          ? 'border-primary text-primary bg-primary/5'
+                          : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-primary' }}">
+                {{ $tab['label'] }}
+                @if($tab['count'] > 0)
+                <span class="text-xs px-1.5 py-0.5 rounded-full font-semibold
+                    {{ $tab['key'] === 'pendientes' ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300'
+                      : ($tab['key'] === 'activos' ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400') }}">
+                    {{ $tab['count'] }}
+                </span>
                 @endif
+            </button>
+            @endforeach
+        </nav>
+    </div>
+
+    {{-- ── Panel ACTIVOS ───────────────────────────────────────────────────── --}}
+    <div id="panel-activos" class="{{ $firstTab !== 'activos' ? 'hidden' : '' }}">
+        @if($activos->isEmpty())
+            @include('equipos.partials.empty', ['mensaje' => 'No hay préstamos activos hoy.', 'icon' => 'fa-people-arrows'])
+        @else
+            @include('equipos.partials.tabla-prestamos', ['coleccion' => $activos, 'modo' => 'activos', 'userId' => $userId, 'puedeAprobar' => $puedeAprobar])
+        @endif
+    </div>
+
+    {{-- ── Panel PENDIENTES ─────────────────────────────────────────────────── --}}
+    <div id="panel-pendientes" class="{{ $firstTab !== 'pendientes' ? 'hidden' : '' }}">
+        @if($pendientes->isEmpty())
+            @include('equipos.partials.empty', ['mensaje' => 'No hay préstamos pendientes de aprobación.', 'icon' => 'fa-inbox'])
+        @else
+            @include('equipos.partials.tabla-prestamos', ['coleccion' => $pendientes, 'modo' => 'pendientes', 'userId' => $userId, 'puedeAprobar' => $puedeAprobar])
+        @endif
+    </div>
+
+    {{-- ── Panel PRÓXIMOS ───────────────────────────────────────────────────── --}}
+    <div id="panel-proximos" class="{{ $firstTab !== 'proximos' ? 'hidden' : '' }}">
+        @if($proximos->isEmpty())
+            @include('equipos.partials.empty', ['mensaje' => 'No hay préstamos próximos programados.', 'icon' => 'fa-calendar-days'])
+        @else
+            @include('equipos.partials.tabla-prestamos', ['coleccion' => $proximos, 'modo' => 'proximos', 'userId' => $userId, 'puedeAprobar' => $puedeAprobar])
+        @endif
+    </div>
+
+    {{-- ── Panel HISTORIAL ─────────────────────────────────────────────────── --}}
+    <div id="panel-historial" class="{{ $firstTab !== 'historial' ? 'hidden' : '' }}">
+        @if($historial->isEmpty())
+            @include('equipos.partials.empty', ['mensaje' => 'Sin historial de préstamos.', 'icon' => 'fa-clock-rotate-left'])
+        @else
+            @include('equipos.partials.tabla-prestamos', ['coleccion' => $historial, 'modo' => 'historial', 'userId' => $userId, 'puedeAprobar' => $puedeAprobar])
+        @endif
+    </div>
+
+    {{-- ═══════════════════════════════════════════════════════════════════════
+         MODAL: PRESTAR colaborador
+    ══════════════════════════════════════════════════════════════════════════ --}}
+    <x-ui.modal-shell id="modal-prestar" max-width="640px">
+        <x-ui.modal-header modal-id="modal-prestar" title="Prestar colaborador"
+            icon="fa-arrow-up-from-bracket" icon-class="text-primary" />
+
+        <x-ui.modal-section label="Colaborador y destino" icon="fa-users">
+            <div class="grid grid-cols-1 gap-4">
+                <x-forms.field label="Colaborador a prestar">
+                    <x-forms.select id="prestar-empleado">
+                        <option value="">— Selecciona —</option>
+                        @foreach($misColaboradores as $persona)
+                        <option value="{{ $persona->id }}">
+                            {{ $persona->nombre_corto ?? '—' }}
+                        </option>
+                        @endforeach
+                    </x-forms.select>
+                    @if($misColaboradores->isEmpty())
+                    <p class="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                        <i class="fa-solid fa-triangle-exclamation mr-1"></i>
+                        No tienes colaboradores asignados en tu jerarquía.
+                    </p>
+                    @endif
+                </x-forms.field>
+
+                <x-forms.field label="Supervisor / área destino">
+                    <x-forms.select id="prestar-destino">
+                        <option value="">— Selecciona —</option>
+                        @foreach($supervisores as $sup)
+                        <option value="{{ $sup->id }}">{{ $sup->name }}</option>
+                        @endforeach
+                    </x-forms.select>
+                </x-forms.field>
             </div>
+        </x-ui.modal-section>
 
-            {{-- Mis solicitudes procesadas (aprobadas / rechazadas) --}}
-            @if($solicitudesProcesadas->isNotEmpty())
-            <div class="bg-white dark:bg-[#273142] rounded-xl shadow-sm border border-light-border dark:border-dark-border">
-                <div class="px-5 py-4 border-b border-light-border dark:border-dark-border flex items-center gap-2">
-                    <i class="fa-solid fa-clock-rotate-left text-gray-400"></i>
-                    <h2 class="font-semibold text-gray-800 dark:text-white">
-                        Mis solicitudes respondidas
-                        <span class="ml-2 text-xs bg-gray-100 dark:bg-gray-700 text-gray-500 px-2 py-0.5 rounded-full">
-                            {{ $solicitudesProcesadas->count() }}
-                        </span>
-                    </h2>
-                </div>
-                <div class="divide-y divide-light-border dark:divide-dark-border">
-                    @foreach($solicitudesProcesadas as $sol)
-                    <div class="px-5 py-4">
-                        <div class="flex items-start gap-3">
-                            {{-- Badge estado --}}
-                            <div class="flex-shrink-0 mt-0.5">
-                                @if($sol->estado === 'aprobado')
-                                    <span class="inline-flex items-center gap-1 text-xs font-semibold bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-2 py-1 rounded-full">
-                                        <i class="fa-solid fa-check"></i> Aprobada
-                                    </span>
-                                @else
-                                    <span class="inline-flex items-center gap-1 text-xs font-semibold bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 px-2 py-1 rounded-full">
-                                        <i class="fa-solid fa-xmark"></i> Rechazada
-                                    </span>
-                                @endif
-                            </div>
+        <x-ui.modal-section label="Período del préstamo" icon="fa-calendar-range">
+            <div class="grid grid-cols-2 gap-4">
+                <x-forms.field label="Fecha inicio">
+                    <x-forms.text-input type="date" id="prestar-fecha-inicio" />
+                </x-forms.field>
+                <x-forms.field label="Fecha fin">
+                    <x-forms.text-input type="date" id="prestar-fecha-fin" />
+                </x-forms.field>
+            </div>
+        </x-ui.modal-section>
 
-                            <div class="flex-1 min-w-0">
-                                <p class="text-sm font-semibold text-gray-800 dark:text-white">
-                                    {{ $sol->contrato->persona?->nombre_corto ?? '—' }}
-                                </p>
-                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                                    <span class="font-medium text-gray-600 dark:text-gray-300">
-                                        {{ $sol->estado === 'aprobado' ? 'Aprobado por:' : 'Rechazado por:' }}
-                                    </span>
-                                    {{ $sol->aprobadoPor->name ?? '—' }}
-                                </p>
-                                @if($sol->motivo_rechazo)
-                                <p class="mt-1.5 text-xs bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 px-3 py-1.5 rounded-lg">
-                                    <i class="fa-solid fa-quote-left text-red-300 mr-1 text-[10px]"></i>{{ $sol->motivo_rechazo }}
-                                </p>
-                                @endif
+        <x-ui.modal-section label="Motivo (opcional)" icon="fa-comment-dots">
+            <textarea id="prestar-motivo" rows="2"
+                placeholder="Describe brevemente el motivo del préstamo..."
+                class="form-input w-full resize-none"></textarea>
+        </x-ui.modal-section>
 
-                                {{-- Timestamps --}}
-                                <div class="flex items-center gap-3 mt-2">
-                                    <span class="text-xs text-gray-400">
-                                        <i class="fa-regular fa-clock mr-1"></i>
-                                        Solicitado: {{ $sol->created_at->format('d/m/Y H:i') }}
-                                    </span>
-                                    <span class="text-gray-300 dark:text-gray-600">|</span>
-                                    <span class="text-xs {{ $sol->estado === 'aprobado' ? 'text-green-500' : 'text-red-400' }}">
-                                        <i class="fa-regular fa-circle-check mr-1"></i>
-                                        Respondido: {{ $sol->updated_at->format('d/m/Y H:i') }}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
+        <div id="prestar-error" class="hidden mx-5 mb-3 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-2"></div>
+
+        <x-ui.modal-footer modal-id="modal-prestar" cancel-label="Cancelar">
+            <x-slot name="acciones">
+                <x-forms.primary-button id="btn-prestar-submit" onclick="submitPrestar()">
+                    <i class="fa-solid fa-arrow-up-from-bracket mr-1"></i> Prestar
+                </x-forms.primary-button>
+            </x-slot>
+        </x-ui.modal-footer>
+    </x-ui.modal-shell>
+
+    {{-- ═══════════════════════════════════════════════════════════════════════
+         MODAL: SOLICITAR colaborador
+    ══════════════════════════════════════════════════════════════════════════ --}}
+    <x-ui.modal-shell id="modal-solicitar" max-width="640px">
+        <x-ui.modal-header modal-id="modal-solicitar" title="Solicitar colaborador"
+            icon="fa-arrow-down-to-bracket" icon-class="text-primary" />
+
+        <x-ui.modal-section label="Colaborador a solicitar" icon="fa-user-check">
+            <div class="grid grid-cols-1 gap-4">
+                <x-forms.field label="Buscar colaborador">
+                    <div class="relative">
+                        <input type="text" id="solicitar-search"
+                            placeholder="Escribe el nombre..."
+                            autocomplete="off"
+                            oninput="filtrarPersonas(this.value)"
+                            class="form-input w-full pr-8" />
+                        <i class="fa-solid fa-magnifying-glass absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"></i>
                     </div>
-                    @endforeach
-                </div>
-            </div>
-            @endif
-
-            {{-- Movimientos de mi equipo: personas que me quitaron o intentaron quitar --}}
-            @if($movimientosEquipo->isNotEmpty())
-            <div class="bg-white dark:bg-[#273142] rounded-xl shadow-sm border border-blue-200 dark:border-blue-800">
-                <div class="px-5 py-4 border-b border-blue-100 dark:border-blue-800 flex items-center gap-2">
-                    <i class="fa-solid fa-right-left text-blue-500"></i>
-                    <h2 class="font-semibold text-gray-800 dark:text-white">
-                        Movimientos de mi equipo
-                        <span class="ml-2 text-xs bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 px-2 py-0.5 rounded-full">
-                            {{ $movimientosEquipo->count() }}
-                        </span>
-                    </h2>
-                </div>
-                <div class="divide-y divide-light-border dark:divide-dark-border">
-                    @foreach($movimientosEquipo as $mov)
-                    <div class="px-5 py-4">
-                        <div class="flex items-start gap-3">
-                            <div class="flex-shrink-0 mt-0.5">
-                                @if($mov->estado === 'aprobado')
-                                    <span class="inline-flex items-center gap-1 text-xs font-semibold bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 px-2 py-1 rounded-full">
-                                        <i class="fa-solid fa-arrow-right-from-bracket"></i> Transferido
-                                    </span>
-                                @else
-                                    <span class="inline-flex items-center gap-1 text-xs font-semibold bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-1 rounded-full">
-                                        <i class="fa-solid fa-shield-halved"></i> Intento rechazado
-                                    </span>
-                                @endif
-                            </div>
-                            <div class="flex-1 min-w-0">
-                                <p class="text-sm font-semibold text-gray-800 dark:text-white">
-                                    {{ $mov->contrato->persona?->nombre_corto ?? '—' }}
-                                </p>
-                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                                    @if($mov->estado === 'aprobado')
-                                        <span class="font-medium text-gray-600 dark:text-gray-300">Transferido a:</span>
-                                        {{ $mov->supervisor->name ?? '—' }}
-                                    @else
-                                        <span class="font-medium text-gray-600 dark:text-gray-300">Intento de:</span>
-                                        {{ $mov->supervisor->name ?? '—' }}
-                                    @endif
-                                </p>
-                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                                    <span class="font-medium text-gray-600 dark:text-gray-300">
-                                        {{ $mov->estado === 'aprobado' ? 'Aprobado por:' : 'Rechazado por:' }}
-                                    </span>
-                                    {{ $mov->aprobadoPor->name ?? '—' }}
-                                </p>
-                                <div class="flex items-center gap-3 mt-2">
-                                    <span class="text-xs text-gray-400">
-                                        <i class="fa-regular fa-clock mr-1"></i>Solicitado: {{ $mov->created_at->format('d/m/Y H:i') }}
-                                    </span>
-                                    <span class="text-gray-300 dark:text-gray-600">|</span>
-                                    <span class="text-xs {{ $mov->estado === 'aprobado' ? 'text-orange-500' : 'text-gray-400' }}">
-                                        <i class="fa-regular fa-circle-check mr-1"></i>Respondido: {{ $mov->updated_at->format('d/m/Y H:i') }}
-                                    </span>
-                                </div>
-                            </div>
+                    <div id="solicitar-lista"
+                        class="mt-1 border border-gray-200 dark:border-dark-border rounded-lg max-h-48 overflow-y-auto hidden">
+                        @foreach($personasActivas as $p)
+                        <div class="persona-item px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-[#1b2431] cursor-pointer transition-colors"
+                             data-id="{{ $p['persona_id'] }}"
+                             data-nombre="{{ $p['nombre'] }}"
+                             onclick="seleccionarPersona({{ $p['persona_id'] }}, '{{ addslashes($p['nombre']) }}')">
+                            {{ $p['nombre'] }}
                         </div>
+                        @endforeach
+                        <div id="solicitar-sin-resultados" class="hidden px-3 py-2 text-sm text-gray-400">Sin resultados.</div>
                     </div>
-                    @endforeach
-                </div>
-            </div>
-            @endif
+                </x-forms.field>
 
-            {{-- Solicitudes pendientes hacia mi equipo (otros supervisores me los piden) --}}
-            @if($solicitudesPendientes->isNotEmpty())
-            <div class="bg-white dark:bg-[#273142] rounded-xl shadow-sm border border-yellow-300 dark:border-yellow-700">
-                <div class="px-5 py-4 border-b border-yellow-200 dark:border-yellow-700 flex items-center gap-2">
-                    <i class="fa-solid fa-triangle-exclamation text-yellow-500"></i>
-                    <h2 class="font-semibold text-gray-800 dark:text-white">
-                        Solicitudes sobre tu equipo
-                        <span class="ml-2 text-xs bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300 px-2 py-0.5 rounded-full">
-                            {{ $solicitudesPendientes->count() }} pendientes
-                        </span>
-                    </h2>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-sm">
-                        <thead>
-                            <tr class="text-xs text-gray-500 dark:text-gray-400 uppercase border-b border-light-border dark:border-dark-border">
-                                <th class="px-5 py-3 text-left font-medium">Colaborador</th>
-                                <th class="px-5 py-3 text-left font-medium">Solicitado a</th>
-                                <th class="px-5 py-3 text-left font-medium">Solicitado el</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-light-border dark:divide-dark-border">
-                            @foreach($solicitudesPendientes as $sol)
-                            <tr class="hover:bg-yellow-50 dark:hover:bg-yellow-900/10 transition-colors">
-                                <td class="px-5 py-3 font-medium text-gray-800 dark:text-white">
-                                    {{ $sol->contrato->persona?->nombre_corto ?? '—' }}
-                                </td>
-                                <td class="px-5 py-3 text-gray-600 dark:text-gray-300">
-                                    {{ $sol->prevSupervisor->name ?? '(sin equipo)' }}
-                                </td>
-                                <td class="px-5 py-3 text-gray-500 dark:text-gray-400 text-xs">
-                                    {{ $sol->created_at->format('d/m/Y H:i') }}
-                                </td>
-                            </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            @endif
-
-        </div>
-
-        {{-- Panel derecho: Huérfanos / En otros equipos --}}
-        <div class="xl:col-span-1">
-            <div class="bg-white dark:bg-[#273142] rounded-xl shadow-sm border border-light-border dark:border-dark-border sticky top-4">
-
-                {{-- Tabs --}}
-                <div class="flex border-b border-light-border dark:border-dark-border">
-                    <button id="tab-huerfanos" onclick="switchTab('huerfanos')"
-                        class="flex-1 px-4 py-3 text-sm font-medium text-primary border-b-2 border-primary bg-primary/5 transition-colors cursor-pointer">
-                        <i class="fa-solid fa-user-clock mr-1"></i>
-                        Sin equipo
-                        @if($huerfanos->isNotEmpty())
-                            <span class="ml-1 text-xs bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-300 px-1.5 py-0.5 rounded-full">{{ $huerfanos->count() }}</span>
-                        @endif
-                    </button>
-                    <button id="tab-otros" onclick="switchTab('otros')"
-                        class="flex-1 px-4 py-3 text-sm font-medium text-gray-500 dark:text-gray-400 border-b-2 border-transparent hover:text-primary transition-colors cursor-pointer">
-                        <i class="fa-solid fa-people-arrows mr-1"></i>
-                        Otros equipos
-                        @if($enOtrosEquipos->isNotEmpty())
-                            <span class="ml-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-500 px-1.5 py-0.5 rounded-full">{{ $enOtrosEquipos->count() }}</span>
-                        @endif
+                <div id="solicitar-seleccionado" class="hidden rounded-lg bg-primary/5 border border-primary/20 px-3 py-2 flex items-center justify-between">
+                    <span class="text-sm font-medium text-gray-800 dark:text-white" id="solicitar-nombre-display"></span>
+                    <button type="button" onclick="limpiarSeleccionPersona()" class="text-gray-400 hover:text-red-500 cursor-pointer">
+                        <i class="fa-solid fa-xmark text-sm"></i>
                     </button>
                 </div>
 
-                {{-- Tab: Huérfanos --}}
-                <div id="panel-huerfanos">
-                    @if($huerfanos->isEmpty())
-                        <div class="px-5 py-8 text-center text-gray-400 dark:text-gray-500">
-                            <i class="fa-solid fa-check-circle text-2xl mb-2 text-green-400"></i>
-                            <p class="text-sm">Todos asignados para este día.</p>
-                        </div>
-                    @else
-                        <div class="px-3 pt-3">
-                            <input type="text" id="search-huerfanos" placeholder="Buscar por nombre..."
-                                oninput="filtrarLista('search-huerfanos', 'lista-huerfanos')"
-                                class="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50">
-                        </div>
-                        <ul id="lista-huerfanos" class="divide-y divide-light-border dark:divide-dark-border max-h-[55vh] overflow-y-auto mt-2">
-                            @foreach($huerfanos as $contrato)
-                            <li class="px-4 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-[#1b2431] transition-colors">
-                                <div class="min-w-0">
-                                    <p class="text-sm font-medium text-gray-800 dark:text-white truncate">
-                                        {{ $contrato->persona?->nombre_corto ?? '—' }}
-                                    </p>
-                                    <p class="text-xs text-gray-400 truncate">
-                                        {{ $contrato->condicion->nombre_condicion ?? '—' }}
-                                        - {{ $contrato->familia->nombre_familia ?? '—' }}
-                                    </p>
-                                </div>
-                                <button type="button"
-                                    onclick="agregarHuerfano({{ $contrato->id_contrato }}, '{{ addslashes($contrato->persona?->nombre_corto ?? '') }}', '{{ $fecha }}')"
-                                    class="ml-2 flex-shrink-0 p-1.5 text-primary hover:bg-primary/10 rounded-lg transition-colors cursor-pointer"
-                                    title="Agregar a mi equipo">
-                                    <i class="fa-solid fa-user-plus text-sm"></i>
-                                </button>
-                            </li>
-                            @endforeach
-                        </ul>
-                    @endif
-                </div>
-
-                {{-- Tab: En otros equipos --}}
-                <div id="panel-otros" class="hidden">
-                    @if($enOtrosEquipos->isEmpty())
-                        <div class="px-5 py-8 text-center text-gray-400 dark:text-gray-500">
-                            <i class="fa-solid fa-people-group text-2xl mb-2"></i>
-                            <p class="text-sm">No hay colaboradores en otros equipos.</p>
-                        </div>
-                    @else
-                        <div class="px-3 pt-3">
-                            <input type="text" id="search-otros" placeholder="Buscar por nombre..."
-                                oninput="filtrarLista('search-otros', 'lista-otros')"
-                                class="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50">
-                        </div>
-                        <ul id="lista-otros" class="divide-y divide-light-border dark:divide-dark-border max-h-[55vh] overflow-y-auto mt-2">
-                            @foreach($enOtrosEquipos as $asignacion)
-                            <li class="px-4 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-[#1b2431] transition-colors">
-                                <div class="min-w-0">
-                                    <p class="text-sm font-medium text-gray-800 dark:text-white truncate">
-                                        {{ $asignacion->contrato->persona?->nombre_corto ?? '—' }}
-                                    </p>
-                                    <p class="text-xs text-gray-400">
-                                        <i class="fa-solid fa-user text-gray-300 mr-1"></i>{{ $asignacion->supervisor->name ?? '—' }}
-                                    </p>
-                                </div>
-                                <button type="button"
-                                    onclick="solicitarTraslado({{ $asignacion->contrato->id_contrato }}, '{{ addslashes($asignacion->contrato->persona?->nombre_corto ?? '') }}', '{{ $fecha }}')"
-                                    class="ml-2 flex-shrink-0 p-1.5 text-yellow-500 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 rounded-lg transition-colors cursor-pointer"
-                                    title="Solicitar traslado">
-                                    <i class="fa-solid fa-paper-plane text-sm"></i>
-                                </button>
-                            </li>
-                            @endforeach
-                        </ul>
-                    @endif
-                </div>
-
+                <input type="hidden" id="solicitar-empleado-id" />
             </div>
-        </div>
+        </x-ui.modal-section>
 
-    </div>
-
-    {{-- Modal de confirmación: retirar --}}
-    <div id="modal-retirar" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-        <div class="bg-white dark:bg-[#273142] rounded-xl shadow-xl w-full max-w-sm p-6">
-            <h3 class="font-semibold text-gray-800 dark:text-white text-lg mb-2">Retirar colaborador</h3>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                ¿Seguro que deseas retirar a <strong id="nombre-retirar"></strong> de tu equipo? Quedará sin supervisor para ese día.
-            </p>
-            <div class="flex gap-3 justify-end">
-                <button onclick="cerrarModalRetirar()"
-                    class="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
-                    Cancelar
-                </button>
-                <button id="btn-confirmar-retirar"
-                    class="px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 cursor-pointer">
-                    Retirar
-                </button>
+        <x-ui.modal-section label="Período del préstamo" icon="fa-calendar-range">
+            <div class="grid grid-cols-2 gap-4">
+                <x-forms.field label="Fecha inicio">
+                    <x-forms.text-input type="date" id="solicitar-fecha-inicio" />
+                </x-forms.field>
+                <x-forms.field label="Fecha fin">
+                    <x-forms.text-input type="date" id="solicitar-fecha-fin" />
+                </x-forms.field>
             </div>
-        </div>
-    </div>
+        </x-ui.modal-section>
 
-{{-- Modal: Replicar equipo --}}
-<div id="modal-replicar" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-    <div class="bg-white dark:bg-[#273142] rounded-xl shadow-xl w-full max-w-sm p-6">
-        <h3 class="font-semibold text-gray-800 dark:text-white text-lg mb-1">Replicar equipo</h3>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mb-5">
-            Copia tu equipo de una fecha a otra. Solo se asignan los colaboradores que estén libres ese día.
-        </p>
+        <x-ui.modal-section label="Motivo (opcional)" icon="fa-comment-dots">
+            <textarea id="solicitar-motivo" rows="2"
+                placeholder="Describe brevemente el motivo de la solicitud..."
+                class="form-input w-full resize-none"></textarea>
+        </x-ui.modal-section>
 
-        <div class="space-y-4 mb-6">
-            <div>
-                <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Copiar desde</label>
-                <input type="date" id="replicar-desde"
-                    class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50">
-            </div>
-            <div>
-                <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Copiar a</label>
-                <input type="date" id="replicar-hasta"
-                    class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50">
-            </div>
-        </div>
+        <div id="solicitar-error" class="hidden mx-5 mb-3 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-2"></div>
 
-        {{-- Resultado --}}
-        <div id="replicar-resultado" class="hidden mb-4 text-sm rounded-lg p-3"></div>
+        <x-ui.modal-footer modal-id="modal-solicitar" cancel-label="Cancelar">
+            <x-slot name="acciones">
+                <x-forms.primary-button id="btn-solicitar-submit" onclick="submitSolicitar()">
+                    <i class="fa-solid fa-paper-plane mr-1"></i> Enviar solicitud
+                </x-forms.primary-button>
+            </x-slot>
+        </x-ui.modal-footer>
+    </x-ui.modal-shell>
 
-        <div class="flex gap-3 justify-end">
-            <button onclick="cerrarModalReplicar()"
-                class="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
-                Cerrar
-            </button>
-            <button id="btn-confirmar-replicar" onclick="confirmarReplicar()"
-                class="px-4 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 cursor-pointer">
-                <i class="fa-solid fa-copy mr-1"></i> Replicar
-            </button>
-        </div>
-    </div>
-</div>
+    {{-- ═══════════════════════════════════════════════════════════════════════
+         MODAL: RECHAZAR
+    ══════════════════════════════════════════════════════════════════════════ --}}
+    <x-ui.modal-shell id="modal-rechazar" max-width="480px">
+        <x-ui.modal-header modal-id="modal-rechazar" title="Rechazar préstamo"
+            icon="fa-ban" icon-class="text-red-500" />
+
+        <x-ui.modal-section label="Motivo del rechazo" icon="fa-comment-dots">
+            <textarea id="rechazar-motivo" rows="3"
+                placeholder="Opcional: explica el motivo del rechazo..."
+                class="form-input w-full resize-none"></textarea>
+        </x-ui.modal-section>
+
+        <input type="hidden" id="rechazar-prestamo-id" />
+
+        <x-ui.modal-footer modal-id="modal-rechazar" cancel-label="Cancelar">
+            <x-slot name="acciones">
+                <x-forms.danger-button id="btn-rechazar-submit" onclick="submitRechazar()">
+                    <i class="fa-solid fa-ban mr-1"></i> Rechazar
+                </x-forms.danger-button>
+            </x-slot>
+        </x-ui.modal-footer>
+    </x-ui.modal-shell>
 
 @push('scripts')
 <script>
 const CSRF = document.querySelector('meta[name="csrf-token"]').content;
 
-// ── Buscador de listas ─────────────────────────────────────
-function filtrarLista(inputId, listaId) {
-    const q = document.getElementById(inputId).value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    document.querySelectorAll(`#${listaId} li`).forEach(li => {
-        const texto = li.querySelector('p')?.textContent.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') ?? '';
-        li.style.display = texto.includes(q) ? '' : 'none';
+// ── Tabs ───────────────────────────────────────────────────────────────────
+const TAB_KEYS = ['activos', 'pendientes', 'proximos', 'historial'];
+
+function switchTab(key) {
+    TAB_KEYS.forEach(k => {
+        const btn   = document.getElementById('tab-btn-' + k);
+        const panel = document.getElementById('panel-' + k);
+        const activo = k === key;
+        btn.classList.toggle('border-primary', activo);
+        btn.classList.toggle('text-primary', activo);
+        btn.classList.toggle('bg-primary/5', activo);
+        btn.classList.toggle('border-transparent', !activo);
+        btn.classList.toggle('text-gray-500', !activo);
+        btn.classList.toggle('dark:text-gray-400', !activo);
+        panel.classList.toggle('hidden', !activo);
     });
 }
 
-// ── Tabs ───────────────────────────────────────────────────
-function switchTab(tab) {
-    const tabs    = { huerfanos: 'tab-huerfanos', otros: 'tab-otros' };
-    const panels  = { huerfanos: 'panel-huerfanos', otros: 'panel-otros' };
-
-    Object.keys(tabs).forEach(key => {
-        const isActive = key === tab;
-        document.getElementById(tabs[key]).classList.toggle('text-primary', isActive);
-        document.getElementById(tabs[key]).classList.toggle('border-primary', isActive);
-        document.getElementById(tabs[key]).classList.toggle('bg-primary/5', isActive);
-        document.getElementById(tabs[key]).classList.toggle('text-gray-500', !isActive);
-        document.getElementById(tabs[key]).classList.toggle('dark:text-gray-400', !isActive);
-        document.getElementById(tabs[key]).classList.toggle('border-transparent', !isActive);
-        document.getElementById(panels[key]).classList.toggle('hidden', !isActive);
-    });
+// ── Modal helpers ──────────────────────────────────────────────────────────
+function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+function setError(id, msg) {
+    const el = document.getElementById(id);
+    if (msg) { el.textContent = msg; el.classList.remove('hidden'); }
+    else      { el.classList.add('hidden'); }
+}
+function setLoading(btnId, loading, label) {
+    const btn = document.getElementById(btnId);
+    btn.disabled = loading;
+    btn.innerHTML = loading
+        ? '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Procesando...'
+        : label;
 }
 
-// ── Retirar ────────────────────────────────────────────────
-let idAsignacionPendiente = null;
-
-function retirar(idAsignacion, nombre) {
-    idAsignacionPendiente = idAsignacion;
-    document.getElementById('nombre-retirar').textContent = nombre;
-    document.getElementById('modal-retirar').classList.remove('hidden');
+// ── Modal PRESTAR ──────────────────────────────────────────────────────────
+function abrirModalPrestar() {
+    document.getElementById('prestar-empleado').value     = '';
+    document.getElementById('prestar-destino').value      = '';
+    document.getElementById('prestar-fecha-inicio').value = '{{ $hoy }}';
+    document.getElementById('prestar-fecha-fin').value    = '';
+    document.getElementById('prestar-motivo').value       = '';
+    setError('prestar-error', '');
+    setLoading('btn-prestar-submit', false, '<i class="fa-solid fa-arrow-up-from-bracket mr-1"></i> Prestar');
+    openModal('modal-prestar');
 }
 
-function cerrarModalRetirar() {
-    document.getElementById('modal-retirar').classList.add('hidden');
-    idAsignacionPendiente = null;
-}
+async function submitPrestar() {
+    const empleadoId = document.getElementById('prestar-empleado').value;
+    const destinoId  = document.getElementById('prestar-destino').value;
+    const fechaIni   = document.getElementById('prestar-fecha-inicio').value;
+    const fechaFin   = document.getElementById('prestar-fecha-fin').value;
+    const motivo     = document.getElementById('prestar-motivo').value;
 
-document.getElementById('btn-confirmar-retirar').addEventListener('click', async () => {
-    if (!idAsignacionPendiente) return;
-    try {
-        const res = await fetch(`/equipos/${idAsignacionPendiente}/retirar`, {
-            method: 'DELETE',
-            headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' }
-        });
-        const data = await res.json();
-        if (data.success) {
-            location.reload();
-        } else {
-            alert(data.error ?? 'Error al retirar.');
-            cerrarModalRetirar();
-        }
-    } catch (e) {
-        alert('Error de conexión.');
-        cerrarModalRetirar();
-    }
-});
+    if (!empleadoId) return setError('prestar-error', 'Selecciona un colaborador.');
+    if (!destinoId)  return setError('prestar-error', 'Selecciona el supervisor destino.');
+    if (!fechaIni)   return setError('prestar-error', 'Indica la fecha de inicio.');
+    if (!fechaFin)   return setError('prestar-error', 'Indica la fecha de fin.');
+    if (fechaFin < fechaIni) return setError('prestar-error', 'La fecha fin debe ser igual o posterior al inicio.');
 
-// ── Agregar Huérfano ───────────────────────────────────────
-async function agregarHuerfano(idContrato, nombre, fecha) {
-    if (!confirm(`¿Agregar a ${nombre} a tu equipo del ${fecha}?`)) return;
-    try {
-        const res = await fetch('/equipos/agregar', {
-            method: 'POST',
-            headers: {
-                'X-CSRF-TOKEN': CSRF,
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            },
-            body: JSON.stringify({ id_contrato: idContrato, fecha })
-        });
-        const data = await res.json();
-        if (data.success) {
-            location.reload();
-        } else if (data.requiere_solicitud) {
-            if (confirm(data.error + '\n\n¿Deseas enviar una solicitud de traslado?')) {
-                await solicitar(idContrato, fecha);
-            }
-        } else {
-            alert(data.error ?? 'Error al agregar.');
-        }
-    } catch (e) {
-        alert('Error de conexión.');
-    }
-}
-
-// ── Solicitar traslado ─────────────────────────────────────
-async function solicitarTraslado(idContrato, nombre, fecha) {
-    if (!confirm(`¿Enviar solicitud para agregar a ${nombre} el ${fecha}? Un aprobador deberá autorizarlo.`)) return;
-    await solicitar(idContrato, fecha);
-}
-
-async function solicitar(idContrato, fecha) {
-    try {
-        const res = await fetch('/equipos/solicitar', {
-            method: 'POST',
-            headers: {
-                'X-CSRF-TOKEN': CSRF,
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            },
-            body: JSON.stringify({ id_contrato: idContrato, fecha })
-        });
-        const data = await res.json();
-        if (data.success) {
-            alert('Solicitud enviada correctamente.');
-            location.reload();
-        } else {
-            alert(data.error ?? 'Error al enviar solicitud.');
-        }
-    } catch (e) {
-        alert('Error de conexión.');
-    }
-}
-
-// ── Replicar equipo ─────────────────────────────────────────
-function abrirModalReplicar() {
-    document.getElementById('replicar-desde').value = '{{ $fecha }}';
-    document.getElementById('replicar-hasta').value = '';
-    const res = document.getElementById('replicar-resultado');
-    res.className = 'hidden mb-4 text-sm rounded-lg p-3';
-    res.innerHTML = '';
-    document.getElementById('btn-confirmar-replicar').disabled = false;
-    document.getElementById('modal-replicar').classList.remove('hidden');
-}
-
-function cerrarModalReplicar() {
-    document.getElementById('modal-replicar').classList.add('hidden');
-}
-
-async function confirmarReplicar() {
-    const desde = document.getElementById('replicar-desde').value;
-    const hasta = document.getElementById('replicar-hasta').value;
-    const res   = document.getElementById('replicar-resultado');
-
-    if (!desde || !hasta) {
-        res.className = 'mb-4 text-sm rounded-lg p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300';
-        res.innerHTML = 'Completa ambas fechas.';
-        return;
-    }
-    if (desde === hasta) {
-        res.className = 'mb-4 text-sm rounded-lg p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300';
-        res.innerHTML = 'Las fechas deben ser distintas.';
-        return;
-    }
-
-    const btn = document.getElementById('btn-confirmar-replicar');
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Procesando...';
+    setError('prestar-error', '');
+    setLoading('btn-prestar-submit', true, '');
 
     try {
-        const response = await fetch('{{ route("equipos.replicar") }}', {
+        const res  = await fetch('{{ route("equipos.prestamos.crear") }}', {
             method: 'POST',
             headers: { 'X-CSRF-TOKEN': CSRF, 'Content-Type': 'application/json', 'Accept': 'application/json' },
-            body: JSON.stringify({ desde, hasta })
+            body: JSON.stringify({
+                accion: 'prestar',
+                empleado_id: parseInt(empleadoId),
+                supervisor_destino_id: parseInt(destinoId),
+                fecha_inicio: fechaIni,
+                fecha_fin: fechaFin,
+                motivo,
+            }),
         });
-        const data = await response.json();
-
-        if (data.success) {
-            let html = `<strong>${data.copiados} colaborador${data.copiados !== 1 ? 'es' : ''} asignado${data.copiados !== 1 ? 's' : ''}.</strong>`;
-            if (data.omitidos.length > 0) {
-                html += `<p class="mt-1 text-xs">Omitidos (ya tenían equipo): ${data.omitidos.join(', ')}</p>`;
-            }
-            res.className = 'mb-4 text-sm rounded-lg p-3 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300';
-            res.innerHTML = html;
-            btn.innerHTML = '<i class="fa-solid fa-copy mr-1"></i> Replicar';
-            btn.disabled  = false;
-        } else {
-            res.className = 'mb-4 text-sm rounded-lg p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300';
-            res.innerHTML = data.error ?? 'Error al replicar.';
-            btn.innerHTML = '<i class="fa-solid fa-copy mr-1"></i> Replicar';
-            btn.disabled  = false;
-        }
-    } catch (e) {
-        res.className = 'mb-4 text-sm rounded-lg p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300';
-        res.innerHTML = 'Error de conexión.';
-        btn.innerHTML = '<i class="fa-solid fa-copy mr-1"></i> Replicar';
-        btn.disabled  = false;
+        const data = await res.json();
+        if (data.success) { closeModal('modal-prestar'); location.reload(); }
+        else setError('prestar-error', data.error ?? 'Error al crear el préstamo.');
+    } catch {
+        setError('prestar-error', 'Error de conexión.');
     }
+    setLoading('btn-prestar-submit', false, '<i class="fa-solid fa-arrow-up-from-bracket mr-1"></i> Prestar');
 }
+
+// ── Modal SOLICITAR ────────────────────────────────────────────────────────
+function abrirModalSolicitar() {
+    document.getElementById('solicitar-search').value       = '';
+    document.getElementById('solicitar-empleado-id').value  = '';
+    document.getElementById('solicitar-nombre-display').textContent = '';
+    document.getElementById('solicitar-fecha-inicio').value = '{{ $hoy }}';
+    document.getElementById('solicitar-fecha-fin').value    = '';
+    document.getElementById('solicitar-motivo').value       = '';
+    document.getElementById('solicitar-seleccionado').classList.add('hidden');
+    document.getElementById('solicitar-lista').classList.add('hidden');
+    setError('solicitar-error', '');
+    setLoading('btn-solicitar-submit', false, '<i class="fa-solid fa-paper-plane mr-1"></i> Enviar solicitud');
+    openModal('modal-solicitar');
+}
+
+function filtrarPersonas(q) {
+    const norm  = q.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const items = document.querySelectorAll('#solicitar-lista .persona-item');
+    const lista = document.getElementById('solicitar-lista');
+    let   visibles = 0;
+
+    items.forEach(el => {
+        const nombre = el.dataset.nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const match  = nombre.includes(norm);
+        el.style.display = match ? '' : 'none';
+        if (match) visibles++;
+    });
+
+    document.getElementById('solicitar-sin-resultados').classList.toggle('hidden', visibles > 0);
+    lista.classList.toggle('hidden', norm.length < 2);
+}
+
+function seleccionarPersona(id, nombre) {
+    document.getElementById('solicitar-empleado-id').value      = id;
+    document.getElementById('solicitar-nombre-display').textContent = nombre;
+    document.getElementById('solicitar-seleccionado').classList.remove('hidden');
+    document.getElementById('solicitar-lista').classList.add('hidden');
+    document.getElementById('solicitar-search').value = '';
+}
+
+function limpiarSeleccionPersona() {
+    document.getElementById('solicitar-empleado-id').value = '';
+    document.getElementById('solicitar-seleccionado').classList.add('hidden');
+}
+
+async function submitSolicitar() {
+    const empleadoId = document.getElementById('solicitar-empleado-id').value;
+    const fechaIni   = document.getElementById('solicitar-fecha-inicio').value;
+    const fechaFin   = document.getElementById('solicitar-fecha-fin').value;
+    const motivo     = document.getElementById('solicitar-motivo').value;
+
+    if (!empleadoId) return setError('solicitar-error', 'Selecciona un colaborador.');
+    if (!fechaIni)   return setError('solicitar-error', 'Indica la fecha de inicio.');
+    if (!fechaFin)   return setError('solicitar-error', 'Indica la fecha de fin.');
+    if (fechaFin < fechaIni) return setError('solicitar-error', 'La fecha fin debe ser igual o posterior al inicio.');
+
+    setError('solicitar-error', '');
+    setLoading('btn-solicitar-submit', true, '');
+
+    try {
+        const res  = await fetch('{{ route("equipos.prestamos.crear") }}', {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': CSRF, 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({
+                accion: 'solicitar',
+                empleado_id: parseInt(empleadoId),
+                fecha_inicio: fechaIni,
+                fecha_fin: fechaFin,
+                motivo,
+            }),
+        });
+        const data = await res.json();
+        if (data.success) { closeModal('modal-solicitar'); location.reload(); }
+        else setError('solicitar-error', data.error ?? 'Error al enviar la solicitud.');
+    } catch {
+        setError('solicitar-error', 'Error de conexión.');
+    }
+    setLoading('btn-solicitar-submit', false, '<i class="fa-solid fa-paper-plane mr-1"></i> Enviar solicitud');
+}
+
+// ── Aprobar ────────────────────────────────────────────────────────────────
+async function aprobar(id) {
+    if (!confirm('¿Aprobar este préstamo? Se actualizará el equipo_dia para todo el rango.')) return;
+    try {
+        const res  = await fetch(`/equipos/prestamos/${id}/aprobar`, {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+        });
+        const data = await res.json();
+        if (data.success) location.reload();
+        else alert(data.error ?? 'Error al aprobar.');
+    } catch { alert('Error de conexión.'); }
+}
+
+// ── Rechazar ───────────────────────────────────────────────────────────────
+function abrirModalRechazar(id) {
+    document.getElementById('rechazar-prestamo-id').value = id;
+    document.getElementById('rechazar-motivo').value      = '';
+    setLoading('btn-rechazar-submit', false, '<i class="fa-solid fa-ban mr-1"></i> Rechazar');
+    openModal('modal-rechazar');
+}
+
+async function submitRechazar() {
+    const id     = document.getElementById('rechazar-prestamo-id').value;
+    const motivo = document.getElementById('rechazar-motivo').value;
+
+    setLoading('btn-rechazar-submit', true, '');
+    try {
+        const res  = await fetch(`/equipos/prestamos/${id}/rechazar`, {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': CSRF, 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({ motivo_rechazo: motivo }),
+        });
+        const data = await res.json();
+        if (data.success) { closeModal('modal-rechazar'); location.reload(); }
+        else alert(data.error ?? 'Error al rechazar.');
+    } catch { alert('Error de conexión.'); }
+    setLoading('btn-rechazar-submit', false, '<i class="fa-solid fa-ban mr-1"></i> Rechazar');
+}
+
+// ── Cancelar ───────────────────────────────────────────────────────────────
+async function cancelar(id) {
+    if (!confirm('¿Cancelar esta solicitud pendiente?')) return;
+    try {
+        const res  = await fetch(`/equipos/prestamos/${id}`, {
+            method: 'DELETE',
+            headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+        });
+        const data = await res.json();
+        if (data.success) location.reload();
+        else alert(data.error ?? 'Error al cancelar.');
+    } catch { alert('Error de conexión.'); }
+}
+
+// Cerrar modales con backdrop
+['modal-prestar','modal-solicitar','modal-rechazar'].forEach(id => {
+    document.getElementById(id).addEventListener('click', function(e) {
+        if (e.target === this) closeModal(id);
+    });
+});
 </script>
 @endpush
 

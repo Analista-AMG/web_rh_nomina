@@ -11,11 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('bronze.fact_bajas', function (Blueprint $table) {
-            $table->id('id_baja');
+        Schema::create('nomina.fact_bajas', function (Blueprint $table) {
+            $table->id();
 
             // Foreign key
-            $table->unsignedBigInteger('id_contrato');
+            $table->unsignedBigInteger('contrato_id');
 
             // Campos de baja
             $table->date('fecha_baja');
@@ -25,8 +25,9 @@ return new class extends Migration
             $table->text('observacion')->nullable();
 
             // Constraints
-            $table->foreign('id_contrato')->references('id_contrato')->on('bronze.fact_contratos')->onDelete('cascade');
-            $table->unique('id_contrato'); // Un contrato solo puede tener una baja
+            $table->foreign('contrato_id')->references('id')->on('nomina.fact_contratos')->onDelete('cascade');
+            $table->unique('contrato_id'); // Un contrato solo puede tener una baja
+            $table->timestamps();
         });
     }
 
@@ -35,6 +36,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('bronze.fact_bajas');
+        Schema::dropIfExists('nomina.fact_bajas');
     }
 };

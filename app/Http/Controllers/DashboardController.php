@@ -4,32 +4,32 @@ namespace App\Http\Controllers;
 
 use App\Models\Contrato;
 use App\Models\Persona;
+use App\Services\JerarquiaService;
 use Illuminate\Http\Request;
 
 class DashboardController extends Controller
 {
-    /**
-     * Muestra el panel principal con métricas.
-     */
+    public function __construct(protected JerarquiaService $jerarquia) {}
+
     public function index()
     {
-        // 1. Métricas de Personas
-        $totalPersonas = Persona::count();
-        // Ejemplo: Personas registradas este mes
-        $nuevasPersonas = Persona::whereMonth('fecha_registro', now()->month)
-                                 ->whereYear('fecha_registro', now()->year)
-                                 ->count();
+        $user = auth()->user();
+        $personaIds = $this->jerarquia->personaIdsVisibles($user);
+        $hoy = now();
 
-        // 2. Métricas de Contratos (Ejemplo: Activos)
-        // Asumiendo que 'estado' 1 es activo
-        $contratosActivos = Contrato::where('estado', 1)->count();
+        $pBase = fn() => $this->jerarquia->aplicarFiltroPersonas(Persona::query(), $personaIds, 'id');
+        $cBase = fn() => $this->jerarquia->aplicarFiltroPersonas(Contrato::query(), $personaIds, 'persona_id');
 
-        // 3. Empaquetar métricas para la vista
         $metrics = [
-            'empleados_total' => $totalPersonas,
-            'nuevos_mes' => $nuevasPersonas,
-            'contratos_activos' => $contratosActivos,
-            // Aquí tu equipo puede agregar más: nómina total, vencimientos, etc.
+            'empleados_total'      => $pBase()->count(),
+            'nuevos_mes'           => $pBase()->whereMonth('created_at', $hoy->month)->whereYear('created_at', $hoy->year)->count(),
+            'contratos_activos'    => $cBase()->activos()->count(),
+            'contratos_por_vencer' => $cBase()->activos()
+                ->whereRaw(Contrato::FIN_EFECTIVO . ' BETWEEN ? AND ?', [
+                    $hoy->toDateString(),
+                    $hoy->copy()->addDays(30)->toDateString(),
+                ])
+                ->count(),
         ];
 
         return view('dashboard.index', compact('metrics'));

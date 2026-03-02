@@ -18,12 +18,10 @@ class Baja extends Model
             ->useLogName('bajas');
     }
 
-    protected $table = 'bronze.fact_bajas';
-    protected $primaryKey = 'id_baja';
-    public $timestamps = false;
+    protected $table = 'nomina.fact_bajas';
 
     protected $fillable = [
-        'id_contrato',
+        'contrato_id',
         'fecha_baja',
         'motivo_baja',
         'aviso_con_15_dias',
@@ -39,6 +37,6 @@ class Baja extends Model
 
     public function contrato()
     {
-        return $this->belongsTo(Contrato::class, 'id_contrato', 'id_contrato');
+        return $this->belongsTo(Contrato::class, 'contrato_id');
     }
 }

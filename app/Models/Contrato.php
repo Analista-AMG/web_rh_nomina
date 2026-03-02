@@ -10,6 +10,9 @@ class Contrato extends Model
 {
     use LogsActivity;
 
+    // Expresión SQL para el fin efectivo del contrato (fecha_renuncia tiene precedencia sobre fin_contrato)
+    const FIN_EFECTIVO = "COALESCE(fecha_renuncia, fin_contrato)";
+
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
@@ -18,119 +21,112 @@ class Contrato extends Model
             ->useLogName('contratos');
     }
 
-    protected $table = 'bronze.fact_contratos';
-    protected $primaryKey = 'id_contrato';
-    public $timestamps = false;
+    protected $table = 'nomina.fact_contratos';
 
     protected $fillable = [
-        'id_persona', 'id_cargo', 'id_planilla', 'id_fp', 'id_condicion',
-        'asignacion_familiar', 'haber_basico', 'movilidad', 'id_banco',
+        'persona_id', 'cargo_id', 'planilla_id', 'fondo_pensiones_id', 'condicion_id',
+        'asignacion_familiar', 'haber_basico', 'movilidad', 'banco_id',
         'numero_cuenta', 'codigo_interbancario',
         'numero_cuenta_cts', 'codigo_interbancario_cts',
-        'id_moneda', 'id_familia',
+        'moneda_id', 'familia_id',
         'inicio_contrato', 'fin_contrato', 'fecha_renuncia',
-        'periodo_prueba', 'id_centro_costo', 'fecha_insercion'
+        'periodo_prueba', 'centro_costo_id'
+    ];
+
+    protected $casts = [
+        'inicio_contrato'    => 'date',
+        'fin_contrato'       => 'date',
+        'fecha_renuncia'     => 'date',
+        'asignacion_familiar'=> 'boolean',
+        'periodo_prueba'     => 'boolean',
+        'haber_basico'       => 'decimal:2',
+        'movilidad'          => 'decimal:2',
     ];
 
     // Relaciones
     public function persona()
     {
-        return $this->belongsTo(Persona::class, 'id_persona', 'id_persona');
+        return $this->belongsTo(Persona::class, 'persona_id');
     }
 
     public function cargo()
     {
-        return $this->belongsTo(Cargo::class, 'id_cargo', 'id_cargo');
+        return $this->belongsTo(Cargo::class, 'cargo_id');
     }
 
     public function planilla()
     {
-        return $this->belongsTo(Planilla::class, 'id_planilla', 'id_planilla');
+        return $this->belongsTo(Planilla::class, 'planilla_id');
     }
 
-    public function fondoPensiones()
+    public function fondoPension()
     {
-        return $this->belongsTo(FondoPensiones::class, 'id_fp', 'id_fondo');
+        return $this->belongsTo(FondoPension::class, 'fondo_pensiones_id');
     }
 
     public function banco()
     {
-        return $this->belongsTo(Banco::class, 'id_banco', 'id_banco');
+        return $this->belongsTo(Banco::class, 'banco_id');
     }
 
     public function condicion()
     {
-        return $this->belongsTo(Condicion::class, 'id_condicion', 'id_condicion');
+        return $this->belongsTo(Condicion::class, 'condicion_id');
     }
 
     public function moneda()
     {
-        return $this->belongsTo(Moneda::class, 'id_moneda', 'id_moneda');
+        return $this->belongsTo(Moneda::class, 'moneda_id');
     }
 
     public function centroCosto()
     {
-        return $this->belongsTo(CentroCosto::class, 'id_centro_costo', 'id_centro_costo');
+        return $this->belongsTo(CentroCosto::class, 'centro_costo_id');
     }
 
     public function familia()
     {
-        return $this->belongsTo(Familia::class, 'id_familia', 'id_familia');
+        return $this->belongsTo(Familia::class, 'familia_id');
     }
 
     public function movimientos()
     {
-        return $this->hasMany(ContratoMovimiento::class, 'id_contrato', 'id_contrato');
+        return $this->hasMany(ContratoMovimiento::class, 'contrato_id');
     }
 
     public function baja()
     {
-        return $this->hasOne(Baja::class, 'id_contrato', 'id_contrato');
+        return $this->hasOne(Baja::class, 'contrato_id');
     }
 
     public function adicionales()
     {
-        return $this->hasMany(Adicional::class, 'id_contrato', 'id_contrato');
+        return $this->hasMany(Adicional::class, 'contrato_id');
     }
 
     // Accessor para calcular el estado en tiempo real
     public function getEstadoAttribute(): string
     {
-        $hoy = now()->toDateString();
-        $inicio = $this->inicio_contrato;
+        $hoy = now()->startOfDay();
         $finEfectivo = $this->fecha_renuncia ?? $this->fin_contrato;
 
-        if ($inicio > $hoy) {
-            return 'Pendiente'; // Aún no ha iniciado
+        if ($this->inicio_contrato->gt($hoy)) {
+            return 'Pendiente';
         }
 
-        if ($finEfectivo === null || $finEfectivo >= $hoy) {
-            return 'Activo'; // Indefinido o con fecha de fin/renuncia en el futuro o hoy
+        if ($finEfectivo === null || $finEfectivo->gte($hoy)) {
+            return 'Activo';
         }
 
-        return 'Finalizado'; // Else, ha terminado
+        return 'Finalizado';
     }
 
     // Scope para obtener contratos activos
     public function scopeActivos($query)
     {
         $hoy = now()->toDateString();
-        
-        return $query->where('inicio_contrato', '<=', $hoy) // Ha iniciado o inicia hoy
-                     ->where(function ($q) use ($hoy) {
-                         // Un contrato es activo si su fin efectivo es NULL o es hoy/futuro
-                         $q->where(function ($subQ) { // Condición 1: Indefinido (y no tiene fecha_renuncia)
-                               $subQ->whereNull('fin_contrato')
-                                    ->whereNull('fecha_renuncia');
-                           })
-                           ->orWhere(function ($subQ) use ($hoy) { // Condición 2: Tiene una fecha de fin efectiva hoy o en el futuro
-                               $subQ->whereRaw("
-                                   CASE 
-                                       WHEN fecha_renuncia IS NOT NULL THEN fecha_renuncia
-                                       ELSE fin_contrato
-                                   END >= ?
-                               ", [$hoy]);
-                           });
-                     });
+
+        return $query->where('inicio_contrato', '<=', $hoy)
+                     ->whereRaw(self::FIN_EFECTIVO . " >= ?", [$hoy]);
     }
 }

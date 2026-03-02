@@ -11,19 +11,19 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('bronze.fact_contratos', function (Blueprint $table) {
-            $table->id('id_contrato');
+        Schema::create('nomina.fact_contratos', function (Blueprint $table) {
+            $table->id();
 
             // Foreign keys
-            $table->unsignedBigInteger('id_persona');
-            $table->unsignedBigInteger('id_cargo')->nullable();
-            $table->unsignedBigInteger('id_planilla')->nullable();
-            $table->unsignedBigInteger('id_fp')->nullable();
-            $table->unsignedBigInteger('id_condicion')->nullable();
-            $table->unsignedBigInteger('id_banco')->nullable();
-            $table->unsignedBigInteger('id_moneda')->nullable();
-            $table->unsignedBigInteger('id_centro_costo')->nullable();
-            $table->unsignedBigInteger('id_familia')->nullable();
+            $table->unsignedBigInteger('persona_id');
+            $table->unsignedBigInteger('cargo_id')->nullable();
+            $table->unsignedBigInteger('planilla_id')->nullable();
+            $table->unsignedBigInteger('fondo_pensiones_id')->nullable();
+            $table->unsignedBigInteger('condicion_id')->nullable();
+            $table->unsignedBigInteger('banco_id')->nullable();
+            $table->unsignedBigInteger('moneda_id')->nullable();
+            $table->unsignedBigInteger('centro_costo_id')->nullable();
+            $table->unsignedBigInteger('familia_id')->nullable();
 
             // Campos de contrato
             $table->boolean('asignacion_familiar')->default(false);
@@ -39,18 +39,20 @@ return new class extends Migration
             $table->date('fin_contrato')->nullable();
             $table->date('fecha_renuncia')->nullable();
             $table->boolean('periodo_prueba')->default(false);
-            $table->timestamp('fecha_insercion')->nullable();
 
             // Constraints
-            $table->foreign('id_persona')->references('id_persona')->on('bronze.dim_persona')->onDelete('restrict');
-            $table->foreign('id_cargo')->references('id_cargo')->on('bronze.dim_cargo')->onDelete('set null');
-            $table->foreign('id_planilla')->references('id_planilla')->on('bronze.dim_planilla')->onDelete('set null');
-            $table->foreign('id_fp')->references('id_fondo')->on('bronze.dim_fondo_pensiones')->onDelete('set null');
-            $table->foreign('id_condicion')->references('id_condicion')->on('bronze.dim_condicion')->onDelete('set null');
-            $table->foreign('id_banco')->references('id_banco')->on('bronze.dim_banco')->onDelete('set null');
-            $table->foreign('id_moneda')->references('id_moneda')->on('bronze.dim_moneda')->onDelete('set null');
-            $table->foreign('id_centro_costo')->references('id_centro_costo')->on('bronze.dim_centro_costo')->onDelete('set null');
-            $table->foreign('id_familia')->references('id_familia')->on('bronze.dim_familia')->onDelete('set null');
+            $table->foreign('persona_id')->references('id')->on('nomina.dim_personas')->onDelete('no action');
+            $table->foreign('cargo_id')->references('id')->on('nomina.dim_cargos')->onDelete('set null');
+            $table->foreign('planilla_id')->references('id')->on('nomina.dim_planillas')->onDelete('set null');
+            $table->foreign('fondo_pensiones_id')->references('id')->on('nomina.dim_fondos_pensiones')->onDelete('set null');
+            $table->foreign('condicion_id')->references('id')->on('nomina.dim_condiciones')->onDelete('set null');
+            $table->foreign('banco_id')->references('id')->on('nomina.dim_bancos')->onDelete('set null');
+            $table->foreign('moneda_id')->references('id')->on('nomina.dim_monedas')->onDelete('set null');
+            $table->foreign('centro_costo_id')->references('id')->on('nomina.dim_centro_costos')->onDelete('set null');
+            $table->foreign('familia_id')->references('id')->on('nomina.dim_familias')->onDelete('set null');
+
+            $table->boolean('estado')->default(true);
+            $table->timestamps();
         });
     }
 
@@ -59,6 +61,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('bronze.fact_contratos');
+        Schema::dropIfExists('nomina.fact_contratos');
     }
 };

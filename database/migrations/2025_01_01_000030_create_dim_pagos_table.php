@@ -11,12 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('bronze.dim_pagos', function (Blueprint $table) {
-            $table->id('id_pago');
+        Schema::create('nomina.dim_pagos', function (Blueprint $table) {
+            $table->id();
             $table->string('periodo', 10);
             $table->integer('quincena');
             $table->date('inicio');
             $table->date('fin');
+            $table->timestamps();
         });
     }
 
@@ -25,6 +26,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('bronze.dim_pagos');
+        Schema::dropIfExists('nomina.dim_pagos');
     }
 };

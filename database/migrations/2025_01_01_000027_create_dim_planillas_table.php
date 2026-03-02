@@ -11,8 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('bronze.dim_planilla', function (Blueprint $table) {
-            $table->id('id_planilla');
+        Schema::create('nomina.dim_planillas', function (Blueprint $table) {
+            $table->id();
             $table->string('nombre_empresa', 200)->nullable();
             $table->string('ruc', 20)->nullable();
             $table->string('razon_social', 250)->nullable();
@@ -22,6 +22,7 @@ return new class extends Migration
             $table->string('regimen', 100)->nullable();
             $table->string('tipo_pago', 50)->nullable();
             $table->boolean('activo')->default(true);
+            $table->timestamps();
         });
     }
 
@@ -30,6 +31,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('bronze.dim_planilla');
+        Schema::dropIfExists('nomina.dim_planillas');
     }
 };

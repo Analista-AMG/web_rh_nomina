@@ -18,10 +18,7 @@ class Adicional extends Model
             ->useLogName('adicionales');
     }
 
-    protected $table = 'bronze.fact_adicionales';
-    protected $primaryKey = 'id';
-    public $timestamps = false;
-    public $incrementing = false;
+    protected $table = 'nomina.fact_adicionales';
 
     const TIPO_MOVILIDAD = 'MOVILIDAD';
     const TIPO_REINTEGRO_INAFECTO = 'REINTEGRO_INAFECTO';
@@ -63,7 +60,7 @@ class Adicional extends Model
 
     protected $fillable = [
         'periodo',
-        'id_contrato',
+        'contrato_id',
         'tipo_adicional',
         'monto',
         'encargado',
@@ -76,6 +73,6 @@ class Adicional extends Model
 
     public function contrato()
     {
-        return $this->belongsTo(Contrato::class, 'id_contrato', 'id_contrato');
+        return $this->belongsTo(Contrato::class, 'contrato_id');
     }
 }

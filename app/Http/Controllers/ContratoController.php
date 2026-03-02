@@ -4,34 +4,34 @@ namespace App\Http\Controllers;
 
 use App\Models\Baja;
 use App\Models\Contrato;
+use App\Models\Persona;
 use App\Services\ContratoService;
+use App\Services\JerarquiaService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class ContratoController extends Controller
 {
-    protected $contratoService;
+    public function __construct(
+        protected ContratoService $contratoService,
+        protected JerarquiaService $jerarquia,
+    ) {}
 
-    public function __construct(ContratoService $contratoService)
-    {
-        $this->contratoService = $contratoService;
-    }
 
     /**
      * Display a listing of the resource.
      */
     public function index(Request $request)
     {
-        // Verificar permiso
-        abort_unless(auth()->user()->can('contratos.view'), 403);
+        $personaIds = $this->jerarquia->personaIdsVisibles(auth()->user());
 
         // Iniciamos la consulta con relaciones para evitar N+1
         $query = Contrato::with([
             'persona',
             'cargo',
             'planilla',
-            'fondoPensiones',
+            'fondoPension',
             'banco',
             'condicion',
             'moneda',
@@ -39,13 +39,15 @@ class ContratoController extends Controller
             'familia',
             'baja',
             'movimientos.planilla',
-            'movimientos.fondoPensiones',
+            'movimientos.fondoPension',
             'movimientos.cargo',
             'movimientos.banco',
             'movimientos.condicion',
             'movimientos.moneda',
             'movimientos.familia'
         ]);
+
+        $this->jerarquia->aplicarFiltroPersonas($query, $personaIds, 'persona_id');
 
         // Filtro por Nombre de Empleado
         if ($request->filled('search_name')) {
@@ -71,41 +73,24 @@ class ContratoController extends Controller
         // Paginación
         $contratos = $query->paginate(7)->appends($request->all());
 
-        // --- KPIs ---
+        // --- KPIs filtrados ---
         $hoy = Carbon::now();
-        
-        // 1. Total Contratos Históricos
-        $total = Contrato::count();
 
-        // 2. Activos
-        $activos = Contrato::activos()->count();
-
-        // 3. Por Vencer
-        $porVencer = Contrato::activos() // Contratos activos según nuestro scope
-            ->whereNotNull('fin_contrato') // Deben tener una fecha de fin definida
-            ->whereBetween('fin_contrato', [$hoy->copy()->addDay(), $hoy->copy()->addDays(30)]) // Que estén entre mañana y los próximos 30 días
-            ->count();
+        $kpiBase   = $this->jerarquia->aplicarFiltroPersonas(Contrato::query(), $personaIds, 'persona_id');
+        $kpiActivo = $this->jerarquia->aplicarFiltroPersonas(Contrato::activos(), $personaIds, 'persona_id');
 
         $kpis = [
-            'total' => $total,
-            'activos' => $activos,
-            'por_vencer' => $porVencer,
+            'total'      => (clone $kpiBase)->count(),
+            'activos'    => (clone $kpiActivo)->count(),
+            'por_vencer' => (clone $kpiActivo)
+                ->whereRaw(Contrato::FIN_EFECTIVO . " BETWEEN ? AND ?", [
+                    $hoy->toDateString(),
+                    $hoy->copy()->addDays(30)->toDateString(),
+                ])
+                ->count(),
         ];
 
         return view('contratos.index', compact('contratos', 'kpis'));
-    }
-
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        // Necesitamos listas para los selects
-        // $personas = \App\Models\Persona::select('id_persona', 'nombres', 'apellido_paterno')->get();
-        // $cargos = \App\Models\Cargo::all();
-        // return view('contratos.create', compact('personas', 'cargos'));
-        
-        return view('contratos.create');
     }
 
     /**
@@ -113,9 +98,6 @@ class ContratoController extends Controller
      */
     public function store(Request $request)
     {
-        // Verificar permiso
-        abort_unless(auth()->user()->can('contratos.create'), 403);
-
         // Validar token de sesion
         $tokenData = session()->get('contrato_token');
         if (!$tokenData || $tokenData['token'] !== $request->token) {
@@ -137,15 +119,15 @@ class ContratoController extends Controller
         // Validar datos (validaciones basicas, la integridad referencial se maneja en BD)
         $validated = $request->validate([
             'token' => 'required|string',
-            'id_persona' => 'required|integer',
-            'id_cargo' => 'required|integer',
-            'id_planilla' => 'required|integer',
-            'id_fp' => 'required|integer',
-            'id_condicion' => 'required|integer',
-            'id_banco' => 'required|integer',
-            'id_moneda' => 'required|integer',
-            'id_centro_costo' => 'required|integer',
-            'id_familia' => 'required|integer',
+            'persona_id' => 'required|integer',
+            'cargo_id' => 'required|integer',
+            'planilla_id' => 'required|integer',
+            'fondo_pensiones_id' => 'required|integer',
+            'condicion_id' => 'required|integer',
+            'banco_id' => 'required|integer',
+            'moneda_id' => 'required|integer',
+            'centro_costo_id' => 'required|integer',
+            'familia_id' => 'required|integer',
             'inicio_contrato' => 'required|date',
             'fin_contrato' => 'required|date|after:inicio_contrato',
             'haber_basico' => 'required|numeric|min:0',
@@ -171,33 +153,15 @@ class ContratoController extends Controller
      */
     public function update(Request $request, $id)
     {
-        // Verificar permiso
-        if (auth()->user()->cannot('contratos.edit')) {
-            return response()->json(['error' => 'No tienes permiso para editar contratos'], 403);
-        }
-
-        // Implementar lógica de actualización
         $contrato = Contrato::findOrFail($id);
 
         $contrato->update([
-            'fecha_inicio' => $request->fecha_inicio,
-            'fecha_fin' => $request->fecha_fin,
-            'haber_basico' => $request->haber_basico,
+            'inicio_contrato' => $request->inicio_contrato,
+            'fin_contrato'    => $request->fin_contrato,
+            'haber_basico'    => $request->haber_basico,
         ]);
 
         return response()->json(['success' => true, 'message' => 'Contrato actualizado correctamente']);
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy($id)
-    {
-        // Verificar permiso
-        abort_unless(auth()->user()->can('contratos.delete'), 403);
-
-        // Implementar lógica de eliminación
-        // ...
     }
 
     /**
@@ -205,10 +169,6 @@ class ContratoController extends Controller
      */
     public function darDeBaja(Request $request, $id)
     {
-        if (auth()->user()->cannot('contratos.baja')) {
-            return response()->json(['error' => 'No tienes permiso para dar de baja'], 403);
-        }
-
         $validated = $request->validate([
             'fecha_baja' => 'required|date',
             'motivo_baja' => 'required|string|max:255',
@@ -219,18 +179,16 @@ class ContratoController extends Controller
 
         $contrato = Contrato::with('baja')->findOrFail($id);
 
-        // Validar que la fecha esté dentro del rango del contrato
-        $inicio = $contrato->inicio_contrato;
-        $fin = $contrato->fin_contrato;
+        $fechaBaja = Carbon::parse($validated['fecha_baja']);
 
-        if ($validated['fecha_baja'] < $inicio) {
+        if ($fechaBaja->lt($contrato->inicio_contrato)) {
             return response()->json([
                 'success' => false,
                 'message' => 'La fecha de baja no puede ser anterior al inicio del contrato.',
             ], 422);
         }
 
-        if ($fin && $validated['fecha_baja'] > $fin) {
+        if ($contrato->fin_contrato && $fechaBaja->gt($contrato->fin_contrato)) {
             return response()->json([
                 'success' => false,
                 'message' => 'La fecha de baja no puede ser posterior al fin del contrato.',
@@ -254,7 +212,7 @@ class ContratoController extends Controller
                 ]);
             } else {
                 Baja::create([
-                    'id_contrato' => $contrato->id_contrato,
+                    'contrato_id' => $contrato->id,
                     'fecha_baja' => $validated['fecha_baja'],
                     'motivo_baja' => $validated['motivo_baja'],
                     'aviso_con_15_dias' => $validated['aviso_con_15_dias'],
@@ -277,10 +235,6 @@ class ContratoController extends Controller
      */
     public function eliminarBaja($id)
     {
-        if (auth()->user()->cannot('contratos.baja')) {
-            return response()->json(['error' => 'No tienes permiso para eliminar bajas'], 403);
-        }
-
         $contrato = Contrato::with('baja')->findOrFail($id);
 
         if (!$contrato->baja) {
@@ -302,215 +256,6 @@ class ContratoController extends Controller
             'success' => true,
             'message' => 'Baja eliminada correctamente. El contrato ha sido reactivado.',
         ]);
-    }
-
-    /**
-     * Store a new movement for a contract.
-     */
-    public function storeMovimiento(Request $request)
-    {
-        abort_unless(auth()->user()->can('contratos.create'), 403);
-
-        $conn = config('database.default');
-
-        $validated = $request->validate([
-            'id_contrato' => "required|exists:{$conn}.bronze.fact_contratos,id_contrato",
-            'tipo_movimiento' => 'required|string|max:50',
-            'id_cargo' => "nullable|exists:{$conn}.bronze.dim_cargo,id_cargo",
-            'id_planilla' => "nullable|exists:{$conn}.bronze.dim_planilla,id_planilla",
-            'inicio' => 'required|date',
-            'fin' => 'nullable|date|after_or_equal:inicio',
-            'haber_basico' => 'required|numeric|min:0',
-            'movilidad' => 'nullable|numeric|min:0',
-            'asignacion_familiar' => 'required|boolean',
-            'id_fp' => "nullable|exists:{$conn}.bronze.dim_fondo_pensiones,id_fondo",
-            'id_condicion' => "nullable|exists:{$conn}.bronze.dim_condicion,id_condicion",
-            'id_banco' => "nullable|exists:{$conn}.bronze.dim_banco,id_banco",
-            'id_centro_costo' => "nullable|exists:{$conn}.bronze.dim_centro_costo,id_centro_costo",
-            'id_familia' => "nullable|exists:{$conn}.bronze.dim_familia,id_familia",
-            'id_moneda' => "nullable|exists:{$conn}.bronze.dim_moneda,id_moneda",
-        ]);
-
-        $validated['fecha_insercion'] = now();
-
-        \App\Models\ContratoMovimiento::create($validated);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Movimiento registrado correctamente',
-        ]);
-    }
-
-    /**
-     * Update the specified movement.
-     */
-    public function updateMovimiento(Request $request, $id)
-    {
-        // Verificar permiso
-        if (auth()->user()->cannot('contratos.edit')) {
-            return response()->json(['error' => 'No tienes permiso para editar movimientos'], 403);
-        }
-
-        // Prefijo de conexión para validaciones exists con schema
-        $conn = config('database.default');
-
-        // Validar datos
-        $validated = $request->validate([
-            'id_cargo' => "nullable|exists:{$conn}.bronze.dim_cargo,id_cargo",
-            'id_planilla' => "nullable|exists:{$conn}.bronze.dim_planilla,id_planilla",
-            'inicio' => 'nullable|date',
-            'fin' => 'nullable|date|after_or_equal:inicio',
-            'haber_basico' => 'required|numeric|min:0',
-            'movilidad' => 'nullable|numeric|min:0',
-            'asignacion_familiar' => 'required|boolean',
-            'id_fp' => "nullable|exists:{$conn}.bronze.dim_fondo_pensiones,id_fondo",
-            'id_condicion' => "nullable|exists:{$conn}.bronze.dim_condicion,id_condicion",
-            'id_banco' => "nullable|exists:{$conn}.bronze.dim_banco,id_banco",
-            'id_centro_costo' => "nullable|exists:{$conn}.bronze.dim_centro_costo,id_centro_costo",
-            'id_familia' => "nullable|exists:{$conn}.bronze.dim_familia,id_familia",
-            'id_moneda' => "nullable|exists:{$conn}.bronze.dim_moneda,id_moneda",
-        ]);
-
-        // Buscar el movimiento
-        $movimiento = \App\Models\ContratoMovimiento::findOrFail($id);
-
-        // Tipos de movimiento que sincronizan con el contrato padre
-        $tiposSincronizables = [
-            'Contrato inicial',
-            'Contrato por reingreso',
-            'Contrato por baja',
-            'Contrato por renovación',
-        ];
-
-        \DB::beginTransaction();
-        try {
-            // Actualizar el movimiento
-            $movimiento->update($validated);
-
-            // Si el tipo de movimiento es uno generado por el sistema, sincronizar al contrato padre
-            if (in_array($movimiento->tipo_movimiento, $tiposSincronizables)) {
-                $contrato = $movimiento->contrato;
-
-                $contrato->update([
-                    'id_cargo'            => $movimiento->id_cargo,
-                    'id_planilla'         => $movimiento->id_planilla,
-                    'id_fp'               => $movimiento->id_fp,
-                    'id_condicion'        => $movimiento->id_condicion,
-                    'asignacion_familiar' => $movimiento->asignacion_familiar,
-                    'haber_basico'        => $movimiento->haber_basico,
-                    'movilidad'           => $movimiento->movilidad,
-                    'id_banco'            => $movimiento->id_banco,
-                    'id_moneda'           => $movimiento->id_moneda,
-                    'id_centro_costo'     => $movimiento->id_centro_costo,
-                    'id_familia'          => $movimiento->id_familia,
-                    'inicio_contrato'     => $movimiento->inicio,
-                    'fin_contrato'        => $movimiento->fin,
-                ]);
-            }
-
-            \DB::commit();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Movimiento actualizado correctamente',
-            ]);
-        } catch (\Exception $e) {
-            \DB::rollBack();
-            return response()->json([
-                'success' => false,
-                'message' => 'Error al actualizar: ' . $e->getMessage(),
-            ], 500);
-        }
-    }
-
-    /**
-     * Delete movement or entire contract depending on type.
-     */
-    public function destroyMovimiento($id)
-    {
-        if (auth()->user()->cannot('contratos.delete')) {
-            return response()->json(['error' => 'No tienes permiso para eliminar'], 403);
-        }
-
-        $movimiento = \App\Models\ContratoMovimiento::findOrFail($id);
-
-        if ($movimiento->tipo_movimiento === 'Movimiento Regular') {
-            $movimiento->delete();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Movimiento eliminado correctamente',
-            ]);
-        }
-
-        // Tipo de sistema: eliminar todos los movimientos y el contrato
-        $contrato = $movimiento->contrato;
-        $persona = $contrato->persona;
-        $movimientos = $contrato->movimientos;
-
-        $afectadoNombre = $persona
-            ? $persona->apellido_paterno . ' ' . $persona->apellido_materno . ' ' . explode(' ', $persona->nombres)[0]
-            : null;
-        $afectadoDocumento = $persona?->numero_documento;
-
-        // Capturar datos antes de eliminar
-        $contratoData = $contrato->toArray();
-        $movimientosData = $movimientos->keyBy('id_movimiento')->map(fn($m) => $m->toArray())->all();
-
-        \DB::beginTransaction();
-        try {
-            // Desactivar logging automático (se logueará manualmente)
-            foreach ($movimientos as $mov) {
-                $mov->disableLogging();
-            }
-            $contrato->disableLogging();
-
-            // Eliminar individualmente
-            foreach ($movimientos as $mov) {
-                $mov->delete();
-            }
-            $contrato->delete();
-
-            // Loguear cada movimiento con datos del afectado
-            foreach ($movimientos as $mov) {
-                activity('movimientos')
-                    ->performedOn($mov)
-                    ->causedBy(auth()->user())
-                    ->withProperties([
-                        'old' => $movimientosData[$mov->id_movimiento],
-                        'afectado_nombre' => $afectadoNombre,
-                        'afectado_documento' => $afectadoDocumento,
-                    ])
-                    ->event('deleted')
-                    ->log('Movimiento eliminado');
-            }
-
-            // Loguear el contrato con datos del afectado
-            activity('contratos')
-                ->performedOn($contrato)
-                ->causedBy(auth()->user())
-                ->withProperties([
-                    'old' => $contratoData,
-                    'afectado_nombre' => $afectadoNombre,
-                    'afectado_documento' => $afectadoDocumento,
-                ])
-                ->event('deleted')
-                ->log('Contrato eliminado');
-
-            \DB::commit();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Contrato y todos sus movimientos eliminados correctamente',
-                'redirect' => true,
-            ]);
-        } catch (\Exception $e) {
-            \DB::rollBack();
-            return response()->json([
-                'success' => false,
-                'message' => 'Error al eliminar: ' . $e->getMessage(),
-            ], 500);
-        }
     }
 
     /**
@@ -537,18 +282,18 @@ class ContratoController extends Controller
     public function obtenerHistorial(Request $request)
     {
         $validated = $request->validate([
-            'id_persona' => 'required|integer',
+            'persona_id' => 'required|integer',
         ]);
 
         // Verificar que la persona existe
-        $persona = \App\Models\Persona::find($validated['id_persona']);
+        $persona = Persona::find($validated['persona_id']);
         if (!$persona) {
             return response()->json([
                 'error' => 'Persona no encontrada'
             ], 404);
         }
 
-        $historial = $this->contratoService->obtenerHistorial($validated['id_persona']);
+        $historial = $this->contratoService->obtenerHistorial($validated['persona_id']);
 
         return response()->json($historial);
     }
@@ -558,7 +303,7 @@ class ContratoController extends Controller
      */
     public function obtenerUltimoInicio(string $numero_documento)
     {
-        $persona = \App\Models\Persona::where('numero_documento', $numero_documento)->first();
+        $persona = Persona::where('numero_documento', $numero_documento)->first();
 
         if (!$persona) {
             return response()->json([
@@ -568,16 +313,16 @@ class ContratoController extends Controller
             ]);
         }
 
-        $ultimoContrato = Contrato::where('id_persona', $persona->id_persona)
+        $ultimoContrato = Contrato::where('persona_id', $persona->id)
             ->orderBy('inicio_contrato', 'desc')
             ->first();
         
         $fechaFin = $ultimoContrato ? ($ultimoContrato->fecha_renuncia ?? $ultimoContrato->fin_contrato) : null;
 
         return response()->json([
-            'persona_nombre' => $persona->nombre_completo,
-            'ultimo_inicio_contrato' => $ultimoContrato ? $ultimoContrato->inicio_contrato : null,
-            'ultimo_fin_contrato' => $fechaFin,
+            'persona_nombre'         => $persona->nombre_completo,
+            'ultimo_inicio_contrato' => $ultimoContrato?->inicio_contrato?->format('Y-m-d'),
+            'ultimo_fin_contrato'    => $fechaFin?->format('Y-m-d'),
         ]);
     }
 }

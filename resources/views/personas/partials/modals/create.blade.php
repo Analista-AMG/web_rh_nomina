@@ -1,168 +1,137 @@
-<!-- MODAL CREAR (Estructura Unificada) -->
-<div id="create-modal" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true">
-    <div class="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
-        <!-- Backdrop -->
-        <div class="fixed inset-0 bg-gray-900/60 transition-opacity" style="backdrop-filter: blur(5px);"></div>
-        
-        <!-- Panel -->
-        <div class="relative z-10 w-full transform overflow-hidden rounded-xl bg-white dark:bg-dark-card text-left shadow-2xl border border-light-border dark:border-dark-border" style="max-width: 800px;">
-            
-            <!-- Header -->
-            <div class="bg-white dark:bg-dark-card px-8 py-6 border-b border-light-border dark:border-dark-border flex justify-between items-center">
-                <h3 class="text-xl font-bold text-gray-900 dark:text-white">Registrar Nueva Persona</h3>
-                <button onclick="closeModal('create-modal')" class="text-gray-400 hover:text-gray-600 transition-colors">
-                    <i class="fa-solid fa-times text-xl"></i>
-                </button>
-            </div>
+<!-- MODAL CREAR -->
+<x-ui.modal-shell id="create-modal">
+    <x-ui.modal-header modal-id="create-modal" title="REGISTRAR PERSONA" icon="fa-user-plus" />
 
-            <!-- Body -->
-            <div class="p-8">
-                <form id="create-form" action="{{ route('personas.store') }}" method="POST">
-                    @csrf
-                    
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <!-- Tipo Documento -->
-                        <div>
-                            <x-forms.input-label for="new-tipo_documento" value="Tipo de Documento" />
-                            <select id="new-tipo_documento" name="tipo_documento" class="border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm w-full mt-1">
-                                <option value="DNI">DNI</option>
-                                <option value="CE">CE</option>
-                            </select>
-                        </div>
+    <form id="create-form">
+        @csrf
 
-                        <!-- Numero Documento -->
-                        <div>
-                            <x-forms.input-label for="new-numero_documento" value="Numero de Documento" />
-                            <x-forms.text-input id="new-numero_documento" name="numero_documento" type="text" class="w-full mt-1" inputmode="numeric" pattern="\d+" oninput="this.value = this.value.replace(/\D/g, '')" required />
-                            <x-forms.input-error :messages="$errors->get('numero_documento')" class="mt-2" />
-                            <p id="new-doc-feedback" class="mt-1 text-xs"></p>
-                        </div>
+        <div class="p-8 space-y-7">
 
-                        <!-- Nombres -->
-                        <div>
-                            <x-forms.input-label for="new-nombres" value="Nombres" />
-                            <x-forms.text-input id="new-nombres" name="nombres" type="text" class="w-full mt-1" oninput="this.value = this.value.replace(/\d/g, '')" required />
-                            <x-forms.input-error :messages="$errors->get('nombres')" class="mt-2" />
-                        </div>
+            <x-ui.modal-section label="Identificación" icon="fa-id-card">
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <x-forms.field label="Tipo Documento" for="new-tipo_documento">
+                        <x-forms.select id="new-tipo_documento" name="tipo_documento">
+                            <option value="DNI">DNI</option>
+                            <option value="CE">CE</option>
+                        </x-forms.select>
+                    </x-forms.field>
 
-                        <!-- Apellido Paterno -->
-                        <div>
-                            <x-forms.input-label for="new-apellido_paterno" value="Apellido Paterno" />
-                            <x-forms.text-input id="new-apellido_paterno" name="apellido_paterno" type="text" class="w-full mt-1" oninput="this.value = this.value.replace(/\d/g, '')" required />
-                            <x-forms.input-error :messages="$errors->get('apellido_paterno')" class="mt-2" />
-                        </div>
+                    <x-forms.field label="N° Documento" for="new-numero_documento">
+                        <x-forms.text-input id="new-numero_documento" name="numero_documento" type="text"
+                            inputmode="numeric" pattern="\d+"
+                            oninput="this.value = this.value.replace(/\D/g, '')" required />
+                        <p id="new-doc-feedback" class="mt-1 text-xs"></p>
+                    </x-forms.field>
 
-                        <!-- Apellido Materno -->
-                        <div>
-                            <x-forms.input-label for="new-apellido_materno" value="Apellido Materno" />
-                            <x-forms.text-input id="new-apellido_materno" name="apellido_materno" type="text" class="w-full mt-1" oninput="this.value = this.value.replace(/\d/g, '')" />
-                        </div>
+                    <x-forms.field label="Fecha Nacimiento" for="new-fecha_nacimiento">
+                        <x-forms.text-input id="new-fecha_nacimiento" name="fecha_nacimiento" type="date"
+                            max="{{ now()->subYears(18)->toDateString() }}" />
+                    </x-forms.field>
 
-                        <!-- Genero -->
-                        <div>
-                            <x-forms.input-label for="new-genero" value="Genero" />
-                            <select id="new-genero" name="genero" class="border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm w-full mt-1">
-                                <option value="1">Masculino</option>
-                                <option value="2">Femenino</option>
-                            </select>
-                        </div>
+                    <x-forms.field label="Género" for="new-genero">
+                        <x-forms.select id="new-genero" name="genero">
+                            <option value="1">Masculino</option>
+                            <option value="2">Femenino</option>
+                        </x-forms.select>
+                    </x-forms.field>
+                </div>
+            </x-ui.modal-section>
 
-                        <!-- Fecha de Nacimiento -->
-                        <div>
-                            <x-forms.input-label for="new-fecha_nacimiento" value="Fecha de Nacimiento" />
-                            <x-forms.text-input id="new-fecha_nacimiento" name="fecha_nacimiento" type="date" class="w-full mt-1" max="{{ \Carbon\Carbon::now()->subYears(18)->format('Y-m-d') }}" />
-                        </div>
+            <x-ui.modal-section label="Nombre completo" icon="fa-user">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <x-forms.field label="Apellido Paterno" for="new-apellido_paterno">
+                        <x-forms.text-input id="new-apellido_paterno" name="apellido_paterno" type="text"
+                            oninput="this.value = this.value.replace(/\d/g, '')" required />
+                    </x-forms.field>
 
-                        <!-- Pais -->
-                        <div>
-                            <x-forms.input-label for="new-pais" value="Pais" />
-                            <select id="new-pais" name="pais" class="border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm w-full mt-1">
-                                <option value="">Seleccione un pais</option>
-                                @foreach ($paises as $pais)
-                                    <option value="{{ $pais->id }}" data-codigo="{{ $pais->codigo_pais }}">{{ $pais->nombre }} ({{ $pais->codigo_pais }})</option>
-                                @endforeach
-                            </select>
-                        </div>
+                    <x-forms.field label="Apellido Materno" for="new-apellido_materno">
+                        <x-forms.text-input id="new-apellido_materno" name="apellido_materno" type="text"
+                            oninput="this.value = this.value.replace(/\d/g, '')" />
+                    </x-forms.field>
 
-                        <!-- Departamento -->
-                        <div>
-                            <x-forms.input-label for="new-departamento" value="Departamento" />
-                            <select id="new-departamento" name="departamento" class="border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm w-full mt-1">
-                                <option value="">Seleccione un departamento</option>
-                                @foreach ($departamentos as $departamento)
-                                    <option value="{{ $departamento->id }}" data-pais="{{ $departamento->pais_id }}">{{ $departamento->nombre }}</option>
-                                @endforeach
-                            </select>
-                        </div>
+                    <x-forms.field label="Nombres" for="new-nombres">
+                        <x-forms.text-input id="new-nombres" name="nombres" type="text"
+                            oninput="this.value = this.value.replace(/\d/g, '')" required />
+                    </x-forms.field>
+                </div>
+            </x-ui.modal-section>
 
-                        <!-- Provincia -->
-                        <div>
-                            <x-forms.input-label for="new-provincia" value="Provincia" />
-                            <select id="new-provincia" name="provincia" class="border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm w-full mt-1">
-                                <option value="">Seleccione una provincia</option>
-                                @foreach ($provincias as $provincia)
-                                    <option value="{{ $provincia->id }}" data-departamento="{{ $provincia->departamento_id }}">{{ $provincia->nombre }}</option>
-                                @endforeach
-                            </select>
-                        </div>
+            <x-ui.modal-section label="Ubicación" icon="fa-location-dot">
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                    <x-forms.field label="País" for="new-pais">
+                        <x-forms.select id="new-pais" name="pais">
+                            <option value="">Seleccione</option>
+                            @foreach ($paises as $pais)
+                                <option value="{{ $pais->id }}" data-codigo="{{ $pais->codigo_pais }}">
+                                    {{ $pais->nombre }} ({{ $pais->codigo_pais }})
+                                </option>
+                            @endforeach
+                        </x-forms.select>
+                    </x-forms.field>
 
+                    <x-forms.field label="Departamento" for="new-departamento">
+                        <x-forms.select id="new-departamento" name="departamento">
+                            <option value="">Seleccione</option>
+                            @foreach ($departamentos as $departamento)
+                                <option value="{{ $departamento->id }}" data-pais="{{ $departamento->pais_id }}">
+                                    {{ $departamento->nombre }}
+                                </option>
+                            @endforeach
+                        </x-forms.select>
+                    </x-forms.field>
 
+                    <x-forms.field label="Provincia" for="new-provincia">
+                        <x-forms.select id="new-provincia" name="provincia">
+                            <option value="">Seleccione</option>
+                            @foreach ($provincias as $provincia)
+                                <option value="{{ $provincia->id }}" data-departamento="{{ $provincia->departamento_id }}">
+                                    {{ $provincia->nombre }}
+                                </option>
+                            @endforeach
+                        </x-forms.select>
+                    </x-forms.field>
 
+                    <x-forms.field label="Distrito" for="new-distrito">
+                        <x-forms.select id="new-distrito" name="distrito">
+                            <option value="">Seleccione</option>
+                        </x-forms.select>
+                    </x-forms.field>
+                </div>
 
+                <x-forms.field label="Dirección" for="new-direccion">
+                    <x-forms.text-input id="new-direccion" name="direccion" type="text" />
+                </x-forms.field>
+            </x-ui.modal-section>
 
+            <x-ui.modal-section label="Contacto" icon="fa-address-book">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <x-forms.field label="Número Telefónico" for="new-numero_telefonico">
+                        <x-forms.text-input id="new-numero_telefonico" name="numero_telefonico" type="tel"
+                            inputmode="numeric" pattern="\d{1,9}" maxlength="9"
+                            oninput="this.value = this.value.replace(/\D/g, '').slice(0, 9)" />
+                    </x-forms.field>
 
+                    <x-forms.field label="Correo Personal" for="new-correo_electronico_personal">
+                        <x-forms.text-input id="new-correo_electronico_personal" name="correo_electronico_personal"
+                            type="email" required />
+                        <p id="new-correo-pers-feedback" class="mt-1 text-xs"></p>
+                    </x-forms.field>
 
+                    <x-forms.field label="Correo Corporativo" for="new-correo_electronico_corporativo">
+                        <x-forms.text-input id="new-correo_electronico_corporativo" name="correo_electronico_corporativo"
+                            type="email" />
+                        <p id="new-correo-corp-feedback" class="mt-1 text-xs"></p>
+                    </x-forms.field>
+                </div>
+            </x-ui.modal-section>
 
-                        <!-- Distrito -->
-                        <div>
-                            <x-forms.input-label for="new-distrito" value="Distrito" />
-                            <select id="new-distrito" name="distrito" class="border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm w-full mt-1">
-                                <option value="">Seleccione un distrito</option>
-                                @foreach ($distritos as $distrito)
-                                    <option value="{{ $distrito->id }}" data-provincia="{{ $distrito->provincia_id }}">{{ $distrito->nombre }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-
-                        <!-- Direccion -->
-                        <div>
-                            <x-forms.input-label for="new-direccion" value="Direccion" />
-                            <x-forms.text-input id="new-direccion" name="direccion" type="text" class="w-full mt-1" />
-                        </div>
-
-                        <!-- Numero Telefonico -->
-                        <div>
-                            <x-forms.input-label for="new-numero_telefonico" value="Numero Telefonico" />
-                            <x-forms.text-input id="new-numero_telefonico" name="numero_telefonico" type="tel" class="w-full mt-1" inputmode="numeric" pattern="\\d{1,9}" maxlength="9" oninput="this.value = this.value.replace(/\\D/g, '').slice(0, 9)" />
-                        </div>
-
-                        <!-- Correo Personal -->
-                        <div>
-                            <x-forms.input-label for="new-correo_electronico_personal" value="Correo Personal *" />
-                            <x-forms.text-input id="new-correo_electronico_personal" name="correo_electronico_personal" type="email" class="w-full mt-1" required />
-                            <p id="new-correo-pers-feedback" class="mt-1 text-xs"></p>
-                        </div>
-
-                        <!-- Correo Corporativo -->
-                        <div>
-                            <x-forms.input-label for="new-correo_electronico_corporativo" value="Correo Corporativo" />
-                            <x-forms.text-input id="new-correo_electronico_corporativo" name="correo_electronico_corporativo" type="email" class="w-full mt-1" />
-                            <p id="new-correo-corp-feedback" class="mt-1 text-xs"></p>
-                        </div>
-                    </div>
-
-                    <!-- Footer / Botones -->
-                    <div class="mt-8 flex justify-end gap-3 pt-4 border-t border-light-border dark:border-dark-border">
-                        <x-forms.secondary-button type="button" onclick="closeModal('create-modal')">
-                            {{ __('Cancelar') }}
-                        </x-forms.secondary-button>
-
-                        <x-forms.primary-button class="ms-3">
-                            {{ __('Guardar') }}
-                        </x-forms.primary-button>
-                    </div>
-                </form>
-            </div>
         </div>
-    </div>
-</div>
+
+        <x-ui.modal-footer modal-id="create-modal">
+            <x-forms.primary-button type="submit">
+                <i class="fa-solid fa-user-plus"></i>
+                Registrar
+            </x-forms.primary-button>
+        </x-ui.modal-footer>
+    </form>
+</x-ui.modal-shell>

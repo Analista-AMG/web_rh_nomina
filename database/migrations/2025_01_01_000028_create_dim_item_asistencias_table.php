@@ -11,8 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('bronze.dim_item_asistencia', function (Blueprint $table) {
-            $table->id('id_cod_asistencia');
+        Schema::create('nomina.dim_items_asistencias', function (Blueprint $table) {
+            $table->id();
             $table->string('codigo_asistencia', 10);
             $table->string('descripcion', 150)->nullable();
             $table->string('tipo', 50)->nullable();
@@ -20,6 +20,7 @@ return new class extends Migration
             $table->decimal('horas_nocturnas', 5, 2)->default(0);
             $table->decimal('factor_regular', 5, 2)->default(1);
             $table->decimal('factor_nocturno', 5, 2)->default(1);
+            $table->timestamps();
         });
     }
 
@@ -28,6 +29,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('bronze.dim_item_asistencia');
+        Schema::dropIfExists('nomina.dim_items_asistencias');
     }
 };

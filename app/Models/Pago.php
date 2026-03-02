@@ -6,9 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Pago extends Model
 {
-    protected $table = 'bronze.dim_pagos';
-    protected $primaryKey = 'id_pago';
-    public $timestamps = false;
+    protected $table = 'nomina.dim_pagos';
 
     protected $fillable = [
         'periodo',
