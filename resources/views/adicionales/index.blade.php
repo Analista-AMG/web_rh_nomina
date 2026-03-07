@@ -184,7 +184,7 @@
                                     <div class="flex items-center gap-0.5">
                                         <input type="number" step="0.01" min="0"
                                             class="adicional-input w-full text-xs px-1.5 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:outline-none focus:ring-1 focus:ring-primary/50 text-right"
-                                            data-contrato="{{ $contrato->id_contrato }}"
+                                            data-contrato="{{ $contrato->id }}"
                                             data-tipo="{{ $tipo }}"
                                             data-negativo="{{ in_array($tipo, \App\Models\Adicional::TIPOS_NEGATIVOS) ? '1' : '0' }}"
                                             data-periodo="{{ $periodoSeleccionado }}"
@@ -193,7 +193,7 @@
                                         >
                                         <button type="button"
                                             class="motivo-btn flex-shrink-0 text-gray-400 hover:text-primary transition-colors p-0.5 cursor-pointer"
-                                            data-contrato="{{ $contrato->id_contrato }}"
+                                            data-contrato="{{ $contrato->id }}"
                                             data-tipo="{{ $tipo }}"
                                             data-periodo="{{ $periodoSeleccionado }}"
                                             data-motivo="{{ $adic[$tipo]['motivo'] ?? '' }}"
@@ -205,7 +205,7 @@
                                 </td>
                             @endforeach
                             <td class="px-3 py-2 text-center text-sm font-bold whitespace-nowrap total-cell {{ $total >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400' }}"
-                                data-contrato="{{ $contrato->id_contrato }}">
+                                data-contrato="{{ $contrato->id }}">
                                 S/ {{ number_format($total, 2) }}
                             </td>
                         </tr>
@@ -264,6 +264,7 @@
             document.getElementById('familia_id')?.addEventListener('change', submitForm);
             document.getElementById('condicion_id')?.addEventListener('change', submitForm);
 
+            const doc = document.getElementById('numero_documento');
             if (doc) {
                 let t = null;
                 doc.addEventListener('input', () => { clearTimeout(t); t = setTimeout(submitForm, 450); });
@@ -301,7 +302,7 @@
                         'Accept': 'application/json'
                     },
                     body: JSON.stringify({
-                        id_contrato: idContrato,
+                        contrato_id: idContrato,
                         periodo: periodoVal,
                         tipo_adicional: tipoAdicional,
                         monto: monto || null,

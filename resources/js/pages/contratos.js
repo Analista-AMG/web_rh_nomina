@@ -788,7 +788,7 @@ async function abrirModalCrear() {
 
     const persona = datos.persona;
     setVal('crear-token',      datos.token);
-    setVal('crear-id-persona', datos.id_persona ?? datos.persona_id);
+    setVal('crear-id-persona', datos.persona_id);
 
     const primerNombre   = (persona.nombres || '').trim().split(' ').filter(Boolean)[0] || '';
     const iniciales      = ((persona.apellido_paterno?.[0] ?? '') + (primerNombre[0] ?? '')).toUpperCase() || '?';

@@ -260,7 +260,7 @@
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">Fecha Inicio <span class="text-red-500">*</span></label>
-                        <input type="date" id="create-fecha" class="form-input w-full text-sm" value="{{ now()->toDateString() }}" min="{{ now()->toDateString() }}">
+                        <input type="date" id="create-fecha" class="form-input w-full text-sm" value="{{ now()->toDateString() }}" min="{{ now()->subDays(20)->toDateString() }}">
                     </div>
                     <div class="col-span-2">
                         <label class="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">Campaña <span class="text-red-500">*</span></label>

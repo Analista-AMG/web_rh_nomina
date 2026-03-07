@@ -160,7 +160,7 @@
                                 ]) : '{}';
                             @endphp
                             <x-ui.action-button type="add" title="Añadir Movimiento" class="btn-add-movimiento-main"
-                                data-contrato-id="{{ $contrato->id_contrato }}"
+                                data-contrato-id="{{ $contrato->id }}"
                                 data-colaborador="{{ $contrato->persona->nombre_corto ?? 'Sin Asignar' }}"
                                 data-documento="{{ ($contrato->persona->tipo_documento ?? 'DOC') . ': ' . ($contrato->persona->numero_documento ?? '---') }}"
                                 data-last-mov="{{ $lastMovJson }}"
@@ -172,7 +172,7 @@
                             @can('contratos.baja')
                             @php
                                 $bajaData = $contrato->baja ? json_encode([
-                                    'id_baja' => $contrato->baja->id_baja,
+                                    'id_baja' => $contrato->baja->id,
                                     'fecha_baja' => $contrato->baja->fecha_baja ? $contrato->baja->fecha_baja->format('Y-m-d') : '',
                                     'motivo_baja' => $contrato->baja->motivo_baja ?? '',
                                     'aviso_con_15_dias' => $contrato->baja->aviso_con_15_dias ? '1' : '0',
@@ -181,7 +181,7 @@
                                 ]) : '{}';
                             @endphp
                             <x-ui.action-button type="baja" class="btn-baja-contrato"
-                                data-contrato-id="{{ $contrato->id_contrato }}"
+                                data-contrato-id="{{ $contrato->id }}"
                                 data-colaborador-nombre="{{ $contrato->persona->nombre_corto ?? '' }}"
                                 data-colaborador-doc="{{ ($contrato->persona->tipo_documento ?? 'DOC') . ': ' . ($contrato->persona->numero_documento ?? '---') }}"
                                 data-contrato-inicio="{{ \Carbon\Carbon::parse($contrato->inicio_contrato)->format('Y-m-d') }}"

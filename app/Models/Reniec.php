@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Reniec extends Model
 {
-    protected $table = 'nomina.reniec';
+    protected $table = 'BD_AMG_RRHH.gold.reniec';
     protected $primaryKey = 'id';
 
     protected $fillable = [
