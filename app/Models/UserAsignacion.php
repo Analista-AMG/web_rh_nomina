@@ -46,14 +46,16 @@ class UserAsignacion extends Model
         'aprobado_en',
         'motivo_rechazo',
         'activo',
+        'puede_editar_propia_asistencia',
         'fecha_inicio',
         'fecha_fin',
         'creado_por',
     ];
 
     protected $casts = [
-        'activo'      => 'boolean',
-        'fecha_inicio' => 'date',
+        'activo'                        => 'boolean',
+        'puede_editar_propia_asistencia' => 'boolean',
+        'fecha_inicio'                   => 'date',
         'fecha_fin'    => 'date',
         'aprobado_en'  => 'datetime',
     ];

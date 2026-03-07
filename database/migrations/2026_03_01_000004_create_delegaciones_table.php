@@ -10,11 +10,11 @@ return new class extends Migration
     {
         Schema::create('dbo.delegaciones', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('delegante_id');
+            $table->unsignedBigInteger('delegante_id')->nullable(); // nullable = top de jerarquía
             $table->unsignedBigInteger('delegado_id');
             $table->unsignedBigInteger('campana_id');
             $table->date('fecha_inicio');
-            $table->date('fecha_fin');              // REQUERIDO — siempre temporal
+            $table->date('fecha_fin')->nullable();  // nullable = asignación indefinida
             $table->string('motivo', 500)->nullable();
             $table->unsignedBigInteger('creado_por');
             $table->timestamps();

@@ -12,6 +12,18 @@
         <h1 class="text-2xl font-bold text-gray-800 dark:text-white">Gestión de Adicionales</h1>
     </header>
 
+    {{-- Flash messages --}}
+    @if(session('success'))
+        <div class="mb-4 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-300 text-sm flex items-center gap-2">
+            <i class="fa-solid fa-circle-check flex-shrink-0"></i> {{ session('success') }}
+        </div>
+    @endif
+    @if(session('error'))
+        <div class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-sm flex items-center gap-2">
+            <i class="fa-solid fa-circle-xmark flex-shrink-0"></i> {{ session('error') }}
+        </div>
+    @endif
+
     <!-- Filtros -->
     <div class="mb-6 bg-white dark:bg-[#273142] rounded-xl p-4 shadow-sm border border-light-border dark:border-dark-border">
         <form method="GET" action="{{ route('adicionales.index') }}" class="flex flex-wrap items-end gap-3" id="adicionales-filtros">
@@ -19,42 +31,51 @@
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Periodo</label>
                 <select name="periodo" id="periodo" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50">
                     <option value="">Seleccione</option>
-                    @foreach($periodos as $periodo)
-                        <option value="{{ $periodo }}" {{ $periodoSeleccionado == $periodo ? 'selected' : '' }}>
-                            {{ $periodo }}
-                        </option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="min-w-[160px]">
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Empresa</label>
-                <select name="nombre_empresa" id="nombre_empresa" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50">
-                    <option value="">Todas</option>
-                    @foreach($empresas as $emp)
-                        <option value="{{ $emp }}" {{ request('nombre_empresa') == $emp ? 'selected' : '' }}>
-                            {{ $emp }}
-                        </option>
+                    @foreach($periodos as $p)
+                        <option value="{{ $p }}" {{ $periodoSeleccionado == $p ? 'selected' : '' }}>{{ $p }}</option>
                     @endforeach
                 </select>
             </div>
             <div class="min-w-[160px]">
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Planilla</label>
-                <select name="id_planilla" id="id_planilla" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50">
+                <select name="planilla_id" id="planilla_id" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50">
                     <option value="">Todas</option>
                     @foreach($planillas as $planilla)
-                        <option value="{{ $planilla->id_planilla }}" {{ request('id_planilla') == $planilla->id_planilla ? 'selected' : '' }}>
+                        <option value="{{ $planilla->id }}" {{ request('planilla_id') == $planilla->id ? 'selected' : '' }}>
                             {{ $planilla->nombre_planilla }}
                         </option>
                     @endforeach
                 </select>
             </div>
-            <div class="min-w-[160px]">
+            <div class="min-w-[170px]">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Centro de Costo</label>
+                <select name="centro_costo_id" id="centro_costo_id" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50">
+                    <option value="">Todos</option>
+                    @foreach($centrosCosto as $cc)
+                        <option value="{{ $cc->id }}" {{ request('centro_costo_id') == $cc->id ? 'selected' : '' }}>
+                            {{ $cc->nombre_centro_costo }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="min-w-[150px]">
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Familia</label>
-                <select name="id_familia" id="id_familia" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50">
+                <select name="familia_id" id="familia_id" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50">
                     <option value="">Todas</option>
                     @foreach($familias as $familia)
-                        <option value="{{ $familia->id_familia }}" {{ request('id_familia') == $familia->id_familia ? 'selected' : '' }}>
+                        <option value="{{ $familia->id }}" {{ request('familia_id') == $familia->id ? 'selected' : '' }}>
                             {{ $familia->nombre_familia }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="min-w-[150px]">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Condición</label>
+                <select name="condicion_id" id="condicion_id" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50">
+                    <option value="">Todas</option>
+                    @foreach($condiciones as $condicion)
+                        <option value="{{ $condicion->id }}" {{ request('condicion_id') == $condicion->id ? 'selected' : '' }}>
+                            {{ $condicion->nombre_condicion }}
                         </option>
                     @endforeach
                 </select>
@@ -62,7 +83,7 @@
             <div class="min-w-[180px]">
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">N° Documento</label>
                 <div class="relative">
-                    <i class="fa-solid fa-id-card absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                    <i class="fa-solid fa-id-card absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
                     <input type="text" name="numero_documento" id="numero_documento" value="{{ request('numero_documento') }}" placeholder="Buscar documento"
                         class="w-full pl-10 pr-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50">
                 </div>
@@ -71,7 +92,7 @@
             <div class="ml-auto flex items-end">
                 <button type="button" onclick="document.getElementById('modal-importar').classList.remove('hidden')"
                     class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium cursor-pointer whitespace-nowrap">
-                    <i class="fa-solid fa-file-excel mr-1"></i> Cargar Movilidad
+                    <i class="fa-solid fa-file-excel mr-1"></i> Importar Excel
                 </button>
             </div>
             @endcan
@@ -85,7 +106,7 @@
                 <p class="text-[10px] text-gray-500 dark:text-gray-400 uppercase font-semibold">Registros</p>
                 <p class="text-lg font-bold text-gray-800 dark:text-white">{{ $totalRegistros }}</p>
             </div>
-            @foreach(\App\Models\Adicional::TIPOS as $tipo)
+            @foreach($tiposActivos as $tipo)
                 @php
                     $esNegativo = in_array($tipo, \App\Models\Adicional::TIPOS_NEGATIVOS);
                     $color = $esNegativo ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400';
@@ -108,16 +129,13 @@
             <table class="w-full text-sm">
                 <thead class="bg-gray-50 dark:bg-[#1e2836]">
                     <tr>
-                        <th class="sticky left-0 z-10 bg-gray-50 dark:bg-[#1e2836] px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-r border-gray-200 dark:border-gray-700 min-w-[300px]">
+                        <th class="sticky left-0 z-10 bg-gray-50 dark:bg-[#1e2836] px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-r border-gray-200 dark:border-gray-700 min-w-[320px]">
                             Colaborador
                         </th>
-                        <th class="px-3 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-r border-gray-200 dark:border-gray-700 min-w-[80px]">
-                            Condición
+                        <th class="px-3 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-r border-gray-200 dark:border-gray-700 min-w-[150px]">
+                            Centro de Costo
                         </th>
-                        <th class="px-3 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-r border-gray-200 dark:border-gray-700 min-w-[100px]">
-                            Planilla
-                        </th>
-                        @foreach(\App\Models\Adicional::TIPOS as $tipo)
+                        @foreach($tiposActivos as $tipo)
                             @php
                                 $esNegativo = in_array($tipo, \App\Models\Adicional::TIPOS_NEGATIVOS);
                                 $thColor = $esNegativo ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400';
@@ -136,7 +154,7 @@
                         @php
                             $adic = $contrato->adicionales_periodo;
                             $total = 0;
-                            foreach (\App\Models\Adicional::TIPOS as $t) {
+                            foreach ($tiposActivos as $t) {
                                 $m = floatval($adic[$t]['monto'] ?? 0);
                                 $total += in_array($t, \App\Models\Adicional::TIPOS_NEGATIVOS) ? -$m : $m;
                             }
@@ -157,13 +175,11 @@
                                     </div>
                                 </div>
                             </td>
-                            <td class="px-3 py-2 text-center text-xs text-gray-600 dark:text-gray-400 border-r border-gray-200 dark:border-gray-700 whitespace-nowrap">
-                                {{ $contrato->condicion->nombre_condicion ?? '-' }}
+                            <td class="px-3 py-2 text-center border-r border-gray-200 dark:border-gray-700 whitespace-nowrap">
+                                <span class="block text-xs text-gray-700 dark:text-gray-300 font-medium">{{ $contrato->planilla->nombre_planilla ?? '-' }}</span>
+                                <span class="block text-[11px] text-gray-400 dark:text-gray-500">{{ $contrato->centroCosto->nombre_centro_costo ?? '-' }}</span>
                             </td>
-                            <td class="px-3 py-2 text-center text-xs text-gray-600 dark:text-gray-400 border-r border-gray-200 dark:border-gray-700 whitespace-nowrap">
-                                {{ $contrato->planilla->nombre_planilla ?? '-' }}
-                            </td>
-                            @foreach(\App\Models\Adicional::TIPOS as $tipo)
+                            @foreach($tiposActivos as $tipo)
                                 <td class="px-1 py-1 text-center border-r border-gray-200 dark:border-gray-700">
                                     <div class="flex items-center gap-0.5">
                                         <input type="number" step="0.01" min="0"
@@ -195,7 +211,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="{{ 3 + count(\App\Models\Adicional::TIPOS) + 1 }}" class="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                            <td colspan="{{ 3 + count($tiposActivos) + 1 }}" class="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                                 No hay contratos activos para este periodo.
                             </td>
                         </tr>
@@ -236,75 +252,17 @@
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const filtroForm = document.getElementById('adicionales-filtros');
-            const periodo  = document.getElementById('periodo');
-            const empresa  = document.getElementById('nombre_empresa');
-            const planilla = document.getElementById('id_planilla');
-            const familia  = document.getElementById('id_familia');
-            const doc      = document.getElementById('numero_documento');
-
             const submitForm = () => { if (filtroForm) filtroForm.submit(); };
 
-            // Combos {p, f, e} para el periodo actual
-            const combos = @json($combos);
+            @if(session('error'))
+            document.getElementById('modal-importar')?.classList.remove('hidden');
+            @endif
 
-            // Snapshots completos de opciones antes de cualquier filtro
-            const allPlanillaOpts = planilla ? Array.from(planilla.options).map(o => ({ v: o.value, t: o.text })) : [];
-            const allFamiliaOpts  = familia  ? Array.from(familia.options).map(o => ({ v: o.value, t: o.text })) : [];
-
-            // Reconstruye un select manteniendo solo las opciones válidas
-            function rebuildSelect(sel, allOpts, valid) {
-                const cur = sel.value;
-                while (sel.options.length) sel.remove(0);
-                allOpts.forEach(o => {
-                    if (o.v === '' || !valid || valid.has(String(o.v))) sel.add(new Option(o.t, o.v));
-                });
-                if (Array.from(sel.options).some(o => o.value === cur)) sel.value = cur;
-            }
-
-            // Obtiene el conjunto válido de un campo dado los filtros activos (excluye el propio campo)
-            function validFor(field, filters) {
-                let rows = combos;
-                if (filters.e) rows = rows.filter(c => c.e === filters.e);
-                if (filters.p) rows = rows.filter(c => String(c.p) === filters.p);
-                if (filters.f) rows = rows.filter(c => String(c.f) === filters.f);
-                return rows.length ? new Set(rows.map(c => String(c[field]))) : null;
-            }
-
-            function applyInitialFilters() {
-                if (!combos.length) return;
-                const eVal = empresa  ? empresa.value  : '';
-                const pVal = planilla ? planilla.value : '';
-                const fVal = familia  ? familia.value  : '';
-                // Empresa no se reconstruye (es filtro raíz)
-                if (planilla) { rebuildSelect(planilla, allPlanillaOpts, validFor('p', { e: eVal, f: fVal })); planilla.value = pVal; }
-                if (familia)  { rebuildSelect(familia,  allFamiliaOpts,  validFor('f', { e: eVal, p: pVal })); familia.value  = fVal; }
-            }
-
-            applyInitialFilters();
-
-            if (periodo) periodo.addEventListener('change', submitForm);
-
-            // Empresa: reconstruye planilla y familia
-            if (empresa) empresa.addEventListener('change', function () {
-                const eVal = this.value;
-                if (planilla) rebuildSelect(planilla, allPlanillaOpts, validFor('p', { e: eVal }));
-                if (familia)  rebuildSelect(familia,  allFamiliaOpts,  validFor('f', { e: eVal, p: planilla ? planilla.value : '' }));
-                submitForm();
-            });
-
-            // Planilla: reconstruye familia respetando empresa
-            if (planilla) planilla.addEventListener('change', function () {
-                const eVal = empresa ? empresa.value : '';
-                if (familia) rebuildSelect(familia, allFamiliaOpts, validFor('f', { e: eVal, p: this.value }));
-                submitForm();
-            });
-
-            // Familia: reconstruye planilla respetando empresa
-            if (familia) familia.addEventListener('change', function () {
-                const eVal = empresa ? empresa.value : '';
-                if (planilla) rebuildSelect(planilla, allPlanillaOpts, validFor('p', { e: eVal, f: this.value }));
-                submitForm();
-            });
+            document.getElementById('periodo')?.addEventListener('change', submitForm);
+            document.getElementById('planilla_id')?.addEventListener('change', submitForm);
+            document.getElementById('centro_costo_id')?.addEventListener('change', submitForm);
+            document.getElementById('familia_id')?.addEventListener('change', submitForm);
+            document.getElementById('condicion_id')?.addEventListener('change', submitForm);
 
             if (doc) {
                 let t = null;
@@ -439,13 +397,13 @@
     </script>
     @endpush
 
-    <!-- Modal Importar Movilidad -->
+    <!-- Modal Importar Adicionales -->
     @can('adicionales.edit')
     <div id="modal-importar" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center">
         <div class="bg-white dark:bg-[#273142] rounded-xl shadow-xl p-6 w-full max-w-md mx-4">
             <div class="flex items-center justify-between mb-4">
                 <h3 class="text-lg font-bold text-gray-800 dark:text-white">
-                    <i class="fa-solid fa-file-excel text-green-600 mr-2"></i>Cargar Movilidad
+                    <i class="fa-solid fa-file-excel text-green-600 mr-2"></i>Importar Adicionales
                 </h3>
                 <button type="button" onclick="document.getElementById('modal-importar').classList.add('hidden')"
                     class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xl cursor-pointer">
@@ -453,39 +411,34 @@
                 </button>
             </div>
 
-            @if(session('success'))
-                <div class="mb-4 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-300 text-sm">
-                    <i class="fa-solid fa-circle-check mr-1"></i> {{ session('success') }}
-                </div>
-            @endif
-            @if(session('error'))
-                <div class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-sm">
-                    <i class="fa-solid fa-circle-xmark mr-1"></i> {{ session('error') }}
-                </div>
-            @endif
-
-            <form action="{{ route('adicionales.importar-movilidad') }}" method="POST" enctype="multipart/form-data" class="space-y-4">
+            <form action="{{ route('adicionales.importar') }}" method="POST" enctype="multipart/form-data" class="space-y-4">
                 @csrf
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Periodo</label>
-                    <select name="periodo" required
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Periodo a cargar</label>
+                    <select name="periodo_esperado" required
                         class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50">
                         <option value="">Seleccione</option>
                         @foreach($periodos as $p)
                             <option value="{{ $p }}" {{ $periodoSeleccionado == $p ? 'selected' : '' }}>{{ $p }}</option>
                         @endforeach
                     </select>
+                    <p class="mt-1 text-xs text-gray-400">Debe coincidir exactamente con la columna <strong>periodo</strong> del Excel.</p>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Archivo Excel</label>
                     <input type="file" name="archivo" accept=".xlsx,.xls" required
                         class="w-full text-sm text-gray-700 dark:text-gray-300 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-primary/10 file:text-primary file:font-medium hover:file:bg-primary/20 cursor-pointer">
-                    <p class="mt-1 text-xs text-gray-400">Columnas requeridas: <strong>id_contrato</strong>, <strong>monto</strong></p>
+                    <div class="mt-2 p-3 rounded-lg bg-gray-50 dark:bg-gray-800 text-xs text-gray-500 dark:text-gray-400 space-y-1">
+                        <p><strong class="text-gray-700 dark:text-gray-300">Hoja requerida:</strong> <code class="bg-gray-200 dark:bg-gray-700 px-1 rounded">carga_web</code></p>
+                        <p><strong class="text-gray-700 dark:text-gray-300">Columnas requeridas:</strong> periodo, contrato_id, tipo_adicional, monto</p>
+                        <p><strong class="text-gray-700 dark:text-gray-300">Formato periodo:</strong> YYYY-MM (2026-03)</p>
+                        <p class="text-amber-600 dark:text-amber-400"><i class="fa-solid fa-triangle-exclamation mr-1"></i>REINTEGRO_AFECTO y REINTEGRO_INAFECTO no se pueden importar.</p>
+                    </div>
                 </div>
                 <div class="flex gap-3 pt-2">
                     <button type="submit"
                         class="flex-1 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium cursor-pointer">
-                        <i class="fa-solid fa-upload mr-1"></i> Cargar
+                        <i class="fa-solid fa-upload mr-1"></i> Importar
                     </button>
                     <button type="button" onclick="document.getElementById('modal-importar').classList.add('hidden')"
                         class="flex-1 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors text-sm font-medium cursor-pointer">

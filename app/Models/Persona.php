@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Scopes\AlcanceUsuarioScope;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Spatie\Activitylog\LogOptions;
@@ -10,6 +11,14 @@ use Spatie\Activitylog\Traits\LogsActivity;
 class Persona extends Model
 {
     use LogsActivity;
+
+    /**
+     * The "booted" method of the model.
+     */
+    protected static function booted(): void
+    {
+        static::addGlobalScope(new AlcanceUsuarioScope('id'));
+    }
 
     public function getActivitylogOptions(): LogOptions
     {

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Scopes\AlcanceUsuarioScope;
 use Illuminate\Database\Eloquent\Model;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
@@ -9,6 +10,14 @@ use Spatie\Activitylog\Traits\LogsActivity;
 class Contrato extends Model
 {
     use LogsActivity;
+
+    /**
+     * The "booted" method of the model.
+     */
+    protected static function booted(): void
+    {
+        static::addGlobalScope(new AlcanceUsuarioScope);
+    }
 
     // Expresión SQL para el fin efectivo del contrato (fecha_renuncia tiene precedencia sobre fin_contrato)
     const FIN_EFECTIVO = "COALESCE(fecha_renuncia, fin_contrato)";

@@ -4,20 +4,20 @@ namespace App\Http\Controllers;
 
 use App\Models\Asistencia;
 use App\Models\Calendario;
-use App\Models\Campana;
 use App\Models\Contrato;
 use App\Models\EquipoPrestamo;
 use App\Models\ItemAsistencia;
 use App\Models\Pago;
-use App\Models\Persona;
-use App\Models\User;
+use App\Models\Scopes\AlcanceUsuarioScope;
 use App\Models\UserAsignacion;
 use App\Services\JerarquiaService;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class AsistenciaController extends Controller
 {
@@ -25,26 +25,31 @@ class AsistenciaController extends Controller
 
     public function index(Request $request)
     {
-        $user      = Auth::user();
-        $esAdmin   = $user->hasRole('Administrador');
-        $userId    = (int) $user->id;
+        $user    = Auth::user();
+        $esAdmin = $user->hasRole('Administrador');
+        $userId  = (int) $user->id;
+        $hoy     = Carbon::now();
+        $hoyStr  = $hoy->toDateString();
 
         $pagos           = Pago::orderBy('periodo', 'desc')->orderBy('quincena', 'desc')->get(['id', 'periodo', 'quincena', 'inicio', 'fin']);
         $itemsAsistencia = ItemAsistencia::orderBy('codigo_asistencia')->get();
-        $hoy             = Carbon::now();
+        $bloquearAntesDe = $esAdmin ? null : $this->resolverBloqueo($hoy);
         $diaActual       = $hoy->day;
         $mesActual       = $hoy->format('Y-m');
 
-        $pagoId           = $request->input('pago_id') ?: ($pagos->first()?->id);
+        $pagoId = $request->input('pago_id')
+            ?: ($pagos->first(fn ($p) => $p->inicio->format('Y-m-d') <= $hoyStr && $p->fin->format('Y-m-d') >= $hoyStr)?->id
+                ?? $pagos->first()?->id);
         $pagoSeleccionado = $pagoId ? $pagos->firstWhere('id', $pagoId) : null;
 
-        $filas    = collect();
-        $fechas   = [];
-        $feriados = [];
+        $filas                 = collect();
+        $fechas                = [];
+        $feriados              = [];
+        $equipoDiaSupervisores = [];
 
         if ($pagoSeleccionado) {
             $inicioConsulta = Carbon::parse($pagoSeleccionado->inicio)->startOfDay();
-            $finConsulta    = Carbon::parse($pagoSeleccionado->fin)->endOfDay();
+            $finConsulta    = Carbon::parse($pagoSeleccionado->fin)->min(Carbon::today())->endOfDay();
             $inicioStr      = $inicioConsulta->toDateString();
             $finStr         = $finConsulta->toDateString();
 
@@ -59,144 +64,60 @@ class AsistenciaController extends Controller
                 ->flip()
                 ->all();
 
-            // ── Personas visibles durante el período (incluye ex-asignaciones) ──
+            $esRRHH     = !$esAdmin && $user->hasRole('Recursos Humanos');
             $personaIds = $esAdmin ? null : $this->jerarquia->personaIdsVisiblesEnPeriodo($user, $inicioStr, $finStr);
 
-            // ── Préstamos del período (solo para no-admin) ─────────────────
-            $prestamosOut          = collect();
-            $prestamosIn           = collect();
-            $prestamosInPersonaIds = [];
+            [$prestamosOut, $prestamosIn, $prestamosInPersonaIds] = $esAdmin
+                ? [collect(), collect(), []]
+                : $this->cargarPrestamos($userId, $inicioStr, $finStr);
 
-            if (!$esAdmin) {
-                $prestamosOut = EquipoPrestamo::where('supervisor_origen_id', $userId)
-                    ->where('estado', EquipoPrestamo::ESTADO_APROBADO)
-                    ->where('fecha_inicio', '<=', $finStr)
-                    ->where('fecha_fin', '>=', $inicioStr)
-                    ->get(['empleado_id', 'fecha_inicio', 'fecha_fin']);
-
-                $prestamosIn = EquipoPrestamo::where('supervisor_destino_id', $userId)
-                    ->where('estado', EquipoPrestamo::ESTADO_APROBADO)
-                    ->where('fecha_inicio', '<=', $finStr)
-                    ->where('fecha_fin', '>=', $inicioStr)
-                    ->get(['empleado_id', 'fecha_inicio', 'fecha_fin']);
-
-                $prestamosInPersonaIds = $prestamosIn->pluck('empleado_id')->map(fn ($id) => (int) $id)->unique()->toArray();
-            }
-
-            // ── Construir mapa en_equipo[persona_id][fecha] ────────────────
-            $empleadoEnEquipo = [];
-
-            if (!$esAdmin && $personaIds !== null) {
-                // Base: todos los días del período para cada persona visible
-                foreach ($personaIds as $pid) {
-                    foreach ($fechas as $fecha) {
-                        $empleadoEnEquipo[$pid][$fecha->format('Y-m-d')] = true;
-                    }
-                }
-
-                // Quitar días prestados hacia fuera
-                foreach ($prestamosOut as $p) {
-                    $pIni = max($p->fecha_inicio->format('Y-m-d'), $inicioStr);
-                    $pFin = min($p->fecha_fin->format('Y-m-d'), $finStr);
-                    foreach (CarbonPeriod::create($pIni, $pFin) as $date) {
-                        unset($empleadoEnEquipo[(int) $p->empleado_id][$date->format('Y-m-d')]);
-                    }
-                }
-
-                // Agregar días prestados hacia adentro
-                foreach ($prestamosIn as $p) {
-                    $pid  = (int) $p->empleado_id;
-                    $pIni = max($p->fecha_inicio->format('Y-m-d'), $inicioStr);
-                    $pFin = min($p->fecha_fin->format('Y-m-d'), $finStr);
-                    foreach (CarbonPeriod::create($pIni, $pFin) as $date) {
-                        $empleadoEnEquipo[$pid][$date->format('Y-m-d')] = true;
+            // Editable = visible sin el propio usuario si no tiene el flag habilitado
+            $editablePersonaIds = $personaIds;
+            if ($personaIds !== null && !$esRRHH) {
+                $propioId = $this->jerarquia->propioPersonaId($user);
+                if ($propioId) {
+                    $puedeAutoEditar = UserAsignacion::where('user_id', $userId)
+                        ->vigentes()
+                        ->where('puede_editar_propia_asistencia', true)
+                        ->exists();
+                    if (!$puedeAutoEditar) {
+                        $editablePersonaIds = array_values(array_diff($personaIds, [$propioId]));
                     }
                 }
             }
 
-            // ── Contratos a mostrar ─────────────────────────────────────────
             $allPersonaIds = $personaIds !== null
                 ? array_unique(array_merge($personaIds, $prestamosInPersonaIds))
                 : null;
 
-            $contratoQuery = Contrato::with(['persona', 'condicion', 'planilla'])
-                ->where('inicio_contrato', '<=', $finStr)
-                ->whereRaw('COALESCE(fecha_renuncia, fin_contrato) >= ?', [$inicioStr]);
-
-            if ($allPersonaIds !== null) {
-                if (empty($allPersonaIds)) {
-                    // Sin personas visibles y sin préstamos entrantes: nada que mostrar
-                    return view('asistencia.index', compact(
-                        'pagos', 'pagoSeleccionado', 'filas', 'fechas',
-                        'itemsAsistencia', 'feriados', 'esAdmin', 'hoy', 'diaActual', 'mesActual'
-                    ));
-                }
-                $contratoQuery->whereIn('persona_id', $allPersonaIds);
+            if ($allPersonaIds !== null && empty($allPersonaIds)) {
+                return view('asistencia.index', compact(
+                    'pagos', 'pagoSeleccionado', 'filas', 'fechas',
+                    'itemsAsistencia', 'feriados', 'esAdmin', 'hoy', 'diaActual', 'mesActual', 'bloquearAntesDe'
+                ));
             }
 
-            $contratos = $contratoQuery->get();
+            $contratos        = $this->cargarContratos($allPersonaIds, $inicioStr, $finStr);
 
-            // Para admin: poblar en_equipo con todas las fechas (la vista usa $esAdmin como bypass)
-            if ($esAdmin) {
-                foreach ($contratos as $c) {
-                    foreach ($fechas as $fecha) {
-                        $empleadoEnEquipo[(int) $c->persona_id][$fecha->format('Y-m-d')] = true;
-                    }
-                }
-            }
-
-            // ── Campaña por persona ─────────────────────────────────────────
-            $campanaMap = $this->buildCampanaMap(
+            $empleadoEnEquipo = $this->construirMapaEnEquipo($esAdmin, $esRRHH, $contratos, $editablePersonaIds, $prestamosOut, $prestamosIn, $fechas, $inicioStr, $finStr, $userId);
+            $campanaMap       = $this->jerarquia->campanaMapPorPersonas(
                 $contratos->pluck('persona_id')->map(fn ($id) => (int) $id)->unique()->toArray()
             );
-
-            // ── Asistencias del período ────────────────────────────────────
             $asistencias = Asistencia::with('itemAsistencia')
                 ->whereIn('contrato_id', $contratos->pluck('id'))
                 ->whereBetween('fecha', [$inicioStr, $finStr])
                 ->get()
                 ->keyBy(fn ($a) => $a->contrato_id . '_' . $a->fecha->format('Y-m-d'));
 
-            // ── Construir filas ─────────────────────────────────────────────
-            foreach ($contratos as $contrato) {
-                $personaId = (int) $contrato->persona_id;
-                $enEquipo  = $empleadoEnEquipo[$personaId] ?? [];
+            $filas = $this->construirFilas($contratos, $empleadoEnEquipo, $campanaMap, $asistencias, $fechas, $esAdmin, $esRRHH, $personaIds);
 
-                // No-admin: omitir personas sin ningún día activo
-                if (!$esAdmin && empty($enEquipo)) {
-                    continue;
-                }
-
-                $inicioC     = Carbon::parse($contrato->inicio_contrato);
-                $finEfectivo = $contrato->fecha_renuncia
-                    ? Carbon::parse($contrato->fecha_renuncia)
-                    : ($contrato->fin_contrato ? Carbon::parse($contrato->fin_contrato) : null);
-
-                $asistenciasPeriodo = [];
-                foreach ($fechas as $fecha) {
-                    $fStr = $fecha->format('Y-m-d');
-                    $asistenciasPeriodo[$fStr] = $asistencias->get($contrato->id . '_' . $fStr);
-                }
-
-                $filas->push([
-                    'contrato'            => $contrato,
-                    'persona'             => $contrato->persona,
-                    'inicio_contrato'     => $inicioC,
-                    'fin_efectivo'        => $finEfectivo,
-                    'campana'             => $campanaMap[$personaId] ?? '-',
-                    'en_equipo'           => $enEquipo,
-                    'asistencias_periodo' => $asistenciasPeriodo,
-                ]);
-            }
-
-            $filas = $filas->sortBy(
-                fn ($f) => ($f['persona']->apellido_paterno ?? '') . ($f['persona']->nombres ?? '')
-            )->values();
+            $equipoDiaSupervisores = $this->cargarEquipoDiaSupervisores($allPersonaIds, $inicioStr, $finStr);
         }
 
         return view('asistencia.index', compact(
             'pagos', 'pagoSeleccionado', 'filas', 'fechas',
-            'itemsAsistencia', 'feriados', 'esAdmin', 'hoy', 'diaActual', 'mesActual'
+            'itemsAsistencia', 'feriados', 'esAdmin', 'hoy', 'diaActual', 'mesActual', 'bloquearAntesDe',
+            'equipoDiaSupervisores'
         ));
     }
 
@@ -208,7 +129,7 @@ class AsistenciaController extends Controller
             'item_asistencia_id' => 'nullable|integer',
         ]);
 
-        $contrato = Contrato::find($request->contrato_id);
+        $contrato = Contrato::withoutGlobalScope(AlcanceUsuarioScope::class)->find($request->contrato_id);
         if (!$contrato) {
             return response()->json(['error' => 'Contrato no encontrado'], 404);
         }
@@ -218,22 +139,49 @@ class AsistenciaController extends Controller
         $userId  = (int) $user->id;
         $fecha   = Carbon::parse($request->fecha);
         $hoy     = Carbon::now();
+        $fechaStr = $request->fecha;
 
-        // Lock temporal: no-admin no puede editar meses anteriores si hoy >= día 3
-        if (!$esAdmin && $hoy->day >= 3 && $fecha->format('Y-m') < $hoy->format('Y-m')) {
-            return response()->json([
-                'error' => 'El periodo está cerrado. Solo se puede editar el mes anterior los primeros 2 días del mes.',
-            ], 403);
+        if ($fecha->isAfter(Carbon::today())) {
+            return response()->json(['error' => 'No se puede registrar asistencia en fechas futuras.'], 403);
         }
 
-        // Validación de autorización vía jerarquía histórica + préstamos
+        if (!$esAdmin) {
+            $pagoActual = Pago::where('inicio', '<=', $hoy->toDateString())
+                ->where('fin', '>=', $hoy->toDateString())
+                ->first();
+
+            $pagoFecha = Pago::where('inicio', '<=', $fechaStr)
+                ->where('fin', '>=', $fechaStr)
+                ->first();
+
+            if ($pagoFecha && $pagoActual && $pagoFecha->id < $pagoActual->id && $hoy->day > 3) {
+                return response()->json([
+                    'error' => 'El período está cerrado. Solo se puede editar el período anterior los primeros 3 días del mes.',
+                ], 403);
+            }
+        }
+
         if (!$esAdmin) {
             $empleadoId = (int) $contrato->persona_id;
-            $fechaStr   = $request->fecha;
 
-            // Usar visibilidad del período exacto (permite al ex-supervisor editar su época)
             $personaIds = $this->jerarquia->personaIdsVisiblesEnPeriodo($user, $fechaStr, $fechaStr);
             $esMio      = $personaIds === null || in_array($empleadoId, $personaIds);
+
+            // Bloquear edición de la propia asistencia si el flag no está habilitado
+            if ($personaIds !== null && $esMio) {
+                $propioId = $this->jerarquia->propioPersonaId($user);
+                if ($propioId === $empleadoId) {
+                    $puedeAutoEditar = UserAsignacion::where('user_id', $userId)
+                        ->vigentes()
+                        ->where('puede_editar_propia_asistencia', true)
+                        ->exists();
+                    if (!$puedeAutoEditar) {
+                        return response()->json([
+                            'error' => 'No tienes autorización para editar tu propia asistencia.',
+                        ], 403);
+                    }
+                }
+            }
 
             $prestadoFuera = $esMio && EquipoPrestamo::where('supervisor_origen_id', $userId)
                 ->where('empleado_id', $empleadoId)
@@ -256,7 +204,6 @@ class AsistenciaController extends Controller
             }
         }
 
-        // Fecha dentro del rango del contrato
         $inicioC     = Carbon::parse($contrato->inicio_contrato);
         $finEfectivo = $contrato->fecha_renuncia
             ? Carbon::parse($contrato->fecha_renuncia)
@@ -287,41 +234,215 @@ class AsistenciaController extends Controller
         return response()->json(['success' => true]);
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
+    // ── Helpers privados ──────────────────────────────────────────────────────
 
     /**
-     * Construye el mapa persona_id → nombre de campaña.
-     * Ruta: persona.numero_documento → user.id → user_asignaciones.campana_id → campana.nombre
+     * Fecha más antigua editable según el período de pago actual.
+     * Día 1-3: período anterior sigue editable.
+     * Día 4+:  solo el período actual y futuros.
      */
-    private function buildCampanaMap(array $personaIds): array
+    private function resolverBloqueo(Carbon $hoy): ?string
     {
-        if (empty($personaIds)) return [];
+        $pagoActual = Pago::where('inicio', '<=', $hoy->toDateString())
+            ->where('fin', '>=', $hoy->toDateString())
+            ->first();
 
-        $docs = Persona::whereIn('id', $personaIds)
-            ->whereNotNull('numero_documento')
-            ->pluck('numero_documento', 'id');
+        if (!$pagoActual) return null;
 
-        if ($docs->isEmpty()) return [];
+        if ($hoy->day > 3) {
+            return $pagoActual->inicio->format('Y-m-d');
+        }
 
-        $usersByDoc = User::whereIn('numero_documento', $docs->values())
-            ->whereNotNull('numero_documento')
-            ->pluck('id', 'numero_documento');
+        $pagoPrevio = Pago::where('id', '<', $pagoActual->id)->orderByDesc('id')->first();
+        return $pagoPrevio
+            ? $pagoPrevio->inicio->format('Y-m-d')
+            : $pagoActual->inicio->format('Y-m-d');
+    }
 
-        if ($usersByDoc->isEmpty()) return [];
+    /**
+     * Préstamos del período para un supervisor: salientes, entrantes e IDs de personas entrantes.
+     */
+    private function cargarPrestamos(int $userId, string $ini, string $fin): array
+    {
+        $base = fn () => EquipoPrestamo::where('estado', EquipoPrestamo::ESTADO_APROBADO)
+            ->where('fecha_inicio', '<=', $fin)
+            ->where('fecha_fin', '>=', $ini);
 
-        $asigPorUser = UserAsignacion::whereIn('user_id', $usersByDoc->values())
-            ->where('estado', UserAsignacion::ESTADO_APROBADO)
-            ->whereNull('fecha_fin')
-            ->pluck('campana_id', 'user_id');
+        $prestamosOut = (clone $base())->where('supervisor_origen_id', $userId)
+            ->get(['empleado_id', 'fecha_inicio', 'fecha_fin']);
 
-        $campanaIds = $asigPorUser->values()->unique()->filter()->toArray();
-        $campanas   = Campana::whereIn('id', $campanaIds)->pluck('nombre', 'id');
+        $prestamosIn = (clone $base())->where('supervisor_destino_id', $userId)
+            ->get(['empleado_id', 'fecha_inicio', 'fecha_fin']);
+
+        $prestamosInPersonaIds = $prestamosIn->pluck('empleado_id')->map(fn ($id) => (int) $id)->unique()->toArray();
+
+        return [$prestamosOut, $prestamosIn, $prestamosInPersonaIds];
+    }
+
+    /**
+     * Contratos activos en el período con relaciones necesarias para la vista.
+     */
+    private function cargarContratos(?array $personaIds, string $ini, string $fin): Collection
+    {
+        $q = Contrato::withoutGlobalScope(AlcanceUsuarioScope::class)
+            ->with(['persona' => fn ($q) => $q->withoutGlobalScope(AlcanceUsuarioScope::class), 'condicion', 'centroCosto', 'familia'])
+            ->where('inicio_contrato', '<=', $fin)
+            ->where(function ($q) use ($ini) {
+                $q->whereNull('fin_contrato')->whereNull('fecha_renuncia')
+                  ->orWhereRaw('COALESCE(fecha_renuncia, fin_contrato) >= ?', [$ini]);
+            });
+
+        if ($personaIds !== null) {
+            $q->whereIn('persona_id', $personaIds);
+        }
+
+        return $q->get();
+    }
+
+    /**
+     * Mapa [persona_id][fecha] => true indicando en qué días cada persona
+     * pertenece al equipo del supervisor (base + préstamos in/out).
+     */
+    private function construirMapaEnEquipo(
+        bool $esAdmin,
+        bool $esRRHH,
+        Collection $contratos,
+        ?array $personaIds,
+        Collection $prestamosOut,
+        Collection $prestamosIn,
+        array $fechas,
+        string $inicioStr,
+        string $finStr,
+        int $userId = 0
+    ): array {
+        $mapa = [];
+
+        if ($esAdmin) {
+            foreach ($contratos as $c) {
+                foreach ($fechas as $fecha) {
+                    $mapa[(int) $c->persona_id][$fecha->format('Y-m-d')] = true;
+                }
+            }
+            return $mapa;
+        }
+
+        if ($esRRHH) {
+            // RRHH ve todos pero solo edita su equipo directo (equipo_dia)
+            $equipoDia = \Illuminate\Support\Facades\DB::table('dbo.equipo_dia')
+                ->where('supervisor_id', $userId)
+                ->whereBetween('fecha', [$inicioStr, $finStr])
+                ->get(['empleado_id', 'fecha']);
+
+            foreach ($equipoDia as $row) {
+                $mapa[(int) $row->empleado_id][$row->fecha] = true;
+            }
+        } else {
+            // Base: todos los días del período para cada persona visible
+            foreach ($personaIds ?? [] as $pid) {
+                foreach ($fechas as $fecha) {
+                    $mapa[$pid][$fecha->format('Y-m-d')] = true;
+                }
+            }
+        }
+
+        // Quitar días prestados hacia fuera
+        foreach ($prestamosOut as $p) {
+            $pIni = max($p->fecha_inicio->format('Y-m-d'), $inicioStr);
+            $pFin = min($p->fecha_fin->format('Y-m-d'), $finStr);
+            foreach (CarbonPeriod::create($pIni, $pFin) as $date) {
+                unset($mapa[(int) $p->empleado_id][$date->format('Y-m-d')]);
+            }
+        }
+
+        // Agregar días prestados hacia adentro
+        foreach ($prestamosIn as $p) {
+            $pid  = (int) $p->empleado_id;
+            $pIni = max($p->fecha_inicio->format('Y-m-d'), $inicioStr);
+            $pFin = min($p->fecha_fin->format('Y-m-d'), $finStr);
+            foreach (CarbonPeriod::create($pIni, $pFin) as $date) {
+                $mapa[$pid][$date->format('Y-m-d')] = true;
+            }
+        }
+
+        return $mapa;
+    }
+
+    /**
+     * Construye y ordena las filas para la vista de asistencia.
+     */
+    private function construirFilas(
+        Collection $contratos,
+        array $empleadoEnEquipo,
+        array $campanaMap,
+        Collection $asistencias,
+        array $fechas,
+        bool $esAdmin,
+        bool $esRRHH = false,
+        ?array $visiblePersonaIds = null
+    ): Collection {
+        $filas = collect();
+
+        foreach ($contratos as $contrato) {
+            $personaId = (int) $contrato->persona_id;
+            $enEquipo  = $empleadoEnEquipo[$personaId] ?? [];
+
+            // Mostrar la fila si es editable, o si está en visiblePersonaIds (read-only)
+            if (!$esAdmin && !$esRRHH && empty($enEquipo)
+                && ($visiblePersonaIds === null || !in_array($personaId, $visiblePersonaIds))) {
+                continue;
+            }
+
+            $inicioC     = Carbon::parse($contrato->inicio_contrato);
+            $finEfectivo = $contrato->fecha_renuncia
+                ? Carbon::parse($contrato->fecha_renuncia)
+                : ($contrato->fin_contrato ? Carbon::parse($contrato->fin_contrato) : null);
+
+            $asistenciasPeriodo = [];
+            foreach ($fechas as $fecha) {
+                $fStr = $fecha->format('Y-m-d');
+                $asistenciasPeriodo[$fStr] = $asistencias->get($contrato->id . '_' . $fStr);
+            }
+
+            $filas->push([
+                'contrato'            => $contrato,
+                'persona'             => $contrato->persona,
+                'inicio_contrato'     => $inicioC,
+                'fin_efectivo'        => $finEfectivo,
+                'campana'             => $campanaMap[$personaId] ?? '-',
+                'en_equipo'           => $enEquipo,
+                'asistencias_periodo' => $asistenciasPeriodo,
+            ]);
+        }
+
+        return $filas->sortBy(
+            fn ($f) => ($f['persona']->apellido_paterno ?? '') . ($f['persona']->nombres ?? '')
+        )->values();
+    }
+
+    /**
+     * Mapa [persona_id][fecha] => nombre del supervisor según equipo_dia.
+     */
+    private function cargarEquipoDiaSupervisores(?array $personaIds, string $ini, string $fin): array
+    {
+        $query = DB::table('dbo.equipo_dia')
+            ->whereBetween('fecha', [$ini, $fin]);
+
+        if ($personaIds !== null) {
+            if (empty($personaIds)) return [];
+            $query->whereIn('empleado_id', $personaIds);
+        }
+
+        $recs = $query->get(['empleado_id', 'fecha', 'supervisor_id']);
+
+        $names = \App\Models\User::whereIn('id', $recs->pluck('supervisor_id')->filter()->unique()->toArray())
+            ->pluck('name', 'id');
 
         $map = [];
-        foreach ($docs as $personaId => $numDoc) {
-            $userId    = $usersByDoc[$numDoc] ?? null;
-            $campanaId = $userId ? ($asigPorUser[(int) $userId] ?? null) : null;
-            $map[(int) $personaId] = $campanaId ? ($campanas[$campanaId] ?? '-') : '-';
+        foreach ($recs as $rec) {
+            $name = $names[$rec->supervisor_id] ?? null;
+            if ($name) {
+                $map[(int) $rec->empleado_id][$rec->fecha] = $name;
+            }
         }
 
         return $map;

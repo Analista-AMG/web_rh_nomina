@@ -33,6 +33,10 @@ class EquipoAutoCarry extends Command
         DB::transaction(function () use ($fecha, $supervisorId) {
             $this->carryDesdeEquipoDia($fecha, $supervisorId);
             $this->aplicarPrestamos($fecha, $supervisorId);
+            $nuevos = $this->rellenarDesdeAsignaciones($fecha, $supervisorId);
+            if ($nuevos > 0) {
+                $this->line("  ✓ {$nuevos} colaborador(es) nuevos/faltantes añadidos desde asignaciones.");
+            }
         });
 
         return self::SUCCESS;
@@ -42,7 +46,35 @@ class EquipoAutoCarry extends Command
 
     private function carryDesdeEquipoDia(string $fecha, ?int $supervisorId): void
     {
-        // Buscar la fecha más reciente anterior con registros base
+        if ($supervisorId) {
+            // Modo supervisor: carry independiente para un solo supervisor
+            $this->carryParaSupervisor($fecha, $supervisorId);
+        } else {
+            // Modo global: cada supervisor usa SU PROPIA fecha anterior
+            $supervisores = DB::table('dbo.equipo_dia')
+                ->where('fecha', '<', $fecha)
+                ->where('origen', EquipoDia::ORIGEN_BASE)
+                ->distinct()
+                ->pluck('supervisor_id');
+
+            if ($supervisores->isEmpty()) {
+                $this->line("  ✗ Sin equipo_dia previo — construyendo desde asignaciones vigentes...");
+                $this->construirDesdeAsignaciones($fecha, null);
+                return;
+            }
+
+            $totalInserts = 0;
+            foreach ($supervisores as $supId) {
+                $totalInserts += $this->carryParaSupervisor($fecha, $supId);
+            }
+
+            $this->line("  ✓ {$totalInserts} registros copiados (carry global por supervisor).");
+        }
+    }
+
+    private function carryParaSupervisor(string $fecha, ?int $supervisorId): int
+    {
+        // Fecha más reciente anterior con registros base para ESTE supervisor
         $fechaAnterior = DB::table('dbo.equipo_dia')
             ->where('fecha', '<', $fecha)
             ->where('origen', EquipoDia::ORIGEN_BASE)
@@ -50,11 +82,11 @@ class EquipoAutoCarry extends Command
             ->max('fecha');
 
         if (!$fechaAnterior) {
-            $this->line("  ✗ Sin equipo_dia previo para hacer carry.");
-            return;
+            $this->line("  ✗ Sin historial previo para supervisor #{$supervisorId} — construyendo desde asignaciones...");
+            $this->construirDesdeAsignaciones($fecha, $supervisorId);
+            return 0;
         }
 
-        // Registros del día anterior a copiar
         $previos = DB::table('dbo.equipo_dia')
             ->where('fecha', $fechaAnterior)
             ->where('origen', EquipoDia::ORIGEN_BASE)
@@ -62,19 +94,16 @@ class EquipoAutoCarry extends Command
             ->get();
 
         if ($previos->isEmpty()) {
-            $this->line("  ✓ Sin registros previos para copiar.");
-            return;
+            return 0;
         }
 
-        // Empleados que ya tienen registro hoy (no duplicar)
+        // Empleados que ya tienen registro hoy (sin filtro supervisor — unique index es empleado+fecha)
         $yaExisten = DB::table('dbo.equipo_dia')
             ->where('fecha', $fecha)
-            ->when($supervisorId, fn($q) => $q->where('supervisor_id', $supervisorId))
             ->pluck('empleado_id')
             ->map(fn($id) => (int) $id)
             ->toArray();
 
-        // Pre-cargar supervisores activos + cadena de superiores para bubble-up
         $supervisorIds = $previos->pluck('supervisor_id')->filter()->unique()->values();
         $this->precargarCadenaSupervisores($supervisorIds->toArray());
 
@@ -84,7 +113,6 @@ class EquipoAutoCarry extends Command
         foreach ($previos as $reg) {
             if (in_array((int) $reg->empleado_id, $yaExisten)) continue;
 
-            // Resolver supervisor activo (bubble-up si está inactivo)
             $supIdResuelto = $this->resolverSupervisorActivo((int) $reg->supervisor_id);
 
             $inserts[] = [
@@ -97,18 +125,19 @@ class EquipoAutoCarry extends Command
                 'created_at'    => $now,
                 'updated_at'    => $now,
             ];
+
+            $yaExisten[] = (int) $reg->empleado_id; // evitar duplicados dentro del mismo loop
         }
 
         if (empty($inserts)) {
-            $this->line("  ✓ Sin registros nuevos (todos ya existen en equipo_dia).");
-            return;
+            return 0;
         }
 
         foreach (array_chunk($inserts, 100) as $chunk) {
-            DB::table('dbo.equipo_dia')->insertOrIgnore($chunk);
+            DB::table('dbo.equipo_dia')->insert($chunk);
         }
 
-        $this->line("  ✓ " . count($inserts) . " registros copiados desde {$fechaAnterior}.");
+        return count($inserts);
     }
 
     // ─── Bubble-up: resolver supervisor activo ────────────────────────────────
@@ -199,6 +228,77 @@ class EquipoAutoCarry extends Command
         return $resuelto;
     }
 
+    // ─── Fallback: construir equipo base desde asignaciones vigentes ──────────
+
+    private function construirDesdeAsignaciones(string $fecha, ?int $supervisorId): void
+    {
+        $query = UserAsignacion::where('estado', UserAsignacion::ESTADO_APROBADO)
+            ->where('activo', true)
+            ->whereNull('fecha_fin')
+            ->where('rol', UserAsignacion::ROL_COLABORADOR)
+            ->when($supervisorId, fn($q) => $q->where('superior_id', $supervisorId));
+
+        $asignaciones = $query->get(['user_id', 'superior_id', 'campana_id']);
+
+        if ($asignaciones->isEmpty()) {
+            $this->line("  ✗ Sin asignaciones vigentes de colaboradores.");
+            return;
+        }
+
+        // Obtener numero_documento de los users colaboradores
+        $userIds = $asignaciones->pluck('user_id')->unique();
+        $docPorUser = DB::table('users')
+            ->whereIn('id', $userIds)
+            ->pluck('numero_documento', 'id');
+
+        // Resolver persona_id desde dim_personas por numero_documento
+        $documentos = $docPorUser->values()->filter();
+        $personaIdPorDoc = DB::table('nomina.dim_personas')
+            ->whereIn('numero_documento', $documentos)
+            ->pluck('id', 'numero_documento');
+
+        // Empleados que ya tienen registro hoy
+        $yaExisten = DB::table('dbo.equipo_dia')
+            ->where('fecha', $fecha)
+            ->pluck('empleado_id')
+            ->map(fn($id) => (int) $id)
+            ->toArray();
+
+        $now     = now();
+        $inserts = [];
+
+        foreach ($asignaciones as $a) {
+            $doc       = $docPorUser->get($a->user_id);
+            $personaId = $doc ? $personaIdPorDoc->get($doc) : null;
+
+            if (!$personaId || in_array((int) $personaId, $yaExisten)) continue;
+
+            $inserts[] = [
+                'supervisor_id' => $a->superior_id,
+                'empleado_id'   => $personaId,
+                'campana_id'    => $a->campana_id,
+                'fecha'         => $fecha,
+                'origen'        => EquipoDia::ORIGEN_BASE,
+                'prestamo_id'   => null,
+                'created_at'    => $now,
+                'updated_at'    => $now,
+            ];
+
+            $yaExisten[] = (int) $personaId;
+        }
+
+        if (empty($inserts)) {
+            $this->line("  ✓ Sin registros nuevos desde asignaciones (todos ya existen).");
+            return;
+        }
+
+        foreach (array_chunk($inserts, 100) as $chunk) {
+            DB::table('dbo.equipo_dia')->insert($chunk);
+        }
+
+        $this->line("  ✓ " . count($inserts) . " registros construidos desde asignaciones vigentes.");
+    }
+
     // ─── Paso 2: aplicar préstamos activos ────────────────────────────────────
 
     private function aplicarPrestamos(string $fecha, ?int $supervisorId): void
@@ -238,5 +338,70 @@ class EquipoAutoCarry extends Command
         }
 
         $this->line("  ✓ {$prestamos->count()} préstamos aplicados.");
+    }
+
+    // ─── Paso 3: rellenar colaboradores con asignación vigente sin cobertura ──
+
+    private function rellenarDesdeAsignaciones(string $fecha, ?int $supervisorId): int
+    {
+        // Colaboradores con asignación vigente en esa fecha
+        $asignaciones = UserAsignacion::where('estado', UserAsignacion::ESTADO_APROBADO)
+            ->where('activo', true)
+            ->where('rol', UserAsignacion::ROL_COLABORADOR)
+            ->where('fecha_inicio', '<=', $fecha)
+            ->where(fn($q) => $q->whereNull('fecha_fin')->orWhere('fecha_fin', '>=', $fecha))
+            ->when($supervisorId, fn($q) => $q->where('superior_id', $supervisorId))
+            ->get(['user_id', 'superior_id', 'campana_id']);
+
+        if ($asignaciones->isEmpty()) return 0;
+
+        // Empleados que ya tienen registro para esa fecha
+        $yaExisten = DB::table('dbo.equipo_dia')
+            ->where('fecha', $fecha)
+            ->pluck('empleado_id')
+            ->map(fn($id) => (int) $id)
+            ->toArray();
+
+        // Resolver user_id → persona_id via numero_documento
+        $userIds      = $asignaciones->pluck('user_id')->unique();
+        $docPorUser   = DB::table('users')->whereIn('id', $userIds)->pluck('numero_documento', 'id');
+        $documentos   = $docPorUser->values()->filter();
+
+        if ($documentos->isEmpty()) return 0;
+
+        $personaIdPorDoc = DB::table('nomina.dim_personas')
+            ->whereIn('numero_documento', $documentos)
+            ->pluck('id', 'numero_documento');
+
+        $now     = now();
+        $inserts = [];
+
+        foreach ($asignaciones as $a) {
+            $doc       = $docPorUser->get($a->user_id);
+            $personaId = $doc ? $personaIdPorDoc->get($doc) : null;
+
+            if (!$personaId || in_array((int) $personaId, $yaExisten)) continue;
+
+            $inserts[] = [
+                'supervisor_id' => $a->superior_id,
+                'empleado_id'   => $personaId,
+                'campana_id'    => $a->campana_id,
+                'fecha'         => $fecha,
+                'origen'        => EquipoDia::ORIGEN_BASE,
+                'prestamo_id'   => null,
+                'created_at'    => $now,
+                'updated_at'    => $now,
+            ];
+
+            $yaExisten[] = (int) $personaId;
+        }
+
+        if (empty($inserts)) return 0;
+
+        foreach (array_chunk($inserts, 100) as $chunk) {
+            DB::table('dbo.equipo_dia')->insert($chunk);
+        }
+
+        return count($inserts);
     }
 }

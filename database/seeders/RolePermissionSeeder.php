@@ -52,8 +52,15 @@ class RolePermissionSeeder extends Seeder
 
             // Módulo Equipos
             'equipos.view',    // Ver su propio equipo del día
-            'equipos.manage',  // Gestionar equipo (agregar/retirar/solicitar)
-            'equipos.approve', // Aprobar/rechazar solicitudes + ver huérfanos
+            'equipos.manage',  // Gestionar equipo (agregar/retirar/solicitar/aprobar)
+
+            // Módulo Asignaciones
+            'asignaciones.view',   // Ver y gestionar asignaciones propias
+            'asignaciones.manage', // Aprobar / rechazar / transferir / cerrar
+
+            // Módulo Campañas
+            'campanas.view',   // Ver campañas
+            'campanas.manage', // Crear / editar / cerrar campañas
 
             // Administración de Sistema (permisos granulares)
             'users.view',      // Ver listado de usuarios

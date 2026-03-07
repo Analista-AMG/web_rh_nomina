@@ -45,7 +45,7 @@
                 </a>
                 @endcan
 
-                @canany(['equipos.view', 'equipos.manage', 'equipos.approve'])
+                @canany(['equipos.view', 'equipos.manage'])
                 <a href="{{ route('equipos.index') }}" class="group w-full bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg p-8 transition-all hover:shadow-lg hover:-translate-y-1 border-b-4 border-cyan-500">
                     <div class="flex flex-col items-center">
                         <div class="h-16 w-16 bg-cyan-100 rounded-full flex items-center justify-center mb-4 group-hover:bg-cyan-200 transition-colors">

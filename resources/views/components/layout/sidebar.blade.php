@@ -23,7 +23,7 @@
     </div>
     
     <!-- User Profile -->
-    <div class="flex flex-col items-center py-6 overflow-hidden">
+    <a href="{{ route('profile.edit') }}" class="flex flex-col items-center py-6 overflow-hidden hover:opacity-80 transition-opacity" title="Mi perfil">
         <div id="avatar-container" class="w-20 h-20 rounded-full overflow-hidden mb-4 border-2 border-primary p-1 transition-all duration-300 flex-shrink-0">
             <img class="w-full h-full rounded-full object-cover" src="https://ui-avatars.com/api/?name={{ urlencode(auth()->user()->name) }}&background=random" alt="{{ auth()->user()->name }}">
         </div>
@@ -31,18 +31,13 @@
             <h3 class="font-semibold text-base whitespace-nowrap dark:text-white">{{ auth()->user()->name }}</h3>
             <span class="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ auth()->user()->roles->first()?->name ?? 'Sin rol' }}</span>
         </div>
-    </div>
+    </a>
 
     <!-- Navigation -->
     @php
         $personalActive     = request()->routeIs('personas.*') || request()->routeIs('contratos.*');
         $operacionesActive  = request()->routeIs('asistencia.*') || request()->routeIs('equipos.*');
         $remunerActive      = request()->routeIs('adicionales.*') || request()->routeIs('calculos.*') || request()->routeIs('dashboard');
-        $puedeVerCampanas   = auth()->user()->hasRole('Administrador')
-            || \App\Models\UserAsignacion::where('user_id', (int) auth()->id())
-                ->whereIn('rol', [\App\Models\UserAsignacion::ROL_JEFE_OPERACIONES, \App\Models\UserAsignacion::ROL_COORDINADOR])
-                ->vigentes()
-                ->exists();
         $gestionActive      = request()->routeIs('admin.users.*') || request()->routeIs('admin.roles.*') || request()->routeIs('admin.audit.*');
         $orgActive          = request()->routeIs('admin.empresas.*') || request()->routeIs('admin.campanas.*') || request()->routeIs('admin.asignaciones.*');
     @endphp
@@ -153,11 +148,11 @@
             @endcanany
 
             {{-- SECCIÓN: Administración --}}
-            @if(auth()->user()->canAny(['users.view', 'roles.view', 'audit.view']) || $puedeVerCampanas)
+            @canany(['users.view', 'roles.view', 'audit.view', 'asignaciones.view', 'campanas.view'])
             <li class="pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
                 <p class="px-4 text-xs font-semibold text-gray-400 uppercase mb-2 sidebar-text">Administración</p>
             </li>
-            @endif
+            @endcanany
 
             {{-- GRUPO: Gestión (Usuarios / Roles / Auditoría) --}}
             @canany(['users.view', 'roles.view', 'audit.view'])
@@ -196,8 +191,8 @@
             </li>
             @endcanany
 
-            {{-- GRUPO: Organización (Empresas / Campañas) --}}
-            @if($puedeVerCampanas)
+            {{-- GRUPO: Organización (Empresas / Campañas / Asignaciones) --}}
+            @canany(['asignaciones.view', 'campanas.view'])
             <li class="nav-group" data-group="organizacion" data-active="{{ $orgActive ? '1' : '0' }}">
                 <button class="nav-group-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg {{ $orgActive ? 'text-primary' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors cursor-pointer" title="Organización">
                     <i class="fa-solid fa-sitemap text-lg flex-shrink-0"></i>
@@ -213,21 +208,25 @@
                         </a>
                     </li>
                     @endrole
+                    @can('campanas.view')
                     <li>
                         <a href="{{ route('admin.campanas.index') }}" class="nav-link flex items-center gap-3 pl-9 pr-4 py-2.5 rounded-lg {{ request()->routeIs('admin.campanas.*') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors" title="Campañas">
                             <i class="fa-solid fa-bullhorn text-sm flex-shrink-0"></i>
                             <span class="sidebar-text font-medium">Campañas</span>
                         </a>
                     </li>
+                    @endcan
+                    @can('asignaciones.view')
                     <li>
                         <a href="{{ route('admin.asignaciones.index') }}" class="nav-link flex items-center gap-3 pl-9 pr-4 py-2.5 rounded-lg {{ request()->routeIs('admin.asignaciones.*') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors" title="Asignaciones">
                             <i class="fa-solid fa-user-tag text-sm flex-shrink-0"></i>
                             <span class="sidebar-text font-medium">Asignaciones</span>
                         </a>
                     </li>
+                    @endcan
                 </ul>
             </li>
-            @endif
+            @endcanany
 
         </ul>
     </nav>

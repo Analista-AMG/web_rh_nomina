@@ -97,8 +97,8 @@ Route::middleware(['auth', 'asignacion'])->group(function () {
         ->name('adicionales.guardar');
 
     Route::middleware(['permission:adicionales.edit'])
-        ->post('/adicionales/importar-movilidad', [App\Http\Controllers\AdicionalController::class, 'importMovilidad'])
-        ->name('adicionales.importar-movilidad');
+        ->post('/adicionales/importar', [App\Http\Controllers\AdicionalController::class, 'importConsolidado'])
+        ->name('adicionales.importar');
 
     // 7. Rutas de Cálculos - Restringidas a Admin y Jefe Operaciones
     Route::middleware(['role:Administrador|Jefe Operaciones', 'permission:calculos.view'])->group(function () {
@@ -112,31 +112,25 @@ Route::middleware(['auth', 'asignacion'])->group(function () {
         ->name('calculos.ejecutar');
 
     // 8. Rutas de Equipos
-    Route::middleware(['permission:equipos.manage'])->group(function () {
-        Route::get('/equipos', [App\Http\Controllers\EquipoController::class, 'index'])->name('equipos.index');
-        Route::post('/equipos/prestamos', [App\Http\Controllers\EquipoController::class, 'crearPrestamo'])->name('equipos.prestamos.crear');
-        Route::delete('/equipos/prestamos/{prestamo}', [App\Http\Controllers\EquipoController::class, 'cancelarPrestamo'])->name('equipos.prestamos.cancelar');
-        // Legacy (asistencia día a día — migrar a AsistenciaController en siguiente iteración)
-        Route::post('/equipos/agregar', [App\Http\Controllers\EquipoController::class, 'agregar'])->name('equipos.agregar');
-        Route::delete('/equipos/{asignacion}/retirar', [App\Http\Controllers\EquipoController::class, 'retirar'])->name('equipos.retirar');
-        Route::post('/equipos/solicitar', [App\Http\Controllers\EquipoController::class, 'solicitar'])->name('equipos.solicitar');
-        Route::post('/equipos/replicar', [App\Http\Controllers\EquipoController::class, 'replicar'])->name('equipos.replicar');
-    });
+    Route::middleware(['role:Administrador'])
+        ->post('/equipos/auto-carry', [App\Http\Controllers\PrestamoController::class, 'autoCarry'])
+        ->name('equipos.auto-carry');
 
-    Route::middleware(['permission:equipos.approve'])->group(function () {
-        Route::post('/equipos/prestamos/{prestamo}/aprobar', [App\Http\Controllers\EquipoController::class, 'aprobarPrestamo'])->name('equipos.prestamos.aprobar');
-        Route::post('/equipos/prestamos/{prestamo}/rechazar', [App\Http\Controllers\EquipoController::class, 'rechazarPrestamo'])->name('equipos.prestamos.rechazar');
-        // Legacy solicitudes
-        Route::get('/equipos/pendientes', [App\Http\Controllers\EquipoController::class, 'pendientes'])->name('equipos.pendientes');
-        Route::post('/equipos/solicitudes/{solicitud}/aprobar', [App\Http\Controllers\EquipoController::class, 'aprobar'])->name('equipos.aprobar');
-        Route::post('/equipos/solicitudes/{solicitud}/rechazar', [App\Http\Controllers\EquipoController::class, 'rechazar'])->name('equipos.rechazar');
-        Route::post('/equipos/auto-carry', [App\Http\Controllers\EquipoController::class, 'autoCarry'])->name('equipos.auto-carry');
+    Route::middleware(['permission:equipos.manage'])->group(function () {
+        // Préstamos multi-día
+        Route::get('/equipos', [App\Http\Controllers\PrestamoController::class, 'index'])->name('equipos.index');
+        Route::get('/equipos/buscar-solicitar', [App\Http\Controllers\PrestamoController::class, 'buscarParaSolicitar'])->name('equipos.buscar-solicitar');
+        Route::post('/equipos/prestamos', [App\Http\Controllers\PrestamoController::class, 'crearPrestamo'])->name('equipos.prestamos.crear');
+        Route::delete('/equipos/prestamos/{prestamo}', [App\Http\Controllers\PrestamoController::class, 'cancelarPrestamo'])->name('equipos.prestamos.cancelar');
+        Route::post('/equipos/prestamos/{prestamo}/aprobar', [App\Http\Controllers\PrestamoController::class, 'aprobarPrestamo'])->name('equipos.prestamos.aprobar');
+        Route::post('/equipos/prestamos/{prestamo}/rechazar', [App\Http\Controllers\PrestamoController::class, 'rechazarPrestamo'])->name('equipos.prestamos.rechazar');
+        Route::post('/equipos/prestamos/{prestamo}/anular', [App\Http\Controllers\PrestamoController::class, 'anularPrestamo'])->name('equipos.prestamos.anular');
     });
 
     // 6. Rutas de Perfil (sin restricciones)
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
-    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+    Route::put('/profile/password', [ProfileController::class, 'updatePassword'])->name('password.update');
 
     // 6. Rutas de Administración (permisos granulares)
     Route::prefix('admin')->name('admin.')->group(function () {
@@ -150,6 +144,9 @@ Route::middleware(['auth', 'asignacion'])->group(function () {
             Route::post('/users/{user}/remove-role', [App\Http\Controllers\Admin\UserManagementController::class, 'removeRole'])->name('users.remove-role');
             Route::post('/users/{user}/sync-roles', [App\Http\Controllers\Admin\UserManagementController::class, 'syncRoles'])->name('users.sync-roles');
         });
+        Route::middleware(['role:Administrador'])
+            ->post('/users/{user}/reset-password', [App\Http\Controllers\Admin\UserManagementController::class, 'resetPassword'])
+            ->name('users.reset-password');
 
         // Auditoría
         Route::middleware(['permission:audit.view'])
@@ -164,23 +161,32 @@ Route::middleware(['auth', 'asignacion'])->group(function () {
             Route::patch('/empresas/{id}/cerrar', [EmpresaController::class, 'cerrar'])->name('empresas.cerrar');
         });
 
-        // Asignaciones — Admin, JO, Coordinador (scope filtrado en controller)
-        Route::get('/asignaciones/usuarios-disponibles', [AsignacionController::class, 'usuariosDisponibles'])->name('asignaciones.usuarios-disponibles');
-        Route::get('/asignaciones/superiores-disponibles', [AsignacionController::class, 'superioresDisponibles'])->name('asignaciones.superiores-disponibles');
-        Route::get('/asignaciones', [AsignacionController::class, 'index'])->name('asignaciones.index');
-        Route::post('/asignaciones', [AsignacionController::class, 'store'])->name('asignaciones.store');
-        Route::patch('/asignaciones/{id}/aprobar', [AsignacionController::class, 'aprobar'])->name('asignaciones.aprobar');
-        Route::patch('/asignaciones/{id}/rechazar', [AsignacionController::class, 'rechazar'])->name('asignaciones.rechazar');
-        Route::patch('/asignaciones/{id}/pausar', [AsignacionController::class, 'pausar'])->name('asignaciones.pausar');
-        Route::patch('/asignaciones/{id}/cerrar', [AsignacionController::class, 'cerrar'])->name('asignaciones.cerrar');
-        Route::patch('/asignaciones/{id}/transferir', [AsignacionController::class, 'transferir'])->name('asignaciones.transferir');
+        // Asignaciones
+        Route::middleware(['permission:asignaciones.view'])->group(function () {
+            Route::get('/asignaciones/usuarios-disponibles', [AsignacionController::class, 'usuariosDisponibles'])->name('asignaciones.usuarios-disponibles');
+            Route::get('/asignaciones/superiores-disponibles', [AsignacionController::class, 'superioresDisponibles'])->name('asignaciones.superiores-disponibles');
+            Route::get('/asignaciones', [AsignacionController::class, 'index'])->name('asignaciones.index');
+        });
+        Route::middleware(['permission:asignaciones.manage'])->group(function () {
+            Route::post('/asignaciones', [AsignacionController::class, 'store'])->name('asignaciones.store');
+            Route::patch('/asignaciones/{id}/aprobar', [AsignacionController::class, 'aprobar'])->name('asignaciones.aprobar');
+            Route::patch('/asignaciones/{id}/rechazar', [AsignacionController::class, 'rechazar'])->name('asignaciones.rechazar');
+            Route::patch('/asignaciones/{id}/pausar', [AsignacionController::class, 'pausar'])->name('asignaciones.pausar');
+            Route::patch('/asignaciones/{id}/cerrar', [AsignacionController::class, 'cerrar'])->name('asignaciones.cerrar');
+            Route::patch('/asignaciones/{id}/transferir', [AsignacionController::class, 'transferir'])->name('asignaciones.transferir');
+            Route::patch('/asignaciones/{id}/editar', [AsignacionController::class, 'editar'])->name('asignaciones.editar');
+        });
 
-        // Campañas — Coordinador, JO y Administrador (scope filtrado en controller)
-        Route::get('/campanas', [CampanaController::class, 'index'])->name('campanas.index');
-        Route::post('/campanas', [CampanaController::class, 'store'])->name('campanas.store');
-        Route::put('/campanas/{id}', [CampanaController::class, 'update'])->name('campanas.update');
-        Route::patch('/campanas/{id}/toggle', [CampanaController::class, 'toggle'])->name('campanas.toggle');
-        Route::patch('/campanas/{id}/cerrar', [CampanaController::class, 'cerrar'])->name('campanas.cerrar');
+        // Campañas
+        Route::middleware(['permission:campanas.view'])->group(function () {
+            Route::get('/campanas', [CampanaController::class, 'index'])->name('campanas.index');
+        });
+        Route::middleware(['permission:campanas.manage'])->group(function () {
+            Route::post('/campanas', [CampanaController::class, 'store'])->name('campanas.store');
+            Route::put('/campanas/{id}', [CampanaController::class, 'update'])->name('campanas.update');
+            Route::patch('/campanas/{id}/toggle', [CampanaController::class, 'toggle'])->name('campanas.toggle');
+            Route::patch('/campanas/{id}/cerrar', [CampanaController::class, 'cerrar'])->name('campanas.cerrar');
+        });
 
         // Gestión de Roles
         Route::middleware(['permission:roles.view'])->group(function () {

@@ -3,9 +3,21 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 class EquipoDia extends Model
 {
+    use LogsActivity;
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logAll()
+            ->logOnlyDirty()
+            ->useLogName('equipo_dia');
+    }
+
     protected $table = 'dbo.equipo_dia';
 
     const ORIGEN_BASE     = 'base';
@@ -61,8 +73,4 @@ class EquipoDia extends Model
         return $query->where('supervisor_id', $supervisorId);
     }
 
-    public function scopeSinSupervisor($query)
-    {
-        return $query->whereNull('supervisor_id');
-    }
 }

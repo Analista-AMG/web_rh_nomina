@@ -28,34 +28,53 @@ class VerificarAsignacion
             return $next($request);
         }
 
-        $asignacion = UserAsignacion::where('user_id', $user->id)
-            ->whereNull('fecha_fin')
-            ->orderByRaw("CASE estado
-                WHEN 'aprobado'   THEN 1
-                WHEN 'pendiente'  THEN 2
-                WHEN 'rechazado'  THEN 3
-                ELSE 4 END")
-            ->first();
+        // Colaboradores: cachear en sesión para evitar query por request (se invalida al logout)
+        // Supervisores hacia arriba: query siempre (son pocos y sus cambios deben ser inmediatos)
+        $esColaborador = $user->hasRole('Colaborador');
+        $cacheKey      = 'asignaciones_vigentes_' . $user->id;
 
-        if (!$asignacion) {
+        if ($esColaborador && $request->session()->has($cacheKey)) {
+            $asignaciones = $request->session()->get($cacheKey);
+        } else {
+            $asignaciones = UserAsignacion::where('user_id', $user->id)
+                ->whereNull('fecha_fin')
+                ->get();
+
+            if ($esColaborador) {
+                $request->session()->put($cacheKey, $asignaciones);
+            }
+        }
+
+        if ($asignaciones->isEmpty()) {
             return redirect()->route('sin-asignacion', ['estado' => 'sin_asignacion']);
         }
 
-        if ($asignacion->estado === UserAsignacion::ESTADO_RECHAZADO) {
-            return redirect()->route('sin-asignacion', [
-                'estado' => 'rechazado',
-                'motivo' => $asignacion->motivo_rechazo,
-            ]);
+        // Si tiene al menos una asignación vigente (aprobada + activa), puede pasar
+        if ($asignaciones->contains(fn ($a) =>
+            $a->estado === UserAsignacion::ESTADO_APROBADO && $a->activo
+        )) {
+            return $next($request);
         }
 
-        if ($asignacion->estado === UserAsignacion::ESTADO_PENDIENTE) {
+        // Sin ninguna vigente: determinar el mejor estado para mostrar
+        if ($asignaciones->contains('estado', UserAsignacion::ESTADO_PENDIENTE)) {
             return redirect()->route('sin-asignacion', ['estado' => 'pendiente']);
         }
 
-        if ($asignacion->estado === UserAsignacion::ESTADO_APROBADO && !$asignacion->activo) {
+        if ($asignaciones->every(fn ($a) =>
+            $a->estado === UserAsignacion::ESTADO_APROBADO && !$a->activo
+        )) {
             return redirect()->route('sin-asignacion', ['estado' => 'suspendido']);
         }
 
-        return $next($request);
+        $rechazada = $asignaciones->firstWhere('estado', UserAsignacion::ESTADO_RECHAZADO);
+        if ($rechazada) {
+            return redirect()->route('sin-asignacion', [
+                'estado' => 'rechazado',
+                'motivo' => $rechazada->motivo_rechazo,
+            ]);
+        }
+
+        return redirect()->route('sin-asignacion', ['estado' => 'sin_asignacion']);
     }
 }

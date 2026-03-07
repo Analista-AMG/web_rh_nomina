@@ -3,11 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\Adicional;
+use App\Models\CentroCosto;
+use App\Models\Condicion;
 use App\Models\Contrato;
 use App\Models\Familia;
 use App\Models\Pago;
 use App\Models\Planilla;
 use App\Services\JerarquiaService;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -24,18 +27,15 @@ class AdicionalController extends Controller
             ->orderBy('periodo', 'desc')
             ->pluck('periodo');
 
-        $planillas = Planilla::orderBy('nombre_planilla')->get();
-        $familias  = Familia::orderBy('nombre_familia')->get();
-        $empresas  = $planillas->pluck('nombre_empresa')->unique()->filter()->sort()->values();
+        $planillas    = collect();
+        $familias     = collect();
+        $centrosCosto = collect();
+        $condiciones  = collect();
 
         $contratos = collect();
-        $combos = collect();
         $periodoSeleccionado = $request->input('periodo');
-
+        $tiposActivos = [];
         $kpis = [];
-        foreach (Adicional::TIPOS as $tipo) {
-            $kpis[$tipo] = 0;
-        }
         $totalRegistros = 0;
 
         if ($periodoSeleccionado) {
@@ -60,54 +60,56 @@ class AdicionalController extends Controller
                 ->where($finEfectivoCondicion);
             $this->jerarquia->aplicarFiltroPersonas($baseContratos, $personaIds, 'persona_id');
 
-            // Pares planilla-familia de los contratos visibles del periodo
-            $combos = (clone $baseContratos)
-                ->whereNotNull('planilla_id')
-                ->whereNotNull('familia_id')
-                ->select('planilla_id', 'familia_id')
-                ->distinct()
-                ->get()
-                ->map(fn($c) => [
-                    'p' => $c->planilla_id,
-                    'f' => $c->familia_id,
-                    'e' => $planillas->firstWhere('id', $c->planilla_id)?->nombre_empresa,
-                ])
-                ->values();
+            // Filtros activos del request
+            $filtrosActivos = array_filter([
+                'planilla_id'     => $request->planilla_id,
+                'centro_costo_id' => $request->centro_costo_id,
+                'familia_id'      => $request->familia_id,
+                'condicion_id'    => $request->condicion_id,
+            ]);
 
-            $query = (clone $baseContratos)->with(['persona', 'condicion', 'planilla']);
+            // Opciones facetadas: cada select usa el base + todos los filtros EXCEPTO el suyo
+            $faceta = function (string $columna) use ($baseContratos, $filtrosActivos): \Illuminate\Support\Collection {
+                $q = clone $baseContratos;
+                foreach ($filtrosActivos as $col => $val) {
+                    if ($col !== $columna) $q->where($col, $val);
+                }
+                return $q->whereNotNull($columna)->distinct()->pluck($columna);
+            };
 
-            if ($request->filled('nombre_empresa')) {
-                $query->whereHas('planilla', fn($q) => $q->where('nombre_empresa', $request->nombre_empresa));
-            }
+            $planillas    = Planilla::whereIn('id', $faceta('planilla_id'))->orderBy('nombre_planilla')->get();
+            $centrosCosto = CentroCosto::whereIn('id', $faceta('centro_costo_id'))->orderBy('nombre_centro_costo')->get();
+            $familias     = Familia::whereIn('id', $faceta('familia_id'))->orderBy('nombre_familia')->get();
+            $condiciones  = Condicion::whereIn('id', $faceta('condicion_id'))->orderBy('nombre_condicion')->get();
 
-            if ($request->filled('id_planilla')) {
-                $query->where('planilla_id', $request->id_planilla);
-            }
+            $query = (clone $baseContratos)->with(['persona', 'centroCosto', 'planilla', 'condicion']);
 
-            if ($request->filled('id_familia')) {
-                $query->where('familia_id', $request->id_familia);
+            foreach ($filtrosActivos as $col => $val) {
+                $query->where($col, $val);
             }
 
             if ($request->filled('numero_documento')) {
-                $query->whereHas('persona', function ($q) use ($request) {
-                    $q->where('numero_documento', 'like', '%' . $request->numero_documento . '%');
-                });
+                $query->whereHas('persona', fn($q) => $q->where('numero_documento', 'like', '%' . $request->numero_documento . '%'));
             }
 
             $contratos = $query->get();
+
+            $tiposActivos = Adicional::TIPOS;
+
+            $kpis = array_fill_keys($tiposActivos, 0);
 
             $adicionales = Adicional::whereIn('contrato_id', $contratos->pluck('id'))
                 ->where('periodo', $periodoSeleccionado)
                 ->get()
                 ->groupBy('contrato_id');
 
-            $contratos = $contratos->map(function ($contrato) use ($adicionales) {
+            $contratos = $contratos->map(function ($contrato) use ($adicionales, $tiposActivos) {
                 $adicionalesContrato = $adicionales->get($contrato->id, collect());
                 $mapped = [];
-                foreach (Adicional::TIPOS as $tipo) {
+                foreach ($tiposActivos as $tipo) {
                     $adicional = $adicionalesContrato->firstWhere('tipo_adicional', $tipo);
                     $mapped[$tipo] = [
-                        'monto' => $adicional ? $adicional->monto : '',
+                        'monto'  => $adicional ? $adicional->monto : '',
                         'motivo' => $adicional ? $adicional->motivo : '',
                     ];
                 }
@@ -130,10 +132,11 @@ class AdicionalController extends Controller
             'periodos',
             'planillas',
             'familias',
-            'empresas',
-            'combos',
+            'centrosCosto',
+            'condiciones',
             'contratos',
             'periodoSeleccionado',
+            'tiposActivos',
             'kpis',
             'totalRegistros'
         ));
@@ -152,6 +155,18 @@ class AdicionalController extends Controller
         $contrato = Contrato::find($request->contrato_id);
         if (!$contrato) {
             return response()->json(['error' => 'Contrato no encontrado'], 404);
+        }
+
+        // Bloqueo por período: si el período solicitado no es el actual y ya pasaron 3 días del mes
+        $hoy = Carbon::today();
+        if ($hoy->day > 3) {
+            $pagoActual = Pago::where('inicio', '<=', $hoy->toDateString())
+                ->where('fin', '>=', $hoy->toDateString())
+                ->first();
+
+            if ($pagoActual && $request->periodo !== $pagoActual->periodo) {
+                return response()->json(['error' => 'El período está cerrado. Solo se puede editar el período actual los primeros 3 días del mes.'], 403);
+            }
         }
 
         $monto = $request->monto;
@@ -181,65 +196,130 @@ class AdicionalController extends Controller
         return response()->json(['success' => true, 'action' => 'saved', 'id' => $adicional->id]);
     }
 
-    public function importMovilidad(Request $request)
+    public function importConsolidado(Request $request)
     {
         $request->validate([
-            'archivo'  => 'required|file|mimes:xlsx,xls',
-            'periodo'  => 'required|string|max:10|regex:/^\d{4}-\d{2}$/',
+            'archivo'          => 'required|file|mimes:xlsx,xls',
+            'periodo_esperado' => 'required|string|regex:/^\d{4}-\d{2}$/',
         ]);
 
         try {
             $spreadsheet = IOFactory::load($request->file('archivo')->getPathname());
-            $filas = $spreadsheet->getActiveSheet()->toArray(null, true, true, false);
+
+            if (!$spreadsheet->sheetNameExists('carga_web')) {
+                return back()->with('error', 'El archivo no contiene una hoja llamada "carga_web".')->withInput();
+            }
+
+            $filas = $spreadsheet->getSheetByName('carga_web')->toArray(null, true, true, false);
 
             if (count($filas) < 2) {
                 return back()->with('error', 'El archivo no contiene datos.')->withInput();
             }
 
-            // Mapear headers (primera fila)
-            $headers = array_map(fn($h) => strtolower(trim((string) $h)), $filas[0]);
-            $colIdContrato = array_search('contrato_id', $headers);
-            $colMonto      = array_search('monto', $headers);
+            $headers       = array_map(fn($h) => strtolower(trim((string) $h)), $filas[0]);
+            $colContrato   = array_search('contrato_id',    $headers);
+            $colTipo       = array_search('tipo_adicional', $headers);
+            $colMonto      = array_search('monto',          $headers);
+            $colObservacion = array_search('observacion',   $headers);
+            $colPeriodo    = array_search('periodo',        $headers);
 
-            if ($colIdContrato === false || $colMonto === false) {
-                return back()->with('error', 'El archivo no tiene las columnas requeridas: contrato_id, monto.')->withInput();
+            if ($colContrato === false || $colTipo === false || $colMonto === false) {
+                return back()->with('error', 'Columnas requeridas faltantes: contrato_id, tipo_adicional, monto.')->withInput();
             }
 
-            $periodo   = $request->periodo;
-            $encargado = auth()->user()->name;
-            $registros = [];
+            $periodoEsperado = $request->periodo_esperado;
+            $tiposValidos    = Adicional::TIPOS;
+            $tiposSoloManual = Adicional::TIPOS_SOLO_MANUAL;
+            $encargado       = auth()->user()->name;
+            $registros       = [];
 
-            foreach (array_slice($filas, 1) as $fila) {
-                $idContrato = $fila[$colIdContrato];
-                $monto      = $fila[$colMonto];
+            // ── Validación completa antes de insertar ─────────────────────────
+            foreach (array_slice($filas, 1) as $i => $fila) {
+                $fila_num   = $i + 2;
+                $contratoId = $fila[$colContrato] ?? null;
+                $tipo       = strtoupper(trim((string) ($fila[$colTipo] ?? '')));
+                $monto      = $fila[$colMonto] ?? null;
 
-                if (!$idContrato || $monto === null || $monto === '' || floatval($monto) == 0) {
+                // Filas vacías se saltan
+                if (!$contratoId && !$tipo && ($monto === null || $monto === '')) {
                     continue;
                 }
 
+                if (!$contratoId || !is_numeric($contratoId)) {
+                    return back()->with('error', "Fila {$fila_num}: contrato_id inválido o vacío.")->withInput();
+                }
+
+                if (!$tipo) {
+                    return back()->with('error', "Fila {$fila_num}: tipo_adicional vacío.")->withInput();
+                }
+
+                if (in_array($tipo, $tiposSoloManual)) {
+                    return back()->with('error', "Fila {$fila_num}: el tipo «{$tipo}» es solo manual y no puede importarse.")->withInput();
+                }
+
+                if (!in_array($tipo, $tiposValidos)) {
+                    return back()->with('error', "Fila {$fila_num}: tipo_adicional «{$tipo}» desconocido.")->withInput();
+                }
+
+                if ($monto === null || $monto === '' || !is_numeric($monto)) {
+                    return back()->with('error', "Fila {$fila_num}: monto inválido.")->withInput();
+                }
+
+                $periodo = $colPeriodo !== false
+                    ? trim((string) ($fila[$colPeriodo] ?? ''))
+                    : null;
+
+                if (!$periodo || !preg_match('/^\d{4}-\d{2}$/', $periodo)) {
+                    return back()->with('error', "Fila {$fila_num}: periodo inválido o faltante (formato YYYY-MM).")->withInput();
+                }
+
+                if ($periodo !== $periodoEsperado) {
+                    return back()->with('error', "Fila {$fila_num}: el periodo del Excel ({$periodo}) no coincide con el periodo seleccionado ({$periodoEsperado}).")->withInput();
+                }
+
                 $registros[] = [
-                    'contrato_id'    => (int) $idContrato,
+                    'contrato_id'    => (int) $contratoId,
                     'periodo'        => $periodo,
-                    'tipo_adicional' => Adicional::TIPO_MOVILIDAD,
+                    'tipo_adicional' => $tipo,
                     'monto'          => floatval($monto),
                     'encargado'      => $encargado,
-                    'motivo'         => null,
+                    'motivo'         => $colObservacion !== false ? (trim((string) ($fila[$colObservacion] ?? '')) ?: null) : null,
                 ];
             }
 
-            DB::transaction(function () use ($periodo, $registros) {
-                DB::table('nomina.fact_adicionales')
-                    ->where('periodo', $periodo)
-                    ->where('tipo_adicional', Adicional::TIPO_MOVILIDAD)
-                    ->delete();
+            if (empty($registros)) {
+                return back()->with('error', 'El archivo no contiene filas con datos válidos.')->withInput();
+            }
 
-                if (!empty($registros)) {
-                    DB::table('nomina.fact_adicionales')->insert($registros);
+            // ── Validar que todos los contrato_ids existen ────────────────────
+            $idsEnArchivo  = array_unique(array_column($registros, 'contrato_id'));
+            $idsEnBD       = Contrato::whereIn('id', $idsEnArchivo)->pluck('id')->toArray();
+            $idsInvalidos  = array_diff($idsEnArchivo, $idsEnBD);
+
+            if (!empty($idsInvalidos)) {
+                return back()->with('error', 'Los siguientes contrato_id no existen: ' . implode(', ', $idsInvalidos))->withInput();
+            }
+
+            // ── Upsert en transacción ─────────────────────────────────────────
+            DB::transaction(function () use ($registros) {
+                foreach ($registros as $r) {
+                    Adicional::updateOrCreate(
+                        [
+                            'contrato_id'    => $r['contrato_id'],
+                            'periodo'        => $r['periodo'],
+                            'tipo_adicional' => $r['tipo_adicional'],
+                        ],
+                        [
+                            'monto'     => $r['monto'],
+                            'encargado' => $r['encargado'],
+                            'motivo'    => $r['motivo'],
+                        ]
+                    );
                 }
             });
 
             $total = count($registros);
-            return back()->with('success', "Movilidad cargada: {$total} registro(s) para el periodo {$periodo}.");
+            return back()->with('success', "{$total} registro(s) importado(s) correctamente.");
 
         } catch (\Exception $e) {
             return back()->with('error', 'Error al procesar el archivo: ' . $e->getMessage())->withInput();

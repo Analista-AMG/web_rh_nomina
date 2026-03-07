@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\Models\Role;
 
 class UserManagementController extends Controller
@@ -12,19 +13,28 @@ class UserManagementController extends Controller
     /**
      * Display a listing of users with their roles.
      */
-    public function index()
+    public function index(Request $request)
     {
         // Verificar permiso de ver usuarios
         abort_unless(auth()->user()->can('users.view'), 403);
 
-        $users = User::with('roles')->paginate(15);
+        // Filtro por rol: activado por defecto (solo usuarios con rol asignado)
+        $conRol = $request->input('con_rol', '1') === '1';
+        $buscarDoc = trim($request->input('doc', ''));
+
+        $users = User::with('roles')
+            ->when($conRol, fn($q) => $q->whereHas('roles'))
+            ->when($buscarDoc, fn($q) => $q->where('numero_documento', 'like', '%' . $buscarDoc . '%'))
+            ->orderBy('name')
+            ->paginate(15)
+            ->withQueryString();
 
         // Si no es Administrador, ocultar el rol Administrador de la lista
         $roles = Role::when(!auth()->user()->hasRole('Administrador'), function ($query) {
             return $query->where('name', '!=', 'Administrador');
         })->get();
 
-        return view('admin.users.index', compact('users', 'roles'));
+        return view('admin.users.index', compact('users', 'roles', 'conRol'));
     }
 
     /**
@@ -52,6 +62,13 @@ class UserManagementController extends Controller
         if ($user->id === auth()->id()) {
             return response()->json([
                 'error' => 'No puedes modificar tus propios roles'
+            ], 403);
+        }
+
+        // Solo Administrador puede modificar a otro Administrador
+        if ($user->hasRole('Administrador') && !auth()->user()->hasRole('Administrador')) {
+            return response()->json([
+                'error' => 'No tienes permiso para modificar a un Administrador'
             ], 403);
         }
 
@@ -103,6 +120,13 @@ class UserManagementController extends Controller
             ], 403);
         }
 
+        // Solo Administrador puede modificar a otro Administrador
+        if ($user->hasRole('Administrador') && !auth()->user()->hasRole('Administrador')) {
+            return response()->json([
+                'error' => 'No tienes permiso para modificar a un Administrador'
+            ], 403);
+        }
+
         $rolesAntes = $user->getRoleNames()->toArray();
         $user->removeRole($request->role);
 
@@ -145,6 +169,13 @@ class UserManagementController extends Controller
             ], 403);
         }
 
+        // Solo Administrador puede modificar a otro Administrador
+        if ($user->hasRole('Administrador') && !auth()->user()->hasRole('Administrador')) {
+            return response()->json([
+                'error' => 'No tienes permiso para modificar a un Administrador'
+            ], 403);
+        }
+
         // Solo Administrador puede incluir/excluir el rol Administrador
         $roles = $request->roles ?? [];
         $userHadAdmin = $user->hasRole('Administrador');
@@ -179,6 +210,23 @@ class UserManagementController extends Controller
             'message' => 'Roles actualizados correctamente',
             'roles' => $user->getRoleNames()
         ]);
+    }
+
+    public function resetPassword(User $user)
+    {
+        if ($user->id === auth()->id()) {
+            return response()->json(['error' => 'No puedes resetear tu propia contraseña.'], 403);
+        }
+
+        $user->update(['password' => Hash::make('password123')]);
+
+        activity('usuarios')
+            ->performedOn($user)
+            ->causedBy(auth()->user())
+            ->event('updated')
+            ->log('Contraseña reseteada a valor por defecto');
+
+        return response()->json(['message' => "Contraseña de {$user->name} reseteada a \"password123\"."]);
     }
 
     /**

@@ -20,6 +20,7 @@ return new class extends Migration
             $table->dateTime('aprobado_en')->nullable();
             $table->string('motivo_rechazo', 500)->nullable();
             $table->boolean('activo')->default(true);              // pausar sin cerrar (baja temporal)
+            $table->boolean('puede_editar_propia_asistencia')->default(false);
             $table->date('fecha_inicio');
             $table->date('fecha_fin')->nullable();                 // NULL = vigente
             $table->unsignedBigInteger('creado_por');
@@ -34,6 +35,7 @@ return new class extends Migration
             $table->index(['user_id', 'fecha_fin']);
             $table->index(['superior_id', 'fecha_fin']);
             $table->index(['campana_id', 'fecha_fin']);
+            $table->index(['estado', 'activo', 'fecha_fin'], 'idx_ua_estado_activo_fecha_fin');
         });
 
         // Filtered unique index: un rol activo por usuario/campaña

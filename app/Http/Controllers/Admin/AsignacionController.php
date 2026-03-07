@@ -4,10 +4,14 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Campana;
+use App\Models\Persona;
+use App\Models\Scopes\AlcanceUsuarioScope;
 use App\Models\User;
 use App\Models\UserAsignacion;
-use Illuminate\Http\Request;
 use Carbon\Carbon;
+use Carbon\CarbonPeriod;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 
 class AsignacionController extends Controller
@@ -36,7 +40,7 @@ class AsignacionController extends Controller
         if ($this->esAdmin()) return null;
 
         $asignaciones = UserAsignacion::where('user_id', (int) auth()->id())
-            ->whereIn('rol', [UserAsignacion::ROL_COORDINADOR, UserAsignacion::ROL_JEFE_OPERACIONES])
+            ->whereIn('rol', [UserAsignacion::ROL_SUPERVISOR, UserAsignacion::ROL_COORDINADOR, UserAsignacion::ROL_JEFE_OPERACIONES])
             ->vigentes()
             ->get();
 
@@ -75,6 +79,8 @@ class AsignacionController extends Controller
         }
         $campanas = $campanasQuery->get(['id', 'nombre']);
 
+        $userId = (int) auth()->id();
+
         $query = UserAsignacion::with(['usuario', 'campana', 'superior'])
             ->when(!$mostrarCerradas, fn ($q) => $q->whereNull('fecha_fin'))
             ->when($mostrarCerradas,  fn ($q) => $q->whereNotNull('fecha_fin'))
@@ -83,16 +89,41 @@ class AsignacionController extends Controller
 
         if ($permitidos !== null) {
             $query->whereIn('campana_id', $permitidos);
+
+            // Supervisor: solo ve su propia asignación y sus subordinados directos
+            if ($this->miNivelMax() <= UserAsignacion::NIVEL_ROL[UserAsignacion::ROL_SUPERVISOR]) {
+                $query->where(fn ($q) => $q
+                    ->where('user_id', $userId)
+                    ->orWhere('superior_id', $userId)
+                );
+            }
         }
 
         $asignaciones = $query->get();
 
+        // Mapa numero_documento → Persona (con contratos para calcular estado)
+        $docs = $asignaciones->map(fn ($a) => $a->usuario?->numero_documento)
+            ->filter()
+            ->unique()
+            ->values();
+
+        $personasPorDoc = Persona::withoutGlobalScope(AlcanceUsuarioScope::class)
+            ->with('contratos')
+            ->whereIn('numero_documento', $docs)
+            ->get()
+            ->keyBy('numero_documento');
+
+        // IDs de campañas raíz (parent_id = null) — excluidas del selector de transferencia
+        $campanasPadreIds = Campana::whereNull('parent_id')->pluck('id')->toArray();
+
         return view('admin.asignaciones.index', [
             'asignaciones'    => $asignaciones,
             'campanas'        => $campanas,
+            'campanasPadreIds' => $campanasPadreIds,
             'esAdmin'         => $this->esAdmin(),
             'miNivelMax'      => $this->miNivelMax(),
             'mostrarCerradas' => $mostrarCerradas,
+            'personasPorDoc'  => $personasPorDoc,
         ]);
     }
 
@@ -130,19 +161,21 @@ class AsignacionController extends Controller
         }
 
         if ($request->superior_id) {
-            $superior = UserAsignacion::where('user_id', (int) $request->superior_id)
-                ->where('campana_id', $campanaId)
-                ->vigentes()
-                ->first();
+            $superiorQuery = UserAsignacion::where('user_id', (int) $request->superior_id)->vigentes();
+            if ($permitidos !== null) {
+                $superiorQuery->whereIn('campana_id', $permitidos);
+            }
+            $asignacionesSuperior = $superiorQuery->get();
 
-            if (!$superior) {
+            if ($asignacionesSuperior->isEmpty()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'El superior no tiene asignación vigente en esta campaña.',
+                    'message' => 'El superior no tiene asignación vigente en las campañas permitidas.',
                 ], 422);
             }
 
-            if ((UserAsignacion::NIVEL_ROL[$superior->rol] ?? 0) <= (UserAsignacion::NIVEL_ROL[$request->rol] ?? 0)) {
+            $nivelMaxSuperior = $asignacionesSuperior->max(fn($a) => UserAsignacion::NIVEL_ROL[$a->rol] ?? 0);
+            if ($nivelMaxSuperior <= (UserAsignacion::NIVEL_ROL[$request->rol] ?? 0)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'El superior debe tener un rol de mayor jerarquía.',
@@ -152,7 +185,7 @@ class AsignacionController extends Controller
 
         $autoAprobar = $this->puedeAprobarRol($request->rol);
 
-        UserAsignacion::create([
+        $asignacion = UserAsignacion::create([
             'user_id'      => (int) $request->user_id,
             'campana_id'   => $campanaId,
             'rol'          => $request->rol,
@@ -164,6 +197,10 @@ class AsignacionController extends Controller
             'fecha_inicio' => $request->fecha_inicio,
             'creado_por'   => (int) auth()->id(),
         ]);
+
+        if ($autoAprobar) {
+            $this->generarEquipoDiaDesdeAsignacion($asignacion);
+        }
 
         $msg = $autoAprobar
             ? 'Asignación creada y aprobada.'
@@ -190,6 +227,8 @@ class AsignacionController extends Controller
             'aprobado_en'    => now(),
             'motivo_rechazo' => null,
         ]);
+
+        $this->generarEquipoDiaDesdeAsignacion($a);
 
         return response()->json(['success' => true, 'message' => 'Asignación aprobada.']);
     }
@@ -270,7 +309,18 @@ class AsignacionController extends Controller
             'superior_id'  => 'nullable|integer',
             'rol'          => 'nullable|in:' . implode(',', UserAsignacion::ROLES),
             'fecha_inicio' => 'required|date',
+            'campana_id'   => 'nullable|integer',
         ]);
+
+        $nuevaCampanaId = $request->filled('campana_id') ? (int) $request->campana_id : (int) $a->campana_id;
+
+        if ($permitidos !== null && !in_array($nuevaCampanaId, $permitidos)) {
+            return response()->json(['success' => false, 'message' => 'No tienes acceso a esa campaña.'], 403);
+        }
+
+        if (Carbon::parse($request->fecha_inicio)->lte($a->fecha_inicio)) {
+            return response()->json(['success' => false, 'message' => 'La fecha de inicio debe ser posterior a la fecha de inicio de la asignación actual (' . $a->fecha_inicio->format('d/m/Y') . ').'], 422);
+        }
 
         $nuevoRol = $request->rol ?? $a->rol;
 
@@ -279,23 +329,23 @@ class AsignacionController extends Controller
         }
 
         if ($request->superior_id) {
-            $superior = UserAsignacion::where('user_id', (int) $request->superior_id)
-                ->where('campana_id', $a->campana_id)
-                ->vigentes()
-                ->first();
+            $superiorQuery = UserAsignacion::where('user_id', (int) $request->superior_id)->vigentes();
+            if ($permitidos !== null) {
+                $superiorQuery->whereIn('campana_id', $permitidos);
+            }
+            $asignacionesSuperior = $superiorQuery->get();
 
-            if (!$superior) {
-                return response()->json(['success' => false, 'message' => 'El nuevo superior no tiene asignación vigente en esta campaña.'], 422);
+            if ($asignacionesSuperior->isEmpty()) {
+                return response()->json(['success' => false, 'message' => 'El nuevo superior no tiene asignación vigente en las campañas permitidas.'], 422);
             }
 
-            if ((UserAsignacion::NIVEL_ROL[$superior->rol] ?? 0) <= (UserAsignacion::NIVEL_ROL[$nuevoRol] ?? 0)) {
+            $nivelMaxSuperior = $asignacionesSuperior->max(fn($a) => UserAsignacion::NIVEL_ROL[$a->rol] ?? 0);
+            if ($nivelMaxSuperior <= (UserAsignacion::NIVEL_ROL[$nuevoRol] ?? 0)) {
                 return response()->json(['success' => false, 'message' => 'El superior debe tener un rol de mayor jerarquía.'], 422);
             }
         }
 
-        DB::transaction(function () use ($a, $request, $nuevoRol) {
-            // El registro viejo cierra el día anterior al inicio del nuevo,
-            // pero nunca antes de su propio fecha_inicio.
+        DB::transaction(function () use ($a, $request, $nuevoRol, $nuevaCampanaId) {
             $fechaInicioNueva = Carbon::parse($request->fecha_inicio);
             $fechaFinAnterior = $fechaInicioNueva->copy()->subDay()->toDateString();
             $fechaFinAnterior = max($fechaFinAnterior, $a->fecha_inicio->toDateString());
@@ -304,7 +354,7 @@ class AsignacionController extends Controller
 
             UserAsignacion::create([
                 'user_id'      => $a->user_id,
-                'campana_id'   => $a->campana_id,
+                'campana_id'   => $nuevaCampanaId,
                 'rol'          => $nuevoRol,
                 'superior_id'  => $request->superior_id ? (int) $request->superior_id : null,
                 'estado'       => UserAsignacion::ESTADO_APROBADO,
@@ -317,6 +367,87 @@ class AsignacionController extends Controller
         });
 
         return response()->json(['success' => true, 'message' => 'Asignación transferida exitosamente.']);
+    }
+
+    public function editar(Request $request, $id)
+    {
+        $a = UserAsignacion::findOrFail($id);
+
+        abort_if($a->fecha_fin !== null, 422, 'La asignación ya está cerrada.');
+        abort_unless($this->puedeAprobarRol($a->rol), 403, 'Sin autoridad para editar este rol.');
+
+        $permitidos = $this->campanaIdsPermitidos();
+        if ($permitidos !== null) {
+            abort_unless(in_array((int) $a->campana_id, $permitidos), 403);
+        }
+
+        $request->validate([
+            'superior_id'                    => 'nullable|integer',
+            'puede_editar_propia_asistencia' => 'nullable|boolean',
+        ]);
+
+        if ($request->superior_id) {
+            $superiorQuery = UserAsignacion::where('user_id', (int) $request->superior_id)->vigentes();
+            if ($permitidos !== null) {
+                $superiorQuery->whereIn('campana_id', $permitidos);
+            }
+            $asignacionesSuperior = $superiorQuery->get();
+
+            if ($asignacionesSuperior->isEmpty()) {
+                return response()->json(['success' => false, 'message' => 'El superior no tiene asignación vigente en las campañas permitidas.'], 422);
+            }
+
+            $nivelMaxSuperior = $asignacionesSuperior->max(fn($a) => UserAsignacion::NIVEL_ROL[$a->rol] ?? 0);
+            if ($nivelMaxSuperior <= (UserAsignacion::NIVEL_ROL[$a->rol] ?? 0)) {
+                return response()->json(['success' => false, 'message' => 'El superior debe tener un rol de mayor jerarquía.'], 422);
+            }
+        }
+
+        $campos = ['superior_id' => $request->superior_id ? (int) $request->superior_id : null];
+
+        if ($request->has('puede_editar_propia_asistencia')) {
+            $campos['puede_editar_propia_asistencia'] = (bool) $request->puede_editar_propia_asistencia;
+        }
+
+        $a->update($campos);
+
+        return response()->json(['success' => true, 'message' => 'Asignación actualizada.']);
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /**
+     * Retorna el campana_id dado más todos sus ancestros.
+     * Usado para validar que un superior pertenece a la cadena de la asignación.
+     */
+    private function campanaYAncestros(int $campanaId): array
+    {
+        $ids = [];
+        $id  = $campanaId;
+
+        while ($id) {
+            $ids[] = $id;
+            $id    = Campana::where('id', $id)->value('parent_id');
+        }
+
+        return $ids;
+    }
+
+    /**
+     * Retorna solo los ancestros (padre, abuelo, …) de una campaña, sin incluirla a ella.
+     * Los superiores siempre viven en una campaña de nivel superior, no en la misma.
+     */
+    private function soloAncestros(int $campanaId): array
+    {
+        $ids = [];
+        $id  = Campana::where('id', $campanaId)->value('parent_id');
+
+        while ($id) {
+            $ids[] = $id;
+            $id    = Campana::where('id', $id)->value('parent_id');
+        }
+
+        return $ids;
     }
 
     // ── API helpers ───────────────────────────────────────────────────────────
@@ -348,27 +479,92 @@ class AsignacionController extends Controller
         $campanaId       = (int) $request->campana_id;
         $rolSolicitado   = $request->rol;
         $nivelSolicitado = UserAsignacion::NIVEL_ROL[$rolSolicitado] ?? 0;
+        $nivelMax        = $this->miNivelMax();
 
         if (!$campanaId || !$rolSolicitado) return response()->json([]);
 
         $rolesSuperiores = array_keys(array_filter(
             UserAsignacion::NIVEL_ROL,
-            fn($n) => $n > $nivelSolicitado
+            fn($n) => $n > $nivelSolicitado && $n <= $nivelMax
         ));
 
         if (empty($rolesSuperiores)) return response()->json([]);
 
-        $asignaciones = UserAsignacion::with('usuario')
-            ->where('campana_id', $campanaId)
+        // Buscar en todas las campañas que el usuario puede gestionar,
+        // no solo en ancestros — permite al JO/Coordinador elegir superiores
+        // de cualquier sub-campaña que administre.
+        $permitidos = $this->campanaIdsPermitidos();
+
+        $query = UserAsignacion::with(['usuario', 'campana'])
             ->whereIn('rol', $rolesSuperiores)
-            ->vigentes()
-            ->get();
+            ->vigentes();
+
+        if ($permitidos !== null) {
+            $query->whereIn('campana_id', $permitidos);
+        }
+
+        $asignaciones = $query->get();
 
         return response()->json($asignaciones->map(fn($a) => [
             'id'               => (int) $a->user_id,
             'name'             => $a->usuario->name ?? '—',
             'numero_documento' => $a->usuario->numero_documento ?? '',
             'rol'              => $a->rol,
+            'campana'          => $a->campana->nombre ?? '—',
         ]));
+    }
+
+    /**
+     * Genera registros en equipo_dia desde fecha_inicio hasta hoy para un colaborador recién aprobado.
+     */
+    private function generarEquipoDiaDesdeAsignacion(UserAsignacion $a): void
+    {
+        if ($a->rol !== UserAsignacion::ROL_COLABORADOR || !$a->superior_id) return;
+
+        $fechaInicio = Carbon::parse($a->fecha_inicio)->toDateString();
+        $hoy         = Carbon::today()->toDateString();
+
+        if ($fechaInicio > $hoy) return;
+
+        $user = User::find($a->user_id);
+        if (!$user || !$user->numero_documento) return;
+
+        $personaId = DB::table('nomina.dim_personas')
+            ->where('numero_documento', $user->numero_documento)
+            ->value('id');
+
+        if (!$personaId) return;
+
+        $yaExisten = DB::table('dbo.equipo_dia')
+            ->where('empleado_id', $personaId)
+            ->whereBetween('fecha', [$fechaInicio, $hoy])
+            ->pluck('fecha')
+            ->map(fn($f) => (string) $f)
+            ->toArray();
+
+        $now     = now();
+        $inserts = [];
+
+        foreach (CarbonPeriod::create($fechaInicio, $hoy) as $fecha) {
+            $fechaStr = $fecha->toDateString();
+            if (in_array($fechaStr, $yaExisten)) continue;
+
+            $inserts[] = [
+                'supervisor_id' => $a->superior_id,
+                'empleado_id'   => $personaId,
+                'campana_id'    => $a->campana_id,
+                'fecha'         => $fechaStr,
+                'origen'        => \App\Models\EquipoDia::ORIGEN_BASE,
+                'prestamo_id'   => null,
+                'created_at'    => $now,
+                'updated_at'    => $now,
+            ];
+        }
+
+        if (empty($inserts)) return;
+
+        foreach (array_chunk($inserts, 100) as $chunk) {
+            DB::table('dbo.equipo_dia')->insert($chunk);
+        }
     }
 }

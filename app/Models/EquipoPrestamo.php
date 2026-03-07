@@ -13,11 +13,11 @@ class EquipoPrestamo extends Model
     protected $table = 'dbo.equipo_prestamos';
 
     const TIPO_PRESTAMO  = 'prestamo';
-    const TIPO_TRASLADO  = 'traslado';
 
     const ESTADO_PENDIENTE = 'pendiente';
     const ESTADO_APROBADO  = 'aprobado';
     const ESTADO_RECHAZADO = 'rechazado';
+    const ESTADO_ANULADO   = 'anulado';
 
     protected $fillable = [
         'empleado_id',
@@ -109,7 +109,7 @@ class EquipoPrestamo extends Model
     public static function tieneSolapamiento(int $empleadoId, string $fechaInicio, string $fechaFin, ?int $excludeId = null): bool
     {
         return self::where('empleado_id', $empleadoId)
-            ->where('estado', '!=', self::ESTADO_RECHAZADO)
+            ->whereNotIn('estado', [self::ESTADO_RECHAZADO, self::ESTADO_ANULADO])
             ->where('fecha_inicio', '<=', $fechaFin)
             ->where('fecha_fin', '>=', $fechaInicio)
             ->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId))

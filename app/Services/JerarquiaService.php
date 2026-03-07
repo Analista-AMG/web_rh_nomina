@@ -3,13 +3,19 @@
 namespace App\Services;
 
 use App\Models\Campana;
+use App\Models\EquipoDia;
 use App\Models\Persona;
+use App\Models\Scopes\AlcanceUsuarioScope;
 use App\Models\User;
 use App\Models\UserAsignacion;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 
 class JerarquiaService
 {
+    /** Caché por request: evita recalcular en cada query Eloquent del mismo request. */
+    private array $cache = [];
+
     /**
      * Retorna los persona IDs visibles para el usuario.
      * null  = sin filtro (Administrador)
@@ -18,8 +24,12 @@ class JerarquiaService
      */
     public function personaIdsVisibles(User $user): ?array
     {
-        if ($user->hasRole('Administrador')) {
-            return null;
+        if (array_key_exists($user->id, $this->cache)) {
+            return $this->cache[$user->id];
+        }
+
+        if ($user->hasRole('Administrador') || $user->hasRole('Recursos Humanos')) {
+            return $this->cache[$user->id] = null;
         }
 
         $asignaciones = UserAsignacion::where('user_id', $user->id)
@@ -27,7 +37,7 @@ class JerarquiaService
             ->get();
 
         if ($asignaciones->isEmpty()) {
-            return [];
+            return $this->cache[$user->id] = [];
         }
 
         $userIds = collect();
@@ -74,9 +84,8 @@ class JerarquiaService
             $userIds = $userIds->merge($ids);
         }
 
-        if ($userIds->isEmpty()) {
-            return [];
-        }
+        // Incluir al propio usuario (para que se vea a sí mismo en Personas/Contratos)
+        $userIds = $userIds->push($user->id);
 
         // Resolver: user_id → numero_documento → persona_id (bulk, sin N+1)
         $docs = User::whereIn('id', $userIds->unique()->values())
@@ -84,10 +93,11 @@ class JerarquiaService
             ->pluck('numero_documento');
 
         if ($docs->isEmpty()) {
-            return [];
+            return $this->cache[$user->id] = [];
         }
 
-        return Persona::whereIn('numero_documento', $docs)
+        return $this->cache[$user->id] = Persona::withoutGlobalScope(AlcanceUsuarioScope::class)
+            ->whereIn('numero_documento', $docs)
             ->pluck('id')
             ->map(fn($id) => (int) $id)
             ->toArray();
@@ -100,7 +110,7 @@ class JerarquiaService
      */
     public function personaIdsVisiblesEnPeriodo(User $user, string $inicio, string $fin): ?array
     {
-        if ($user->hasRole('Administrador')) {
+        if ($user->hasRole('Administrador') || $user->hasRole('Recursos Humanos')) {
             return null;
         }
 
@@ -162,6 +172,9 @@ class JerarquiaService
             $userIds = $userIds->merge($ids);
         }
 
+        // Incluir al propio usuario (para que se vea a sí mismo en Asistencia)
+        $userIds = $userIds->push($user->id);
+
         if ($userIds->isEmpty()) {
             return [];
         }
@@ -174,10 +187,134 @@ class JerarquiaService
             return [];
         }
 
-        return Persona::whereIn('numero_documento', $docs)
+        return Persona::withoutGlobalScope(AlcanceUsuarioScope::class)
+            ->whereIn('numero_documento', $docs)
             ->pluck('id')
             ->map(fn($id) => (int) $id)
             ->toArray();
+    }
+
+    /**
+     * Campaña vigente de un supervisor (primera asignación aprobada activa).
+     */
+    public function campanaDelSupervisor(int $userId): ?int
+    {
+        return (int) UserAsignacion::where('user_id', $userId)
+            ->vigentes()
+            ->orderBy('id')
+            ->value('campana_id') ?: null;
+    }
+
+    /**
+     * Campaña vigente de un empleado vía numero_documento → User → UserAsignacion.
+     */
+    public function campanaDelEmpleado(int $personaId): ?int
+    {
+        $persona = Persona::withoutGlobalScope(AlcanceUsuarioScope::class)
+            ->where('id', $personaId)
+            ->whereNotNull('numero_documento')
+            ->first();
+
+        if (!$persona) return null;
+
+        $empUser = User::where('numero_documento', $persona->numero_documento)->first();
+        if (!$empUser) return null;
+
+        return (int) UserAsignacion::where('user_id', $empUser->id)
+            ->vigentes()
+            ->orderBy('id')
+            ->value('campana_id') ?: null;
+    }
+
+    /**
+     * Resuelve el supervisor origen de un empleado:
+     * 1. equipo_dia BASE más reciente
+     * 2. asignación vigente del empleado (superior_id)
+     * 3. fallback: el usuario que ejecuta la acción
+     */
+    public function resolverSupervisorOrigen(int $empleadoId, int $fallbackUserId): int
+    {
+        $supervisorId = (int) DB::table('dbo.equipo_dia')
+            ->where('empleado_id', $empleadoId)
+            ->where('origen', EquipoDia::ORIGEN_BASE)
+            ->orderByDesc('fecha')
+            ->value('supervisor_id') ?: null;
+
+        if ($supervisorId) return $supervisorId;
+
+        $persona = Persona::withoutGlobalScope(AlcanceUsuarioScope::class)
+            ->where('id', $empleadoId)
+            ->whereNotNull('numero_documento')
+            ->first();
+
+        if ($persona) {
+            $empUser = User::where('numero_documento', $persona->numero_documento)->first();
+            if ($empUser) {
+                $asig = UserAsignacion::where('user_id', $empUser->id)
+                    ->where('estado', UserAsignacion::ESTADO_APROBADO)
+                    ->whereNull('fecha_fin')
+                    ->first();
+                if ($asig?->superior_id) {
+                    return (int) $asig->superior_id;
+                }
+            }
+        }
+
+        return $fallbackUserId;
+    }
+
+    /**
+     * Mapa bulk persona_id → nombre de campaña.
+     * Ruta: persona.numero_documento → user → user_asignaciones → campana.
+     */
+    public function campanaMapPorPersonas(array $personaIds): array
+    {
+        if (empty($personaIds)) return [];
+
+        $docs = Persona::withoutGlobalScope(AlcanceUsuarioScope::class)
+            ->whereIn('id', $personaIds)
+            ->whereNotNull('numero_documento')
+            ->pluck('numero_documento', 'id');
+
+        if ($docs->isEmpty()) return [];
+
+        $usersByDoc = User::whereIn('numero_documento', $docs->values())
+            ->whereNotNull('numero_documento')
+            ->pluck('id', 'numero_documento');
+
+        if ($usersByDoc->isEmpty()) return [];
+
+        $asigPorUser = UserAsignacion::whereIn('user_id', $usersByDoc->values())
+            ->where('estado', UserAsignacion::ESTADO_APROBADO)
+            ->whereNull('fecha_fin')
+            ->pluck('campana_id', 'user_id');
+
+        $campanas = Campana::whereIn('id', $asigPorUser->values()->unique()->filter()->toArray())
+            ->pluck('nombre', 'id');
+
+        $map = [];
+        foreach ($docs as $personaId => $numDoc) {
+            $userId    = $usersByDoc[$numDoc] ?? null;
+            $campanaId = $userId ? ($asigPorUser[(int) $userId] ?? null) : null;
+            $map[(int) $personaId] = $campanaId ? ($campanas[$campanaId] ?? '-') : '-';
+        }
+
+        return $map;
+    }
+
+    /**
+     * Resuelve el persona_id propio del usuario logueado vía numero_documento.
+     * Retorna null si el usuario no tiene numero_documento o no hay Persona asociada.
+     */
+    public function propioPersonaId(User $user): ?int
+    {
+        if (!$user->numero_documento) return null;
+
+        $id = Persona::withoutGlobalScope(AlcanceUsuarioScope::class)
+            ->where('numero_documento', $user->numero_documento)
+            ->value('id');
+
+        return $id ? (int) $id : null;
     }
 
     /**

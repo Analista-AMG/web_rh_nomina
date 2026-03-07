@@ -106,8 +106,16 @@
 
                         <td class="px-4 py-3">
                             <div class="font-medium text-gray-900 dark:text-white text-sm">{{ $a->usuario->name ?? '—' }}</div>
+                            @php $persona = $personasPorDoc[$a->usuario?->numero_documento] ?? null; @endphp
                             @if($a->usuario?->numero_documento)
-                            <div class="text-xs text-gray-400 mt-0.5">{{ $a->usuario->numero_documento }}</div>
+                            <div class="flex items-center gap-1.5 mt-0.5">
+                                <span class="text-xs text-gray-400">{{ $a->usuario->numero_documento }}</span>
+                                @if($persona)
+                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium {{ $persona->estadoBadgeClass }}">
+                                    {{ $persona->estadoLabel }}
+                                </span>
+                                @endif
+                            </div>
                             @endif
                         </td>
 
@@ -127,6 +135,12 @@
                             <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium {{ $rolClases[$a->rol] ?? 'bg-gray-100 text-gray-600' }}">
                                 {{ $a->rol }}
                             </span>
+                            @if($a->puede_editar_propia_asistencia)
+                            <span class="inline-flex items-center ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400"
+                                  title="Puede editar su propia asistencia">
+                                <i class="fa-solid fa-calendar-pen"></i>
+                            </span>
+                            @endif
                         </td>
 
                         <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
@@ -177,7 +191,12 @@
                             </button>
                             @elseif($a->estado === 'aprobado' && $puedeManejar)
                             @if($a->activo)
-                            <button onclick="openTransferirModal({{ $a->id }}, '{{ addslashes($a->usuario->name ?? '') }}', '{{ addslashes($a->campana->nombre ?? '') }}', {{ $a->campana_id }}, '{{ $a->rol }}')"
+                            <button onclick="openEditarModal({{ $a->id }}, '{{ addslashes($a->usuario->name ?? '') }}', {{ $a->campana_id }}, '{{ $a->rol }}', {{ $a->superior_id ?? 'null' }}, {{ $a->puede_editar_propia_asistencia ? 'true' : 'false' }})"
+                                class="inline-flex items-center px-2 py-1 text-xs rounded bg-indigo-100 text-indigo-700 hover:bg-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400 transition mr-1 cursor-pointer"
+                                title="Editar superior">
+                                <i class="fa-solid fa-pencil mr-1"></i> Editar
+                            </button>
+                            <button onclick="openTransferirModal({{ $a->id }}, '{{ addslashes($a->usuario->name ?? '') }}', '{{ addslashes($a->campana->nombre ?? '') }}', {{ $a->campana_id }}, '{{ $a->rol }}', '{{ $a->fecha_inicio->copy()->addDay()->toDateString() }}')"
                                 class="inline-flex items-center px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400 transition mr-1 cursor-pointer"
                                 title="Transferir a nuevo superior o cambiar rol">
                                 <i class="fa-solid fa-right-left mr-1"></i> Transferir
@@ -233,15 +252,15 @@
                         <label class="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">Rol <span class="text-red-500">*</span></label>
                         <select id="create-rol" onchange="onRolChange()" class="form-input w-full text-sm">
                             <option value="">Seleccionar rol...</option>
-                            <option value="Jefe Operaciones">Jefe Operaciones</option>
-                            <option value="Coordinador">Coordinador</option>
-                            <option value="Supervisor">Supervisor</option>
-                            <option value="Colaborador">Colaborador</option>
+                            @if($miNivelMax > 4)<option value="Jefe Operaciones">Jefe Operaciones</option>@endif
+                            @if($miNivelMax > 3)<option value="Coordinador">Coordinador</option>@endif
+                            @if($miNivelMax > 2)<option value="Supervisor">Supervisor</option>@endif
+                            @if($miNivelMax > 1)<option value="Colaborador">Colaborador</option>@endif
                         </select>
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">Fecha Inicio <span class="text-red-500">*</span></label>
-                        <input type="date" id="create-fecha" class="form-input w-full text-sm" value="{{ now()->toDateString() }}">
+                        <input type="date" id="create-fecha" class="form-input w-full text-sm" value="{{ now()->toDateString() }}" min="{{ now()->toDateString() }}">
                     </div>
                     <div class="col-span-2">
                         <label class="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">Campaña <span class="text-red-500">*</span></label>
@@ -285,6 +304,48 @@
             <div class="flex items-center justify-end gap-2 px-6 py-4 border-t dark:border-gray-700">
                 <button onclick="closeCreateModal()" class="btn btn-secondary text-sm px-4 py-2 cursor-pointer">Cancelar</button>
                 <button onclick="submitCreate()" class="btn btn-primary text-sm px-4 py-2 cursor-pointer">
+                    <i class="fa-solid fa-save mr-1"></i> Guardar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    {{-- ── Modal Editar ────────────────────────────────────────────────────── --}}
+    <div id="modal-editar" class="fixed inset-0 z-50 hidden items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md border border-gray-200 dark:border-gray-700">
+            <div class="flex items-center justify-between px-6 py-4 border-b dark:border-gray-700">
+                <h2 class="text-base font-semibold text-gray-800 dark:text-white flex items-center gap-2">
+                    <i class="fa-solid fa-pencil text-indigo-500"></i> Editar Asignación
+                </h2>
+                <button onclick="closeEditarModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition cursor-pointer">
+                    <i class="fa-solid fa-times text-lg"></i>
+                </button>
+            </div>
+            <div class="p-6 space-y-4">
+                <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg px-4 py-3 text-sm">
+                    <p class="font-medium text-gray-800 dark:text-white" id="edit-info-usuario">—</p>
+                </div>
+                <input type="hidden" id="edit-id">
+                <input type="hidden" id="edit-campana-id">
+                <input type="hidden" id="edit-rol">
+                <div id="edit-superior-wrap">
+                    <label class="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">
+                        Superior <span class="text-gray-400 font-normal">(opcional)</span>
+                    </label>
+                    <select id="edit-superior" class="form-input w-full text-sm">
+                        <option value="">Cargando...</option>
+                    </select>
+                </div>
+                <div class="flex items-center gap-2 pt-1">
+                    <input type="checkbox" id="edit-puede-editar-propia" class="rounded border-gray-300 text-primary focus:ring-primary">
+                    <label for="edit-puede-editar-propia" class="text-sm text-gray-600 dark:text-gray-300 cursor-pointer">
+                        Puede editar su propia asistencia
+                    </label>
+                </div>
+            </div>
+            <div class="flex items-center justify-end gap-2 px-6 py-4 border-t dark:border-gray-700">
+                <button onclick="closeEditarModal()" class="btn btn-secondary text-sm px-4 py-2 cursor-pointer">Cancelar</button>
+                <button onclick="submitEditar()" class="btn btn-primary text-sm px-4 py-2 cursor-pointer">
                     <i class="fa-solid fa-save mr-1"></i> Guardar
                 </button>
             </div>
@@ -342,20 +403,31 @@
                 <input type="hidden" id="tr-campana-id" value="">
                 <input type="hidden" id="tr-rol-actual" value="">
 
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">Campaña</label>
+                    <select id="tr-nueva-campana" onchange="onTransferirCampanaChange()" class="form-input w-full text-sm">
+                        @foreach($campanas as $c)
+                            @if(!in_array($c->id, $campanasPadreIds))
+                            <option value="{{ $c->id }}">{{ $c->nombre }}</option>
+                            @endif
+                        @endforeach
+                    </select>
+                </div>
+
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">Nuevo Rol</label>
                         <select id="tr-rol" onchange="onTransferirRolChange()" class="form-input w-full text-sm">
-                            <option value="Jefe Operaciones">Jefe Operaciones</option>
-                            <option value="Coordinador">Coordinador</option>
-                            <option value="Supervisor">Supervisor</option>
-                            <option value="Colaborador">Colaborador</option>
+                            @if($miNivelMax > 4)<option value="Jefe Operaciones">Jefe Operaciones</option>@endif
+                            @if($miNivelMax > 3)<option value="Coordinador">Coordinador</option>@endif
+                            @if($miNivelMax > 2)<option value="Supervisor">Supervisor</option>@endif
+                            @if($miNivelMax > 1)<option value="Colaborador">Colaborador</option>@endif
                         </select>
                         <p class="text-xs text-gray-400 mt-1">Déjalo igual para no cambiar rol.</p>
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">Fecha Inicio <span class="text-red-500">*</span></label>
-                        <input type="date" id="tr-fecha" class="form-input w-full text-sm" value="{{ now()->toDateString() }}">
+                        <input type="date" id="tr-fecha" class="form-input w-full text-sm" value="{{ now()->toDateString() }}" min="{{ now()->toDateString() }}">
                     </div>
                     <div class="col-span-2">
                         <label class="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">Nuevo Superior <span class="text-gray-400 font-normal">(opcional)</span></label>
@@ -615,15 +687,17 @@
 
         // ── Transferir ────────────────────────────────────────────────────────────
 
-        async function openTransferirModal(id, usuario, campana, campanaId, rol) {
+        async function openTransferirModal(id, usuario, campana, campanaId, rol, fechaMin) {
             document.getElementById('tr-id').value         = id;
             document.getElementById('tr-campana-id').value = campanaId;
             document.getElementById('tr-rol-actual').value = rol;
             document.getElementById('tr-info-usuario').textContent = usuario;
-            document.getElementById('tr-info-campana').textContent = 'Campaña: ' + campana;
+            document.getElementById('tr-info-campana').textContent = 'Campaña actual: ' + campana;
             document.getElementById('tr-info-rol').textContent     = 'Rol actual: ' + rol;
-            document.getElementById('tr-fecha').value  = '{{ now()->toDateString() }}';
+            document.getElementById('tr-fecha').min   = fechaMin;
+            document.getElementById('tr-fecha').value = fechaMin;
             document.getElementById('tr-rol').value    = rol;
+            document.getElementById('tr-nueva-campana').value = campanaId;
 
             document.getElementById('modal-transferir').classList.replace('hidden', 'flex');
             await cargarSuperioresTransferir(campanaId, rol);
@@ -633,8 +707,14 @@
             document.getElementById('modal-transferir').classList.replace('flex', 'hidden');
         }
 
+        async function onTransferirCampanaChange() {
+            const campanaId = document.getElementById('tr-nueva-campana').value;
+            const rol       = document.getElementById('tr-rol').value;
+            await cargarSuperioresTransferir(campanaId, rol);
+        }
+
         async function onTransferirRolChange() {
-            const campanaId = document.getElementById('tr-campana-id').value;
+            const campanaId = document.getElementById('tr-nueva-campana').value;
             const rol       = document.getElementById('tr-rol').value;
             await cargarSuperioresTransferir(campanaId, rol);
         }
@@ -654,7 +734,7 @@
                 superiores.forEach(s => {
                     const opt       = document.createElement('option');
                     opt.value       = s.id;
-                    opt.textContent = `${s.name} — ${s.rol}`;
+                    opt.textContent = `${s.name} — ${s.rol} [${s.campana}]`;
                     sel.appendChild(opt);
                 });
                 sel.disabled = false;
@@ -675,13 +755,74 @@
                 const res = await fetch(`/admin/asignaciones/${id}/transferir`, {
                     method:  'PATCH',
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
-                    body:    JSON.stringify({ superior_id: superiorId || null, rol, fecha_inicio: fecha }),
+                    body:    JSON.stringify({ superior_id: superiorId || null, rol, fecha_inicio: fecha, campana_id: document.getElementById('tr-nueva-campana').value }),
                 });
                 const data = await res.json();
                 if (res.ok) { closeTransferirModal(); alert(data.message); location.reload(); }
                 else { alert(data.message || 'Error al transferir.'); }
             } catch(e) { alert('Error de conexión.'); }
         }
+        // ── Modal EDITAR ──────────────────────────────────────────────────────
+        async function openEditarModal(id, usuario, campanaId, rol, superiorActualId, puedeEditarPropia = false) {
+            document.getElementById('edit-id').value         = id;
+            document.getElementById('edit-campana-id').value = campanaId;
+            document.getElementById('edit-rol').value        = rol;
+            document.getElementById('edit-info-usuario').textContent = usuario;
+            document.getElementById('edit-puede-editar-propia').checked = puedeEditarPropia;
+
+            const superiorWrap = document.getElementById('edit-superior-wrap');
+            const sinSuperior  = nivelRol[rol] >= nivelRol['Jefe Operaciones'];
+            superiorWrap.classList.toggle('hidden', sinSuperior);
+
+            if (!sinSuperior) {
+                const sel = document.getElementById('edit-superior');
+                sel.innerHTML = '<option value="">Cargando...</option>';
+                try {
+                    const res  = await fetch(`/admin/asignaciones/superiores-disponibles?campana_id=${campanaId}&rol=${encodeURIComponent(rol)}`, {
+                        headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf }
+                    });
+                    const data = await res.json();
+                    sel.innerHTML = '<option value="">Sin superior</option>';
+                    data.forEach(s => {
+                        const opt       = document.createElement('option');
+                        opt.value       = s.id;
+                        opt.textContent = `${s.name} — ${s.rol} [${s.campana}]`;
+                        sel.appendChild(opt);
+                    });
+                    if (superiorActualId) sel.value = superiorActualId;
+                } catch(e) {
+                    sel.innerHTML = '<option value="">Error al cargar</option>';
+                }
+            }
+
+            document.getElementById('modal-editar').classList.replace('hidden', 'flex');
+        }
+
+        function closeEditarModal() {
+            document.getElementById('modal-editar').classList.replace('flex', 'hidden');
+        }
+
+        async function submitEditar() {
+            const id           = document.getElementById('edit-id').value;
+            const wrap         = document.getElementById('edit-superior-wrap');
+            const superiorId   = wrap.classList.contains('hidden') ? null : document.getElementById('edit-superior').value;
+            const puedeEditar  = document.getElementById('edit-puede-editar-propia').checked;
+
+            try {
+                const res  = await fetch(`/admin/asignaciones/${id}/editar`, {
+                    method: 'PATCH',
+                    headers: { 'X-CSRF-TOKEN': csrf, 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                    body: JSON.stringify({ superior_id: superiorId || null, puede_editar_propia_asistencia: puedeEditar }),
+                });
+                const data = await res.json();
+                if (res.ok) { closeEditarModal(); location.reload(); }
+                else { alert(data.message || 'Error.'); }
+            } catch(e) { alert('Error de conexión.'); }
+        }
+
+        document.getElementById('modal-editar').addEventListener('click', function(e) {
+            if (e.target === this) closeEditarModal();
+        });
     </script>
     @endpush
 </x-app-layout>

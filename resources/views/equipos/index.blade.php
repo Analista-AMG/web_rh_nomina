@@ -8,6 +8,14 @@
             <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Gestión de préstamos temporales entre supervisores</p>
         </div>
         <div class="flex items-center gap-3">
+            @role('Administrador')
+            <button type="button" onclick="abrirModalAutoCarry()"
+                class="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-gray-400 dark:border-gray-500 text-xs font-medium text-gray-500 dark:text-gray-400 hover:border-amber-500 hover:text-amber-600 transition-colors cursor-pointer bg-white dark:bg-[#273142]"
+                title="Provisional — rellenar equipo_dia para una fecha">
+                <i class="fa-solid fa-rotate"></i>
+                Auto-carry
+            </button>
+            @endrole
             @if($totalPendientes > 0)
             <span class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-sm font-medium rounded-lg">
                 <i class="fa-solid fa-clock-rotate-left"></i>
@@ -99,395 +107,36 @@
         @endif
     </div>
 
-    {{-- ═══════════════════════════════════════════════════════════════════════
-         MODAL: PRESTAR colaborador
-    ══════════════════════════════════════════════════════════════════════════ --}}
-    <x-ui.modal-shell id="modal-prestar" max-width="640px">
-        <x-ui.modal-header modal-id="modal-prestar" title="Prestar colaborador"
-            icon="fa-arrow-up-from-bracket" icon-class="text-primary" />
-
-        <x-ui.modal-section label="Colaborador y destino" icon="fa-users">
-            <div class="grid grid-cols-1 gap-4">
-                <x-forms.field label="Colaborador a prestar">
-                    <x-forms.select id="prestar-empleado">
-                        <option value="">— Selecciona —</option>
-                        @foreach($misColaboradores as $persona)
-                        <option value="{{ $persona->id }}">
-                            {{ $persona->nombre_corto ?? '—' }}
-                        </option>
-                        @endforeach
-                    </x-forms.select>
-                    @if($misColaboradores->isEmpty())
-                    <p class="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                        <i class="fa-solid fa-triangle-exclamation mr-1"></i>
-                        No tienes colaboradores asignados en tu jerarquía.
-                    </p>
-                    @endif
-                </x-forms.field>
-
-                <x-forms.field label="Supervisor / área destino">
-                    <x-forms.select id="prestar-destino">
-                        <option value="">— Selecciona —</option>
-                        @foreach($supervisores as $sup)
-                        <option value="{{ $sup->id }}">{{ $sup->name }}</option>
-                        @endforeach
-                    </x-forms.select>
-                </x-forms.field>
+    {{-- ── Modal Auto-carry (provisional) ────────────────────────────────────── --}}
+    @role('Administrador')
+    <div id="modal-autocarry" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div class="bg-white dark:bg-[#1e2736] rounded-xl shadow-xl p-6 w-full max-w-sm">
+            <h2 class="text-base font-semibold text-gray-800 dark:text-white mb-1">Auto-carry manual</h2>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">Copia equipo_dia del día anterior a la fecha seleccionada y aplica préstamos activos.</p>
+            <div id="autocarry-msg" class="hidden mb-3 text-sm rounded-lg px-3 py-2"></div>
+            <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Fecha destino</label>
+            <input type="date" id="autocarry-fecha" value="{{ now()->toDateString() }}"
+                class="w-full px-3 py-2 rounded-lg border border-light-border dark:border-dark-border bg-white dark:bg-[#273142] text-gray-800 dark:text-white text-sm mb-4">
+            <div class="flex gap-2 justify-end">
+                <button type="button" onclick="cerrarModalAutoCarry()"
+                    class="px-4 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+                    Cancelar
+                </button>
+                <button type="button" id="autocarry-btn" onclick="ejecutarAutoCarry()"
+                    class="px-4 py-2 text-sm rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-medium cursor-pointer flex items-center gap-2">
+                    <i class="fa-solid fa-rotate"></i> Ejecutar
+                </button>
             </div>
-        </x-ui.modal-section>
+        </div>
+    </div>
+    @endrole
 
-        <x-ui.modal-section label="Período del préstamo" icon="fa-calendar-range">
-            <div class="grid grid-cols-2 gap-4">
-                <x-forms.field label="Fecha inicio">
-                    <x-forms.text-input type="date" id="prestar-fecha-inicio" />
-                </x-forms.field>
-                <x-forms.field label="Fecha fin">
-                    <x-forms.text-input type="date" id="prestar-fecha-fin" />
-                </x-forms.field>
-            </div>
-        </x-ui.modal-section>
+    {{-- ── Modales ──────────────────────────────────────────────────────────── --}}
+    @include('equipos.partials.modals.modal-prestar')
+    @include('equipos.partials.modals.modal-solicitar')
+    @include('equipos.partials.modals.modal-acciones')
 
-        <x-ui.modal-section label="Motivo (opcional)" icon="fa-comment-dots">
-            <textarea id="prestar-motivo" rows="2"
-                placeholder="Describe brevemente el motivo del préstamo..."
-                class="form-input w-full resize-none"></textarea>
-        </x-ui.modal-section>
-
-        <div id="prestar-error" class="hidden mx-5 mb-3 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-2"></div>
-
-        <x-ui.modal-footer modal-id="modal-prestar" cancel-label="Cancelar">
-            <x-slot name="acciones">
-                <x-forms.primary-button id="btn-prestar-submit" onclick="submitPrestar()">
-                    <i class="fa-solid fa-arrow-up-from-bracket mr-1"></i> Prestar
-                </x-forms.primary-button>
-            </x-slot>
-        </x-ui.modal-footer>
-    </x-ui.modal-shell>
-
-    {{-- ═══════════════════════════════════════════════════════════════════════
-         MODAL: SOLICITAR colaborador
-    ══════════════════════════════════════════════════════════════════════════ --}}
-    <x-ui.modal-shell id="modal-solicitar" max-width="640px">
-        <x-ui.modal-header modal-id="modal-solicitar" title="Solicitar colaborador"
-            icon="fa-arrow-down-to-bracket" icon-class="text-primary" />
-
-        <x-ui.modal-section label="Colaborador a solicitar" icon="fa-user-check">
-            <div class="grid grid-cols-1 gap-4">
-                <x-forms.field label="Buscar colaborador">
-                    <div class="relative">
-                        <input type="text" id="solicitar-search"
-                            placeholder="Escribe el nombre..."
-                            autocomplete="off"
-                            oninput="filtrarPersonas(this.value)"
-                            class="form-input w-full pr-8" />
-                        <i class="fa-solid fa-magnifying-glass absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"></i>
-                    </div>
-                    <div id="solicitar-lista"
-                        class="mt-1 border border-gray-200 dark:border-dark-border rounded-lg max-h-48 overflow-y-auto hidden">
-                        @foreach($personasActivas as $p)
-                        <div class="persona-item px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-[#1b2431] cursor-pointer transition-colors"
-                             data-id="{{ $p['persona_id'] }}"
-                             data-nombre="{{ $p['nombre'] }}"
-                             onclick="seleccionarPersona({{ $p['persona_id'] }}, '{{ addslashes($p['nombre']) }}')">
-                            {{ $p['nombre'] }}
-                        </div>
-                        @endforeach
-                        <div id="solicitar-sin-resultados" class="hidden px-3 py-2 text-sm text-gray-400">Sin resultados.</div>
-                    </div>
-                </x-forms.field>
-
-                <div id="solicitar-seleccionado" class="hidden rounded-lg bg-primary/5 border border-primary/20 px-3 py-2 flex items-center justify-between">
-                    <span class="text-sm font-medium text-gray-800 dark:text-white" id="solicitar-nombre-display"></span>
-                    <button type="button" onclick="limpiarSeleccionPersona()" class="text-gray-400 hover:text-red-500 cursor-pointer">
-                        <i class="fa-solid fa-xmark text-sm"></i>
-                    </button>
-                </div>
-
-                <input type="hidden" id="solicitar-empleado-id" />
-            </div>
-        </x-ui.modal-section>
-
-        <x-ui.modal-section label="Período del préstamo" icon="fa-calendar-range">
-            <div class="grid grid-cols-2 gap-4">
-                <x-forms.field label="Fecha inicio">
-                    <x-forms.text-input type="date" id="solicitar-fecha-inicio" />
-                </x-forms.field>
-                <x-forms.field label="Fecha fin">
-                    <x-forms.text-input type="date" id="solicitar-fecha-fin" />
-                </x-forms.field>
-            </div>
-        </x-ui.modal-section>
-
-        <x-ui.modal-section label="Motivo (opcional)" icon="fa-comment-dots">
-            <textarea id="solicitar-motivo" rows="2"
-                placeholder="Describe brevemente el motivo de la solicitud..."
-                class="form-input w-full resize-none"></textarea>
-        </x-ui.modal-section>
-
-        <div id="solicitar-error" class="hidden mx-5 mb-3 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-2"></div>
-
-        <x-ui.modal-footer modal-id="modal-solicitar" cancel-label="Cancelar">
-            <x-slot name="acciones">
-                <x-forms.primary-button id="btn-solicitar-submit" onclick="submitSolicitar()">
-                    <i class="fa-solid fa-paper-plane mr-1"></i> Enviar solicitud
-                </x-forms.primary-button>
-            </x-slot>
-        </x-ui.modal-footer>
-    </x-ui.modal-shell>
-
-    {{-- ═══════════════════════════════════════════════════════════════════════
-         MODAL: RECHAZAR
-    ══════════════════════════════════════════════════════════════════════════ --}}
-    <x-ui.modal-shell id="modal-rechazar" max-width="480px">
-        <x-ui.modal-header modal-id="modal-rechazar" title="Rechazar préstamo"
-            icon="fa-ban" icon-class="text-red-500" />
-
-        <x-ui.modal-section label="Motivo del rechazo" icon="fa-comment-dots">
-            <textarea id="rechazar-motivo" rows="3"
-                placeholder="Opcional: explica el motivo del rechazo..."
-                class="form-input w-full resize-none"></textarea>
-        </x-ui.modal-section>
-
-        <input type="hidden" id="rechazar-prestamo-id" />
-
-        <x-ui.modal-footer modal-id="modal-rechazar" cancel-label="Cancelar">
-            <x-slot name="acciones">
-                <x-forms.danger-button id="btn-rechazar-submit" onclick="submitRechazar()">
-                    <i class="fa-solid fa-ban mr-1"></i> Rechazar
-                </x-forms.danger-button>
-            </x-slot>
-        </x-ui.modal-footer>
-    </x-ui.modal-shell>
-
-@push('scripts')
-<script>
-const CSRF = document.querySelector('meta[name="csrf-token"]').content;
-
-// ── Tabs ───────────────────────────────────────────────────────────────────
-const TAB_KEYS = ['activos', 'pendientes', 'proximos', 'historial'];
-
-function switchTab(key) {
-    TAB_KEYS.forEach(k => {
-        const btn   = document.getElementById('tab-btn-' + k);
-        const panel = document.getElementById('panel-' + k);
-        const activo = k === key;
-        btn.classList.toggle('border-primary', activo);
-        btn.classList.toggle('text-primary', activo);
-        btn.classList.toggle('bg-primary/5', activo);
-        btn.classList.toggle('border-transparent', !activo);
-        btn.classList.toggle('text-gray-500', !activo);
-        btn.classList.toggle('dark:text-gray-400', !activo);
-        panel.classList.toggle('hidden', !activo);
-    });
-}
-
-// ── Modal helpers ──────────────────────────────────────────────────────────
-function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
-function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
-function setError(id, msg) {
-    const el = document.getElementById(id);
-    if (msg) { el.textContent = msg; el.classList.remove('hidden'); }
-    else      { el.classList.add('hidden'); }
-}
-function setLoading(btnId, loading, label) {
-    const btn = document.getElementById(btnId);
-    btn.disabled = loading;
-    btn.innerHTML = loading
-        ? '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Procesando...'
-        : label;
-}
-
-// ── Modal PRESTAR ──────────────────────────────────────────────────────────
-function abrirModalPrestar() {
-    document.getElementById('prestar-empleado').value     = '';
-    document.getElementById('prestar-destino').value      = '';
-    document.getElementById('prestar-fecha-inicio').value = '{{ $hoy }}';
-    document.getElementById('prestar-fecha-fin').value    = '';
-    document.getElementById('prestar-motivo').value       = '';
-    setError('prestar-error', '');
-    setLoading('btn-prestar-submit', false, '<i class="fa-solid fa-arrow-up-from-bracket mr-1"></i> Prestar');
-    openModal('modal-prestar');
-}
-
-async function submitPrestar() {
-    const empleadoId = document.getElementById('prestar-empleado').value;
-    const destinoId  = document.getElementById('prestar-destino').value;
-    const fechaIni   = document.getElementById('prestar-fecha-inicio').value;
-    const fechaFin   = document.getElementById('prestar-fecha-fin').value;
-    const motivo     = document.getElementById('prestar-motivo').value;
-
-    if (!empleadoId) return setError('prestar-error', 'Selecciona un colaborador.');
-    if (!destinoId)  return setError('prestar-error', 'Selecciona el supervisor destino.');
-    if (!fechaIni)   return setError('prestar-error', 'Indica la fecha de inicio.');
-    if (!fechaFin)   return setError('prestar-error', 'Indica la fecha de fin.');
-    if (fechaFin < fechaIni) return setError('prestar-error', 'La fecha fin debe ser igual o posterior al inicio.');
-
-    setError('prestar-error', '');
-    setLoading('btn-prestar-submit', true, '');
-
-    try {
-        const res  = await fetch('{{ route("equipos.prestamos.crear") }}', {
-            method: 'POST',
-            headers: { 'X-CSRF-TOKEN': CSRF, 'Content-Type': 'application/json', 'Accept': 'application/json' },
-            body: JSON.stringify({
-                accion: 'prestar',
-                empleado_id: parseInt(empleadoId),
-                supervisor_destino_id: parseInt(destinoId),
-                fecha_inicio: fechaIni,
-                fecha_fin: fechaFin,
-                motivo,
-            }),
-        });
-        const data = await res.json();
-        if (data.success) { closeModal('modal-prestar'); location.reload(); }
-        else setError('prestar-error', data.error ?? 'Error al crear el préstamo.');
-    } catch {
-        setError('prestar-error', 'Error de conexión.');
-    }
-    setLoading('btn-prestar-submit', false, '<i class="fa-solid fa-arrow-up-from-bracket mr-1"></i> Prestar');
-}
-
-// ── Modal SOLICITAR ────────────────────────────────────────────────────────
-function abrirModalSolicitar() {
-    document.getElementById('solicitar-search').value       = '';
-    document.getElementById('solicitar-empleado-id').value  = '';
-    document.getElementById('solicitar-nombre-display').textContent = '';
-    document.getElementById('solicitar-fecha-inicio').value = '{{ $hoy }}';
-    document.getElementById('solicitar-fecha-fin').value    = '';
-    document.getElementById('solicitar-motivo').value       = '';
-    document.getElementById('solicitar-seleccionado').classList.add('hidden');
-    document.getElementById('solicitar-lista').classList.add('hidden');
-    setError('solicitar-error', '');
-    setLoading('btn-solicitar-submit', false, '<i class="fa-solid fa-paper-plane mr-1"></i> Enviar solicitud');
-    openModal('modal-solicitar');
-}
-
-function filtrarPersonas(q) {
-    const norm  = q.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    const items = document.querySelectorAll('#solicitar-lista .persona-item');
-    const lista = document.getElementById('solicitar-lista');
-    let   visibles = 0;
-
-    items.forEach(el => {
-        const nombre = el.dataset.nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        const match  = nombre.includes(norm);
-        el.style.display = match ? '' : 'none';
-        if (match) visibles++;
-    });
-
-    document.getElementById('solicitar-sin-resultados').classList.toggle('hidden', visibles > 0);
-    lista.classList.toggle('hidden', norm.length < 2);
-}
-
-function seleccionarPersona(id, nombre) {
-    document.getElementById('solicitar-empleado-id').value      = id;
-    document.getElementById('solicitar-nombre-display').textContent = nombre;
-    document.getElementById('solicitar-seleccionado').classList.remove('hidden');
-    document.getElementById('solicitar-lista').classList.add('hidden');
-    document.getElementById('solicitar-search').value = '';
-}
-
-function limpiarSeleccionPersona() {
-    document.getElementById('solicitar-empleado-id').value = '';
-    document.getElementById('solicitar-seleccionado').classList.add('hidden');
-}
-
-async function submitSolicitar() {
-    const empleadoId = document.getElementById('solicitar-empleado-id').value;
-    const fechaIni   = document.getElementById('solicitar-fecha-inicio').value;
-    const fechaFin   = document.getElementById('solicitar-fecha-fin').value;
-    const motivo     = document.getElementById('solicitar-motivo').value;
-
-    if (!empleadoId) return setError('solicitar-error', 'Selecciona un colaborador.');
-    if (!fechaIni)   return setError('solicitar-error', 'Indica la fecha de inicio.');
-    if (!fechaFin)   return setError('solicitar-error', 'Indica la fecha de fin.');
-    if (fechaFin < fechaIni) return setError('solicitar-error', 'La fecha fin debe ser igual o posterior al inicio.');
-
-    setError('solicitar-error', '');
-    setLoading('btn-solicitar-submit', true, '');
-
-    try {
-        const res  = await fetch('{{ route("equipos.prestamos.crear") }}', {
-            method: 'POST',
-            headers: { 'X-CSRF-TOKEN': CSRF, 'Content-Type': 'application/json', 'Accept': 'application/json' },
-            body: JSON.stringify({
-                accion: 'solicitar',
-                empleado_id: parseInt(empleadoId),
-                fecha_inicio: fechaIni,
-                fecha_fin: fechaFin,
-                motivo,
-            }),
-        });
-        const data = await res.json();
-        if (data.success) { closeModal('modal-solicitar'); location.reload(); }
-        else setError('solicitar-error', data.error ?? 'Error al enviar la solicitud.');
-    } catch {
-        setError('solicitar-error', 'Error de conexión.');
-    }
-    setLoading('btn-solicitar-submit', false, '<i class="fa-solid fa-paper-plane mr-1"></i> Enviar solicitud');
-}
-
-// ── Aprobar ────────────────────────────────────────────────────────────────
-async function aprobar(id) {
-    if (!confirm('¿Aprobar este préstamo? Se actualizará el equipo_dia para todo el rango.')) return;
-    try {
-        const res  = await fetch(`/equipos/prestamos/${id}/aprobar`, {
-            method: 'POST',
-            headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
-        });
-        const data = await res.json();
-        if (data.success) location.reload();
-        else alert(data.error ?? 'Error al aprobar.');
-    } catch { alert('Error de conexión.'); }
-}
-
-// ── Rechazar ───────────────────────────────────────────────────────────────
-function abrirModalRechazar(id) {
-    document.getElementById('rechazar-prestamo-id').value = id;
-    document.getElementById('rechazar-motivo').value      = '';
-    setLoading('btn-rechazar-submit', false, '<i class="fa-solid fa-ban mr-1"></i> Rechazar');
-    openModal('modal-rechazar');
-}
-
-async function submitRechazar() {
-    const id     = document.getElementById('rechazar-prestamo-id').value;
-    const motivo = document.getElementById('rechazar-motivo').value;
-
-    setLoading('btn-rechazar-submit', true, '');
-    try {
-        const res  = await fetch(`/equipos/prestamos/${id}/rechazar`, {
-            method: 'POST',
-            headers: { 'X-CSRF-TOKEN': CSRF, 'Content-Type': 'application/json', 'Accept': 'application/json' },
-            body: JSON.stringify({ motivo_rechazo: motivo }),
-        });
-        const data = await res.json();
-        if (data.success) { closeModal('modal-rechazar'); location.reload(); }
-        else alert(data.error ?? 'Error al rechazar.');
-    } catch { alert('Error de conexión.'); }
-    setLoading('btn-rechazar-submit', false, '<i class="fa-solid fa-ban mr-1"></i> Rechazar');
-}
-
-// ── Cancelar ───────────────────────────────────────────────────────────────
-async function cancelar(id) {
-    if (!confirm('¿Cancelar esta solicitud pendiente?')) return;
-    try {
-        const res  = await fetch(`/equipos/prestamos/${id}`, {
-            method: 'DELETE',
-            headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
-        });
-        const data = await res.json();
-        if (data.success) location.reload();
-        else alert(data.error ?? 'Error al cancelar.');
-    } catch { alert('Error de conexión.'); }
-}
-
-// Cerrar modales con backdrop
-['modal-prestar','modal-solicitar','modal-rechazar'].forEach(id => {
-    document.getElementById(id).addEventListener('click', function(e) {
-        if (e.target === this) closeModal(id);
-    });
-});
-</script>
-@endpush
+    {{-- ── Scripts ─────────────────────────────────────────────────────────── --}}
+    @include('equipos.partials.scripts')
 
 </x-app-layout>
