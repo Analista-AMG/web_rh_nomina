@@ -67,11 +67,25 @@ class PrestamoController extends Controller
         })->orderByDesc('updated_at')->limit(30)->get();
 
         // Modal "Prestar": mis colaboradores vía jerarquía
-        $personaIds = $this->jerarquia->personaIdsVisibles($user);
+        $personaIds      = $this->jerarquia->personaIdsVisibles($user);
+        $verTodosPrestar = $personaIds === null || $user->hasRole('Reclutamiento');
 
-        $misColaboradores = ($personaIds !== null && !empty($personaIds))
-            ? Persona::whereIn('id', $personaIds)->orderBy('apellido_paterno')->orderBy('nombres')->get()
-            : collect();
+        if ($verTodosPrestar) {
+            // Admin, RRHH, Reclutamiento: ven todos los colaboradores vigentes del sistema
+            $colaboradorUserIds = UserAsignacion::where('rol', UserAsignacion::ROL_COLABORADOR)
+                ->vigentes()
+                ->pluck('user_id');
+            $docs = User::whereIn('id', $colaboradorUserIds)
+                ->whereNotNull('numero_documento')
+                ->pluck('numero_documento');
+            $misColaboradores = Persona::withoutGlobalScope(AlcanceUsuarioScope::class)
+                ->whereIn('numero_documento', $docs)
+                ->orderBy('apellido_paterno')->orderBy('nombres')->get();
+        } else {
+            $misColaboradores = !empty($personaIds)
+                ? Persona::whereIn('id', $personaIds)->orderBy('apellido_paterno')->orderBy('nombres')->get()
+                : collect();
+        }
 
         $contratosFecha = $misColaboradores->isNotEmpty()
             ? Contrato::withoutGlobalScope(AlcanceUsuarioScope::class)
@@ -139,8 +153,9 @@ class PrestamoController extends Controller
         if ($request->accion === 'prestar') {
             $supervisorDestinoId = (int) $request->supervisor_destino_id;
 
-            $visibles = $this->jerarquia->personaIdsVisibles($user);
-            if ($visibles !== null && !in_array($empleadoId, $visibles)) {
+            $visibles        = $this->jerarquia->personaIdsVisibles($user);
+            $puedeVerTodos   = $visibles === null || $user->hasRole('Reclutamiento');
+            if (!$puedeVerTodos && !in_array($empleadoId, $visibles)) {
                 return response()->json(['error' => 'Este colaborador no está en tu equipo.'], 422);
             }
 

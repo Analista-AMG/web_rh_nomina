@@ -88,7 +88,10 @@ class AsistenciaController extends Controller
                 : $this->cargarPrestamos($userId, $inicioStr, $finStr);
 
             // Editable = visible sin el propio usuario si no tiene el flag habilitado
-            $editablePersonaIds = $personaIds;
+            $editablePersonaIds  = $personaIds;
+            $propioIdRRHH        = null;
+            $puedeAutoEditarRRHH = false;
+
             if ($personaIds !== null && !$esRRHH) {
                 $propioId = $this->jerarquia->propioPersonaId($user);
                 if ($propioId) {
@@ -100,6 +103,11 @@ class AsistenciaController extends Controller
                         $editablePersonaIds = array_values(array_diff($personaIds, [$propioId]));
                     }
                 }
+            } elseif ($esRRHH) {
+                $puedeAutoEditarRRHH = UserAsignacion::where('user_id', $userId)
+                    ->vigentes()
+                    ->where('puede_editar_propia_asistencia', true)
+                    ->exists();
             }
 
             $allPersonaIds = $personaIds !== null
@@ -113,9 +121,18 @@ class AsistenciaController extends Controller
                 ));
             }
 
-            $contratos        = $this->cargarContratos($allPersonaIds, $inicioStr, $finStr);
+            $contratos = $this->cargarContratos($allPersonaIds, $inicioStr, $finStr);
 
-            $empleadoEnEquipo = $this->construirMapaEnEquipo($esAdmin, $esRRHH, $contratos, $editablePersonaIds, $prestamosOut, $prestamosIn, $fechas, $inicioStr, $finStr, $userId);
+            // Para RRHH con el flag: resolver el persona_id propio desde los contratos ya cargados
+            // (evita una query separada y funciona aunque propioPersonaId() no resuelva via numero_documento)
+            if ($puedeAutoEditarRRHH && $user->numero_documento) {
+                $propioContrato = $contratos->first(
+                    fn($c) => ($c->persona->numero_documento ?? null) === $user->numero_documento
+                );
+                $propioIdRRHH = $propioContrato ? (int) $propioContrato->persona_id : null;
+            }
+
+            $empleadoEnEquipo = $this->construirMapaEnEquipo($esAdmin, $esRRHH, $contratos, $editablePersonaIds, $prestamosOut, $prestamosIn, $fechas, $inicioStr, $finStr, $userId, $propioIdRRHH);
             $campanaMap       = $this->jerarquia->campanaMapPorPersonas(
                 $contratos->pluck('persona_id')->map(fn ($id) => (int) $id)->unique()->toArray()
             );
@@ -353,7 +370,8 @@ class AsistenciaController extends Controller
         array $fechas,
         string $inicioStr,
         string $finStr,
-        int $userId = 0
+        int $userId = 0,
+        ?int $propioIdRRHH = null
     ): array {
         $mapa = [];
 
@@ -375,6 +393,14 @@ class AsistenciaController extends Controller
 
             foreach ($equipoDia as $row) {
                 $mapa[(int) $row->empleado_id][$row->fecha] = true;
+            }
+
+            // Si tiene el flag puede_editar_propia_asistencia, incluir todos los días del período
+            // para su propia persona (sin depender de equipo_dia, que puede no existir para supervisores)
+            if ($propioIdRRHH !== null) {
+                foreach ($fechas as $fecha) {
+                    $mapa[$propioIdRRHH][$fecha->format('Y-m-d')] = true;
+                }
             }
         } else {
             // Usar equipo_dia para respetar la fecha de inicio real de cada colaborador.

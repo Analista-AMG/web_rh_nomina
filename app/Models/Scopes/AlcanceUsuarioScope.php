@@ -35,8 +35,8 @@ class AlcanceUsuarioScope implements Scope
 
         $user = Auth::user();
 
-        // Administrador y Recursos Humanos no tienen restricciones de alcance
-        if ($user->hasRole('Administrador') || $user->hasRole('Recursos Humanos')) {
+        // Administrador, Recursos Humanos y Reclutamiento no tienen restricciones de alcance en Personas
+        if ($user->hasRole('Administrador') || $user->hasRole('Recursos Humanos') || $user->hasRole('Reclutamiento')) {
             return;
         }
 

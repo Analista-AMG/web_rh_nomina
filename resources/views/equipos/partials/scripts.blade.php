@@ -219,9 +219,13 @@ async function submitPrestar() {
             }
             data.skipped ? omitidos++ : creados++;
         }
-        closeModal('modal-prestar');
-        if (creados === 0) setModalError('prestar', `Sin cambios: ${omitidos === 1 ? 'el colaborador ya pertenece' : 'los colaboradores ya pertenecen'} al supervisor destino seleccionado.`);
-        else location.reload();
+        if (creados === 0) {
+            setModalError('prestar', `Sin cambios: ${omitidos === 1 ? 'el colaborador ya pertenece' : 'los colaboradores ya pertenecen'} al supervisor destino seleccionado.`);
+            setLoading('btn-prestar-submit', false, '<i class="fa-solid fa-arrow-up-from-bracket text-xs"></i> Confirmar préstamo');
+        } else {
+            closeModal('modal-prestar');
+            location.reload();
+        }
     } catch {
         setModalError('prestar', 'Error de conexión.');
         setLoading('btn-prestar-submit', false, '<i class="fa-solid fa-arrow-up-from-bracket text-xs"></i> Confirmar préstamo');

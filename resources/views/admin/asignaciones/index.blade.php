@@ -191,7 +191,7 @@
                             </button>
                             @elseif($a->estado === 'aprobado' && $puedeManejar)
                             @if($a->activo)
-                            <button onclick="openEditarModal({{ $a->id }}, '{{ addslashes($a->usuario->name ?? '') }}', {{ $a->campana_id }}, '{{ $a->rol }}', {{ $a->superior_id ?? 'null' }}, {{ $a->puede_editar_propia_asistencia ? 'true' : 'false' }})"
+                            <button onclick="openEditarModal({{ $a->id }}, '{{ addslashes($a->usuario->name ?? '') }}', {{ $a->campana_id }}, '{{ $a->rol }}', {{ $a->superior_id ?? 'null' }}, {{ $a->puede_editar_propia_asistencia ? 'true' : 'false' }}, '{{ $a->fecha_inicio->format('Y-m-d') }}')"
                                 class="inline-flex items-center px-2 py-1 text-xs rounded bg-indigo-100 text-indigo-700 hover:bg-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400 transition mr-1 cursor-pointer"
                                 title="Editar superior">
                                 <i class="fa-solid fa-pencil mr-1"></i> Editar
@@ -335,6 +335,14 @@
                     <select id="edit-superior" class="form-input w-full text-sm">
                         <option value="">Cargando...</option>
                     </select>
+                </div>
+                <div id="edit-vigente-wrap">
+                    <label class="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">
+                        Actualizar equipo desde
+                        <span class="text-gray-400 font-normal">(inclusive)</span>
+                    </label>
+                    <input type="date" id="edit-vigente-desde" class="form-input w-full text-sm">
+                    <p class="text-[11px] text-gray-400 mt-1">Se reasignarán los registros de equipo_dia al nuevo supervisor desde esta fecha hasta hoy.</p>
                 </div>
                 <div class="flex items-center gap-2 pt-1">
                     <input type="checkbox" id="edit-puede-editar-propia" class="rounded border-gray-300 text-primary focus:ring-primary">
@@ -763,16 +771,23 @@
             } catch(e) { alert('Error de conexión.'); }
         }
         // ── Modal EDITAR ──────────────────────────────────────────────────────
-        async function openEditarModal(id, usuario, campanaId, rol, superiorActualId, puedeEditarPropia = false) {
+        async function openEditarModal(id, usuario, campanaId, rol, superiorActualId, puedeEditarPropia = false, fechaInicio = '') {
             document.getElementById('edit-id').value         = id;
             document.getElementById('edit-campana-id').value = campanaId;
             document.getElementById('edit-rol').value        = rol;
             document.getElementById('edit-info-usuario').textContent = usuario;
             document.getElementById('edit-puede-editar-propia').checked = puedeEditarPropia;
 
-            const superiorWrap = document.getElementById('edit-superior-wrap');
-            const sinSuperior  = nivelRol[rol] >= nivelRol['Jefe Operaciones'];
+            const superiorWrap  = document.getElementById('edit-superior-wrap');
+            const vigenteWrap   = document.getElementById('edit-vigente-wrap');
+            const vigenteInput  = document.getElementById('edit-vigente-desde');
+            const sinSuperior   = nivelRol[rol] >= nivelRol['Jefe Operaciones'];
             superiorWrap.classList.toggle('hidden', sinSuperior);
+            vigenteWrap.classList.toggle('hidden', sinSuperior);
+
+            const hoy = new Date().toISOString().slice(0, 10);
+            vigenteInput.min   = fechaInicio || hoy;
+            vigenteInput.value = hoy;
 
             if (!sinSuperior) {
                 const sel = document.getElementById('edit-superior');
@@ -805,14 +820,16 @@
         async function submitEditar() {
             const id           = document.getElementById('edit-id').value;
             const wrap         = document.getElementById('edit-superior-wrap');
-            const superiorId   = wrap.classList.contains('hidden') ? null : document.getElementById('edit-superior').value;
+            const sinSuperior  = wrap.classList.contains('hidden');
+            const superiorId   = sinSuperior ? null : document.getElementById('edit-superior').value;
             const puedeEditar  = document.getElementById('edit-puede-editar-propia').checked;
+            const vigenteDesde = sinSuperior ? null : document.getElementById('edit-vigente-desde').value;
 
             try {
                 const res  = await fetch(`/admin/asignaciones/${id}/editar`, {
                     method: 'PATCH',
                     headers: { 'X-CSRF-TOKEN': csrf, 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                    body: JSON.stringify({ superior_id: superiorId || null, puede_editar_propia_asistencia: puedeEditar }),
+                    body: JSON.stringify({ superior_id: superiorId || null, puede_editar_propia_asistencia: puedeEditar, vigente_desde: vigenteDesde }),
                 });
                 const data = await res.json();
                 if (res.ok) { closeEditarModal(); location.reload(); }

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Campana;
+use App\Models\EquipoPrestamo;
 use App\Models\Persona;
 use App\Models\Scopes\AlcanceUsuarioScope;
 use App\Models\User;
@@ -386,6 +387,7 @@ class AsignacionController extends Controller
         $request->validate([
             'superior_id'                    => 'nullable|integer',
             'puede_editar_propia_asistencia' => 'nullable|boolean',
+            'vigente_desde'                  => 'nullable|date|before_or_equal:today',
         ]);
 
         if ($request->superior_id) {
@@ -405,13 +407,86 @@ class AsignacionController extends Controller
             }
         }
 
-        $campos = ['superior_id' => $request->superior_id ? (int) $request->superior_id : null];
+        $campos        = ['superior_id' => $request->superior_id ? (int) $request->superior_id : null];
+        $oldSuperiorId = $a->superior_id;
+        $newSuperiorId = $campos['superior_id'];
 
         if ($request->has('puede_editar_propia_asistencia')) {
             $campos['puede_editar_propia_asistencia'] = (bool) $request->puede_editar_propia_asistencia;
         }
 
-        $a->update($campos);
+        DB::transaction(function () use ($a, $campos, $oldSuperiorId, $newSuperiorId, $asignacionesSuperior, $request) {
+            $a->update($campos);
+
+            if ($oldSuperiorId && $newSuperiorId && $oldSuperiorId !== $newSuperiorId) {
+                $user = $a->usuario;
+                if ($user?->numero_documento) {
+                    $empleadoId = Persona::withoutGlobalScope(AlcanceUsuarioScope::class)
+                        ->where('numero_documento', $user->numero_documento)
+                        ->value('id');
+
+                    if ($empleadoId) {
+                        $nuevaCampana = $asignacionesSuperior->first()?->campana_id;
+
+                        // Reasignar préstamos activos/pendientes al nuevo supervisor
+                        EquipoPrestamo::where('empleado_id', $empleadoId)
+                            ->where('supervisor_origen_id', $oldSuperiorId)
+                            ->whereIn('estado', [EquipoPrestamo::ESTADO_PENDIENTE, EquipoPrestamo::ESTADO_APROBADO])
+                            ->update([
+                                'supervisor_origen_id' => $newSuperiorId,
+                                'campana_origen_id'    => $nuevaCampana,
+                            ]);
+
+                        // Actualizar equipo_dia desde vigente_desde hasta hoy
+                        if ($request->filled('vigente_desde')) {
+                            $vigenteDesde = $request->vigente_desde;
+                            $hoy          = Carbon::today()->toDateString();
+                            $now          = now();
+
+                            // 1. Actualizar registros existentes (cualquier origen)
+                            DB::table('dbo.equipo_dia')
+                                ->where('empleado_id', $empleadoId)
+                                ->whereBetween('fecha', [$vigenteDesde, $hoy])
+                                ->update([
+                                    'supervisor_id' => $newSuperiorId,
+                                    'campana_id'    => $nuevaCampana,
+                                    'origen'        => \App\Models\EquipoDia::ORIGEN_BASE,
+                                    'prestamo_id'   => null,
+                                    'updated_at'    => $now,
+                                ]);
+
+                            // 2. Insertar fechas que no tienen registro
+                            $existentes = DB::table('dbo.equipo_dia')
+                                ->where('empleado_id', $empleadoId)
+                                ->whereBetween('fecha', [$vigenteDesde, $hoy])
+                                ->pluck('fecha')
+                                ->map(fn($f) => (string) $f)
+                                ->flip()
+                                ->all();
+
+                            $inserts = [];
+                            foreach (CarbonPeriod::create($vigenteDesde, $hoy) as $fecha) {
+                                $fStr = $fecha->toDateString();
+                                if (isset($existentes[$fStr])) continue;
+                                $inserts[] = [
+                                    'empleado_id'   => $empleadoId,
+                                    'supervisor_id' => $newSuperiorId,
+                                    'campana_id'    => $nuevaCampana,
+                                    'fecha'         => $fStr,
+                                    'origen'        => \App\Models\EquipoDia::ORIGEN_BASE,
+                                    'prestamo_id'   => null,
+                                    'created_at'    => $now,
+                                    'updated_at'    => $now,
+                                ];
+                            }
+                            foreach (array_chunk($inserts, 100) as $chunk) {
+                                DB::table('dbo.equipo_dia')->insert($chunk);
+                            }
+                        }
+                    }
+                }
+            }
+        });
 
         return response()->json(['success' => true, 'message' => 'Asignación actualizada.']);
     }
