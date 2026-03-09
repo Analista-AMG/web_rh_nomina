@@ -105,15 +105,15 @@
                 ];
             }
 
-            // Para contratos/movimientos/bajas/asistencia: buscar persona por id_persona
-            $idPersona = $attrs['id_persona'] ?? null;
+            // Para contratos/movimientos/bajas/asistencia: buscar persona por persona_id
+            $idPersona = $attrs['persona_id'] ?? $attrs['id_persona'] ?? null;
             if ($idPersona) {
                 $persona = \App\Models\Persona::find($idPersona);
                 if ($persona) return $persona;
             }
 
-            // Para movimientos/bajas/asistencia: buscar por id_contrato
-            $idContrato = $attrs['id_contrato'] ?? null;
+            // Para movimientos/bajas/asistencia: buscar por contrato_id
+            $idContrato = $attrs['contrato_id'] ?? $attrs['id_contrato'] ?? null;
             if ($idContrato) {
                 $contrato = \App\Models\Contrato::find($idContrato);
                 if ($contrato) return $contrato->persona;

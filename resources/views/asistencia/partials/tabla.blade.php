@@ -127,7 +127,7 @@
                             $dentroRango = $fecha->gte($fila['inicio_contrato'])
                                 && (!$fila['fin_efectivo'] || $fecha->lte($fila['fin_efectivo']));
 
-                            $enEquipo   = $esAdmin || isset($fila['en_equipo'][$fStr]);
+                            $enEquipo   = $esAdmin || (isset($fila['en_equipo'][$fStr]) && (!$userFechaInicioStr || $fStr >= $userFechaInicioStr));
                             $bloqueado  = !$esAdmin && $bloquearAntesDe && $fStr < $bloquearAntesDe;
 
                             $asistencia  = $fila['asistencias_periodo'][$fStr] ?? null;

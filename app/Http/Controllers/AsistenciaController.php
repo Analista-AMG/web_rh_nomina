@@ -46,6 +46,7 @@ class AsistenciaController extends Controller
         $fechas                = [];
         $feriados              = [];
         $equipoDiaSupervisores = [];
+        $userFechaInicioStr    = null;
 
         if ($pagoSeleccionado) {
             $inicioConsulta = Carbon::parse($pagoSeleccionado->inicio)->startOfDay();
@@ -66,6 +67,21 @@ class AsistenciaController extends Controller
 
             $esRRHH     = !$esAdmin && $user->hasRole('Recursos Humanos');
             $personaIds = $esAdmin ? null : $this->jerarquia->personaIdsVisiblesEnPeriodo($user, $inicioStr, $finStr);
+
+            // Fecha mínima editable del usuario en el período (bloquea celdas anteriores en el front).
+            // Aplica a todos los roles: nadie puede editar antes del inicio de su propia asignación.
+            // Si no tiene ninguna asignación activa en el período, se bloquean todas las celdas.
+            $userFechaInicioStr = null;
+            if (!$esAdmin && !$esRRHH) {
+                $raw = UserAsignacion::where('user_id', $userId)
+                    ->where('estado', UserAsignacion::ESTADO_APROBADO)
+                    ->where('fecha_inicio', '<=', $finStr)
+                    ->where(fn ($q) => $q->whereNull('fecha_fin')->orWhere('fecha_fin', '>=', $inicioStr))
+                    ->min('fecha_inicio');
+                $userFechaInicioStr = $raw
+                    ? Carbon::parse($raw)->format('Y-m-d')
+                    : Carbon::parse($finStr)->addDay()->format('Y-m-d'); // sin asignación → bloquear todo
+            }
 
             [$prestamosOut, $prestamosIn, $prestamosInPersonaIds] = $esAdmin
                 ? [collect(), collect(), []]
@@ -93,7 +109,7 @@ class AsistenciaController extends Controller
             if ($allPersonaIds !== null && empty($allPersonaIds)) {
                 return view('asistencia.index', compact(
                     'pagos', 'pagoSeleccionado', 'filas', 'fechas',
-                    'itemsAsistencia', 'feriados', 'esAdmin', 'hoy', 'diaActual', 'mesActual', 'bloquearAntesDe'
+                    'itemsAsistencia', 'feriados', 'esAdmin', 'hoy', 'diaActual', 'mesActual', 'bloquearAntesDe', 'userFechaInicioStr'
                 ));
             }
 
@@ -117,7 +133,7 @@ class AsistenciaController extends Controller
         return view('asistencia.index', compact(
             'pagos', 'pagoSeleccionado', 'filas', 'fechas',
             'itemsAsistencia', 'feriados', 'esAdmin', 'hoy', 'diaActual', 'mesActual', 'bloquearAntesDe',
-            'equipoDiaSupervisores'
+            'equipoDiaSupervisores', 'userFechaInicioStr'
         ));
     }
 
@@ -162,9 +178,33 @@ class AsistenciaController extends Controller
         }
 
         if (!$esAdmin) {
+            // Verificar que el usuario tenía asignación activa en la fecha a editar.
+            $userTeniaAsignacion = UserAsignacion::where('user_id', $userId)
+                ->where('estado', UserAsignacion::ESTADO_APROBADO)
+                ->where('fecha_inicio', '<=', $fechaStr)
+                ->where(fn ($q) => $q->whereNull('fecha_fin')->orWhere('fecha_fin', '>=', $fechaStr))
+                ->exists();
+
+            if (!$userTeniaAsignacion) {
+                return response()->json([
+                    'error' => 'No tienes asignación activa para esta fecha.',
+                ], 403);
+            }
+        }
+
+        if (!$esAdmin) {
             $empleadoId = (int) $contrato->persona_id;
 
-            $personaIds = $this->jerarquia->personaIdsVisiblesEnPeriodo($user, $fechaStr, $fechaStr);
+            // Validar con el período completo del pago, igual que la vista.
+            // Evita rechazar fechas anteriores al fecha_inicio del colaborador
+            // cuando su asignación cubre el período (JO/Coordinador usan fallback de todos los días).
+            $pagoDelDia = Pago::where('inicio', '<=', $fechaStr)
+                ->where('fin', '>=', $fechaStr)
+                ->first();
+            $periodoIni = $pagoDelDia ? $pagoDelDia->inicio->toDateString() : $fechaStr;
+            $periodoFin = $pagoDelDia ? $pagoDelDia->fin->toDateString()   : $fechaStr;
+
+            $personaIds = $this->jerarquia->personaIdsVisiblesEnPeriodo($user, $periodoIni, $periodoFin);
             $esMio      = $personaIds === null || in_array($empleadoId, $personaIds);
 
             // Bloquear edición de la propia asistencia si el flag no está habilitado
@@ -337,10 +377,49 @@ class AsistenciaController extends Controller
                 $mapa[(int) $row->empleado_id][$row->fecha] = true;
             }
         } else {
-            // Base: todos los días del período para cada persona visible
-            foreach ($personaIds ?? [] as $pid) {
-                foreach ($fechas as $fecha) {
-                    $mapa[$pid][$fecha->format('Y-m-d')] = true;
+            // Usar equipo_dia para respetar la fecha de inicio real de cada colaborador.
+            // Supervisores: tienen registros directos → mapa preciso desde su fecha_inicio.
+            // Coordinadores/JO: no tienen registros directos → fallback a todos los días.
+            $personasConEquipo = [];
+
+            if ($userId && !empty($personaIds)) {
+                $rows = \Illuminate\Support\Facades\DB::table('dbo.equipo_dia')
+                    ->where('supervisor_id', $userId)
+                    ->whereIn('empleado_id', $personaIds)
+                    ->whereBetween('fecha', [$inicioStr, $finStr])
+                    ->get(['empleado_id', 'fecha']);
+
+                foreach ($rows as $row) {
+                    $mapa[(int) $row->empleado_id][$row->fecha] = true;
+                }
+
+                $personasConEquipo = collect($rows)->pluck('empleado_id')
+                    ->unique()->map(fn ($id) => (int) $id)->toArray();
+            }
+
+            // Coordinador/JO: no tienen registros directos en equipo_dia.
+            // - Colaboradores: tienen equipo_dia → heredar esos registros (misma restricción que su supervisor).
+            // - Supervisores/Coordinadores visibles: no tienen equipo_dia → fallback todos los días.
+            $sinEquipo = array_values(array_diff($personaIds ?? [], $personasConEquipo));
+            if (!empty($sinEquipo)) {
+                $rowsFallback = \Illuminate\Support\Facades\DB::table('dbo.equipo_dia')
+                    ->whereIn('empleado_id', $sinEquipo)
+                    ->whereBetween('fecha', [$inicioStr, $finStr])
+                    ->get(['empleado_id', 'fecha']);
+
+                $conRegistros = collect($rowsFallback)
+                    ->pluck('empleado_id')->unique()->map(fn ($id) => (int) $id)->toArray();
+
+                // Personas con equipo_dia en el período → solo esas fechas
+                foreach ($rowsFallback as $row) {
+                    $mapa[(int) $row->empleado_id][$row->fecha] = true;
+                }
+
+                // Personas sin equipo_dia en el período (supervisores, coordinadores) → todos los días
+                foreach (array_diff($sinEquipo, $conRegistros) as $pid) {
+                    foreach ($fechas as $fecha) {
+                        $mapa[$pid][$fecha->format('Y-m-d')] = true;
+                    }
                 }
             }
         }

@@ -352,7 +352,7 @@ class AsignacionController extends Controller
 
             $a->update(['fecha_fin' => $fechaFinAnterior, 'activo' => false]);
 
-            UserAsignacion::create([
+            $nueva = UserAsignacion::create([
                 'user_id'      => $a->user_id,
                 'campana_id'   => $nuevaCampanaId,
                 'rol'          => $nuevoRol,
@@ -364,6 +364,8 @@ class AsignacionController extends Controller
                 'fecha_inicio' => $request->fecha_inicio,
                 'creado_por'   => (int) auth()->id(),
             ]);
+
+            $this->generarEquipoDiaDesdeAsignacion($nueva);
         });
 
         return response()->json(['success' => true, 'message' => 'Asignación transferida exitosamente.']);

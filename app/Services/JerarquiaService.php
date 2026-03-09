@@ -114,24 +114,20 @@ class JerarquiaService
             return null;
         }
 
-        // Asignaciones del usuario activas en algún momento del período (sin filtrar activo)
-        $asignaciones = UserAsignacion::where('user_id', $user->id)
-            ->where('estado', UserAsignacion::ESTADO_APROBADO)
-            ->where('fecha_inicio', '<=', $fin)
-            ->where(fn($q) => $q->whereNull('fecha_fin')->orWhere('fecha_fin', '>=', $inicio))
-            ->get();
-
-        if ($asignaciones->isEmpty()) {
-            return [];
-        }
-
         $userIds = collect();
 
-        // Path JO / Coordinador
-        $joCoord = $asignaciones->whereIn('rol', [
-            UserAsignacion::ROL_COORDINADOR,
-            UserAsignacion::ROL_JEFE_OPERACIONES,
-        ]);
+        // ── Path JO / Coordinador ────────────────────────────────────────────
+        // Usan sus asignaciones VIGENTES (sin restricción de fecha propia) para
+        // determinar campañas. Heredan hacia atrás: pueden acceder a cualquier
+        // fecha cubierta por sus subordinados, independientemente de cuándo
+        // empezaron ellos mismos.
+        $joCoord = UserAsignacion::where('user_id', $user->id)
+            ->vigentes()
+            ->whereIn('rol', [
+                UserAsignacion::ROL_COORDINADOR,
+                UserAsignacion::ROL_JEFE_OPERACIONES,
+            ])
+            ->get();
 
         if ($joCoord->isNotEmpty()) {
             $campanaIds = [];
@@ -161,8 +157,17 @@ class JerarquiaService
             }
         }
 
-        // Path Supervisor: subordinados directos durante el período
-        if ($asignaciones->contains('rol', UserAsignacion::ROL_SUPERVISOR)) {
+        // ── Path Supervisor ──────────────────────────────────────────────────
+        // El supervisor debe haber estado activo durante el período consultado.
+        // Su fecha_inicio SÍ limita hasta dónde puede ver hacia atrás.
+        $supervisorActivo = UserAsignacion::where('user_id', $user->id)
+            ->where('estado', UserAsignacion::ESTADO_APROBADO)
+            ->where('rol', UserAsignacion::ROL_SUPERVISOR)
+            ->where('fecha_inicio', '<=', $fin)
+            ->where(fn($q) => $q->whereNull('fecha_fin')->orWhere('fecha_fin', '>=', $inicio))
+            ->exists();
+
+        if ($supervisorActivo) {
             $ids = UserAsignacion::where('superior_id', $user->id)
                 ->where('estado', UserAsignacion::ESTADO_APROBADO)
                 ->where('fecha_inicio', '<=', $fin)
@@ -172,12 +177,21 @@ class JerarquiaService
             $userIds = $userIds->merge($ids);
         }
 
-        // Incluir al propio usuario (para que se vea a sí mismo en Asistencia)
-        $userIds = $userIds->push($user->id);
+        // ── Self ─────────────────────────────────────────────────────────────
+        // Incluir al propio usuario si tenía alguna asignación activa en el período
+        // (necesario para que Supervisores/Colaboradores vean su propia asistencia).
+        $selfActivo = $joCoord->isNotEmpty() || $supervisorActivo
+            || UserAsignacion::where('user_id', $user->id)
+                ->where('estado', UserAsignacion::ESTADO_APROBADO)
+                ->where('fecha_inicio', '<=', $fin)
+                ->where(fn($q) => $q->whereNull('fecha_fin')->orWhere('fecha_fin', '>=', $inicio))
+                ->exists();
 
-        if ($userIds->isEmpty()) {
+        if (!$selfActivo) {
             return [];
         }
+
+        $userIds = $userIds->push($user->id);
 
         $docs = User::whereIn('id', $userIds->unique()->values())
             ->whereNotNull('numero_documento')
