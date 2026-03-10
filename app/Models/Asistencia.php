@@ -22,6 +22,7 @@ class Asistencia extends Model
 
     protected $fillable = [
         'contrato_id',
+        'persona_id',
         'fecha',
         'item_asistencia_id',
     ];

@@ -3,13 +3,11 @@
 namespace App\Services;
 
 use App\Models\Campana;
-use App\Models\EquipoDia;
 use App\Models\Persona;
 use App\Models\Scopes\AlcanceUsuarioScope;
 use App\Models\User;
 use App\Models\UserAsignacion;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\DB;
 
 class JerarquiaService
 {
@@ -28,7 +26,7 @@ class JerarquiaService
             return $this->cache[$user->id];
         }
 
-        if ($user->hasRole('Administrador') || $user->hasRole('Recursos Humanos')) {
+        if ($user->hasRole('Administrador') || $user->hasRole('Recursos Humanos') || $user->hasRole('Reclutamiento')) {
             return $this->cache[$user->id] = null;
         }
 
@@ -241,21 +239,11 @@ class JerarquiaService
     }
 
     /**
-     * Resuelve el supervisor origen de un empleado:
-     * 1. equipo_dia BASE más reciente
-     * 2. asignación vigente del empleado (superior_id)
-     * 3. fallback: el usuario que ejecuta la acción
+     * Resuelve el supervisor origen de un empleado vía UserAsignacion vigente.
+     * Fallback: el usuario que ejecuta la acción.
      */
     public function resolverSupervisorOrigen(int $empleadoId, int $fallbackUserId): int
     {
-        $supervisorId = (int) DB::table('dbo.equipo_dia')
-            ->where('empleado_id', $empleadoId)
-            ->where('origen', EquipoDia::ORIGEN_BASE)
-            ->orderByDesc('fecha')
-            ->value('supervisor_id') ?: null;
-
-        if ($supervisorId) return $supervisorId;
-
         $persona = Persona::withoutGlobalScope(AlcanceUsuarioScope::class)
             ->where('id', $empleadoId)
             ->whereNotNull('numero_documento')

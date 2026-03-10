@@ -196,11 +196,6 @@
                                 title="Editar superior">
                                 <i class="fa-solid fa-pencil mr-1"></i> Editar
                             </button>
-                            <button onclick="openTransferirModal({{ $a->id }}, '{{ addslashes($a->usuario->name ?? '') }}', '{{ addslashes($a->campana->nombre ?? '') }}', {{ $a->campana_id }}, '{{ $a->rol }}', '{{ $a->fecha_inicio->copy()->addDay()->toDateString() }}')"
-                                class="inline-flex items-center px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400 transition mr-1 cursor-pointer"
-                                title="Transferir a nuevo superior o cambiar rol">
-                                <i class="fa-solid fa-right-left mr-1"></i> Transferir
-                            </button>
                             @endif
                             <button onclick="pausar({{ $a->id }})"
                                 class="inline-flex items-center px-2 py-1 text-xs rounded {{ $a->activo ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400' : 'bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400' }} transition mr-1 cursor-pointer">
@@ -212,6 +207,13 @@
                                 title="Cerrar definitivamente">
                                 <i class="fa-solid fa-lock"></i>
                             </button>
+                            @if($esAdmin)
+                            <button onclick="eliminar({{ $a->id }}, '{{ addslashes($a->usuario->name ?? '') }}')"
+                                class="inline-flex items-center px-2 py-1 text-xs rounded bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50 transition ml-1 cursor-pointer"
+                                title="Eliminar asignación">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                            @endif
                             @elseif($a->estado === 'rechazado' && $a->motivo_rechazo)
                             <span class="text-xs text-gray-400 italic" title="{{ $a->motivo_rechazo }}">
                                 <i class="fa-solid fa-circle-info mr-1"></i>{{ Str::limit($a->motivo_rechazo, 35) }}
@@ -279,9 +281,17 @@
                     </div>
                     <div class="col-span-2">
                         <label class="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">Usuario <span class="text-red-500">*</span></label>
-                        <select id="create-usuario" class="form-input w-full text-sm" disabled>
-                            <option value="">Selecciona una campaña primero...</option>
-                        </select>
+                        <div class="relative">
+                            <input type="text" id="create-usuario-search"
+                                class="form-input w-full text-sm"
+                                placeholder="Selecciona una campaña primero..."
+                                autocomplete="off" disabled>
+                            <input type="hidden" id="create-usuario">
+                            <ul id="usuario-dropdown"
+                                class="absolute z-50 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded shadow-lg max-h-48 overflow-y-auto hidden text-sm mt-1">
+                            </ul>
+                        </div>
+                        <div id="usuario-chips" class="flex flex-wrap gap-1 mt-1 hidden"></div>
                     </div>
                     <div class="col-span-2">
                         <label class="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">
@@ -328,6 +338,12 @@
                 <input type="hidden" id="edit-id">
                 <input type="hidden" id="edit-campana-id">
                 <input type="hidden" id="edit-rol">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">
+                        Activo desde
+                    </label>
+                    <input type="date" id="edit-fecha-inicio" class="form-input w-full text-sm">
+                </div>
                 <div id="edit-superior-wrap">
                     <label class="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">
                         Superior <span class="text-gray-400 font-normal">(opcional)</span>
@@ -335,14 +351,6 @@
                     <select id="edit-superior" class="form-input w-full text-sm">
                         <option value="">Cargando...</option>
                     </select>
-                </div>
-                <div id="edit-vigente-wrap">
-                    <label class="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">
-                        Actualizar equipo desde
-                        <span class="text-gray-400 font-normal">(inclusive)</span>
-                    </label>
-                    <input type="date" id="edit-vigente-desde" class="form-input w-full text-sm">
-                    <p class="text-[11px] text-gray-400 mt-1">Se reasignarán los registros de equipo_dia al nuevo supervisor desde esta fecha hasta hoy.</p>
                 </div>
                 <div class="flex items-center gap-2 pt-1">
                     <input type="checkbox" id="edit-puede-editar-propia" class="rounded border-gray-300 text-primary focus:ring-primary">
@@ -387,77 +395,6 @@
         </div>
     </div>
 
-    {{-- ── Modal Transferir ────────────────────────────────────────────────── --}}
-    <div id="modal-transferir" class="fixed inset-0 z-50 hidden items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4">
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg border border-gray-200 dark:border-gray-700">
-            <div class="flex items-center justify-between px-6 py-4 border-b dark:border-gray-700">
-                <h2 class="text-base font-semibold text-gray-800 dark:text-white flex items-center gap-2">
-                    <i class="fa-solid fa-right-left text-blue-500"></i> Transferir Asignación
-                </h2>
-                <button onclick="closeTransferirModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition cursor-pointer">
-                    <i class="fa-solid fa-times text-lg"></i>
-                </button>
-            </div>
-            <div class="p-6 space-y-4">
-                {{-- Info actual --}}
-                <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg px-4 py-3 text-sm space-y-1">
-                    <p class="text-gray-500 dark:text-gray-400 text-xs font-semibold uppercase tracking-wide mb-1">Asignación actual</p>
-                    <p class="font-medium text-gray-800 dark:text-white" id="tr-info-usuario">—</p>
-                    <p class="text-gray-500 dark:text-gray-400 text-xs" id="tr-info-campana">—</p>
-                    <p class="text-gray-500 dark:text-gray-400 text-xs" id="tr-info-rol">—</p>
-                </div>
-
-                <input type="hidden" id="tr-id" value="">
-                <input type="hidden" id="tr-campana-id" value="">
-                <input type="hidden" id="tr-rol-actual" value="">
-
-                <div>
-                    <label class="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">Campaña</label>
-                    <select id="tr-nueva-campana" onchange="onTransferirCampanaChange()" class="form-input w-full text-sm">
-                        @foreach($campanas as $c)
-                            @if(!in_array($c->id, $campanasPadreIds))
-                            <option value="{{ $c->id }}">{{ $c->nombre }}</option>
-                            @endif
-                        @endforeach
-                    </select>
-                </div>
-
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">Nuevo Rol</label>
-                        <select id="tr-rol" onchange="onTransferirRolChange()" class="form-input w-full text-sm">
-                            @if($miNivelMax > 4)<option value="Jefe Operaciones">Jefe Operaciones</option>@endif
-                            @if($miNivelMax > 3)<option value="Coordinador">Coordinador</option>@endif
-                            @if($miNivelMax > 2)<option value="Supervisor">Supervisor</option>@endif
-                            @if($miNivelMax > 1)<option value="Colaborador">Colaborador</option>@endif
-                        </select>
-                        <p class="text-xs text-gray-400 mt-1">Déjalo igual para no cambiar rol.</p>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">Fecha Inicio <span class="text-red-500">*</span></label>
-                        <input type="date" id="tr-fecha" class="form-input w-full text-sm" value="{{ now()->toDateString() }}" min="{{ now()->toDateString() }}">
-                    </div>
-                    <div class="col-span-2">
-                        <label class="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">Nuevo Superior <span class="text-gray-400 font-normal">(opcional)</span></label>
-                        <select id="tr-superior" class="form-input w-full text-sm">
-                            <option value="">Cargando...</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="text-xs text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 flex items-start gap-2">
-                    <i class="fa-solid fa-circle-info flex-shrink-0 mt-0.5"></i>
-                    <span>Se cerrará la asignación actual y se creará una nueva aprobada automáticamente.</span>
-                </div>
-            </div>
-            <div class="flex items-center justify-end gap-2 px-6 py-4 border-t dark:border-gray-700">
-                <button onclick="closeTransferirModal()" class="btn btn-secondary text-sm px-4 py-2 cursor-pointer">Cancelar</button>
-                <button onclick="submitTransferir()" class="btn btn-primary text-sm px-4 py-2 cursor-pointer">
-                    <i class="fa-solid fa-right-left mr-1"></i> Transferir
-                </button>
-            </div>
-        </div>
-    </div>
 
     @push('scripts')
     <script>
@@ -497,11 +434,107 @@
             document.getElementById('campana-hint').classList.add('hidden');
         }
 
+        let usuariosDisponibles = [];
+        let usuariosSeleccionados = [];  // [{ id, name, numero_documento }]
+        let maxUsuarios = 1;
+
         function resetUsuarioSelect() {
-            const sel = document.getElementById('create-usuario');
-            sel.innerHTML = '<option value="">Selecciona una campaña primero...</option>';
-            sel.disabled  = true;
+            usuariosDisponibles   = [];
+            usuariosSeleccionados = [];
+            const search = document.getElementById('create-usuario-search');
+            search.value       = '';
+            search.placeholder = 'Selecciona una campaña primero...';
+            search.disabled    = true;
+            document.getElementById('create-usuario').value = '';
+            document.getElementById('usuario-dropdown').classList.add('hidden');
+            document.getElementById('usuario-dropdown').innerHTML = '';
+            renderChips();
         }
+
+        function renderChips() {
+            const container = document.getElementById('usuario-chips');
+            const hidden    = document.getElementById('create-usuario');
+            container.innerHTML = '';
+
+            if (usuariosSeleccionados.length === 0) {
+                container.classList.add('hidden');
+                hidden.value = '';
+                return;
+            }
+
+            container.classList.remove('hidden');
+            usuariosSeleccionados.forEach(u => {
+                const chip = document.createElement('span');
+                chip.className = 'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-primary/10 text-primary dark:bg-primary/20 border border-primary/30';
+                chip.innerHTML = `${u.name} <button type="button" class="hover:text-red-500" data-id="${u.id}">&times;</button>`;
+                chip.querySelector('button').addEventListener('click', () => {
+                    usuariosSeleccionados = usuariosSeleccionados.filter(x => x.id !== u.id);
+                    renderChips();
+                    actualizarSearchPlaceholder();
+                });
+                container.appendChild(chip);
+            });
+
+            // Para compatibilidad con submitCreate (single user): usar el primero
+            hidden.value = usuariosSeleccionados[0]?.id ?? '';
+        }
+
+        function actualizarSearchPlaceholder() {
+            const search = document.getElementById('create-usuario-search');
+            if (usuariosSeleccionados.length >= maxUsuarios) {
+                search.placeholder = `Máximo ${maxUsuarios} usuario${maxUsuarios > 1 ? 's' : ''} seleccionado${maxUsuarios > 1 ? 's' : ''}`;
+                search.disabled = true;
+                search.value    = '';
+            } else {
+                search.placeholder = maxUsuarios > 1
+                    ? `Buscar usuario (${usuariosSeleccionados.length}/${maxUsuarios})...`
+                    : 'Buscar por nombre o documento...';
+                search.disabled = false;
+            }
+        }
+
+        function seleccionarUsuario(u) {
+            if (usuariosSeleccionados.find(x => x.id === u.id)) return;
+            if (usuariosSeleccionados.length >= maxUsuarios) return;
+            usuariosSeleccionados.push(u);
+            renderChips();
+            actualizarSearchPlaceholder();
+            document.getElementById('create-usuario-search').value = '';
+            document.getElementById('usuario-dropdown').classList.add('hidden');
+        }
+
+        function filtrarUsuarios() {
+            const search = document.getElementById('create-usuario-search');
+            const dd     = document.getElementById('usuario-dropdown');
+            const q      = search.value.trim().toLowerCase();
+
+            if (!q) { dd.classList.add('hidden'); return; }
+
+            const yaIds = usuariosSeleccionados.map(x => x.id);
+            const lista = usuariosDisponibles.filter(u =>
+                !yaIds.includes(u.id) &&
+                (u.name.toLowerCase().includes(q) || u.numero_documento.includes(q))
+            );
+
+            if (lista.length === 0) { dd.innerHTML = '<li class="px-3 py-2 text-gray-400 dark:text-gray-500">Sin resultados</li>'; dd.classList.remove('hidden'); return; }
+
+            dd.innerHTML = '';
+            lista.forEach(u => {
+                const li       = document.createElement('li');
+                li.className   = 'px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200';
+                li.textContent = `${u.name} (${u.numero_documento})`;
+                li.addEventListener('mousedown', e => { e.preventDefault(); seleccionarUsuario(u); });
+                dd.appendChild(li);
+            });
+            dd.classList.remove('hidden');
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const search = document.getElementById('create-usuario-search');
+            search.addEventListener('input', filtrarUsuarios);
+            search.addEventListener('blur',  () => setTimeout(() =>
+                document.getElementById('usuario-dropdown').classList.add('hidden'), 150));
+        });
 
         function resetSuperiorSelect() {
             const sel = document.getElementById('create-superior');
@@ -530,6 +563,7 @@
             const selCamp = document.getElementById('create-campana');
             const hint    = document.getElementById('campana-hint');
 
+            maxUsuarios = (rol === 'Colaborador') ? 3 : 1;
             resetCampanaSelect();
             resetUsuarioSelect();
             resetSuperiorSelect();
@@ -561,16 +595,12 @@
                 const res   = await fetch(`/admin/asignaciones/usuarios-disponibles?campana_id=${campanaId}`, {
                     headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf }
                 });
-                const users = await res.json();
-                const sel   = document.getElementById('create-usuario');
-                sel.innerHTML = '<option value="">Seleccionar usuario...</option>';
-                users.forEach(u => {
-                    const opt       = document.createElement('option');
-                    opt.value       = u.id;
-                    opt.textContent = `${u.name} (${u.numero_documento})`;
-                    sel.appendChild(opt);
-                });
-                sel.disabled = false;
+                usuariosDisponibles = await res.json();
+                usuariosSeleccionados = [];
+                renderChips();
+                actualizarSearchPlaceholder();
+                document.getElementById('create-usuario-search').disabled = false;
+                document.getElementById('create-usuario-search').focus();
             } catch(e) { console.error(e); }
 
             if (!rol) return;
@@ -589,7 +619,7 @@
                     superiores.forEach(s => {
                         const opt       = document.createElement('option');
                         opt.value       = s.id;
-                        opt.textContent = `${s.name} — ${s.rol}`;
+                        opt.textContent = `${s.name} — ${s.rol} — ${s.campana}`;
                         sel.appendChild(opt);
                     });
                     sel.disabled = false;
@@ -600,30 +630,48 @@
         async function submitCreate() {
             const campanaId  = document.getElementById('create-campana').value;
             const rol        = document.getElementById('create-rol').value;
-            const usuarioId  = document.getElementById('create-usuario').value;
             const superiorId = document.getElementById('create-superior').value;
             const fecha      = document.getElementById('create-fecha').value;
 
-            if (!campanaId || !rol || !usuarioId || !fecha) {
+            if (!campanaId || !rol || usuariosSeleccionados.length === 0 || !fecha) {
                 alert('Por favor completa todos los campos obligatorios.');
                 return;
             }
 
+            const errores = [];
+            for (const u of usuariosSeleccionados) {
+                try {
+                    const res = await fetch('/admin/asignaciones', {
+                        method:  'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
+                        body:    JSON.stringify({
+                            campana_id:   campanaId,
+                            rol:          rol,
+                            user_id:      u.id,
+                            superior_id:  superiorId || null,
+                            fecha_inicio: fecha,
+                        }),
+                    });
+                    const data = await res.json();
+                    if (!res.ok) errores.push(`${u.name}: ${data.message || 'Error'}`);
+                } catch(e) { errores.push(`${u.name}: Error de conexión`); }
+            }
+
+            closeCreateModal();
+            if (errores.length) alert('Errores:\n' + errores.join('\n'));
+            location.reload();
+        }
+
+        async function eliminar(id, nombre) {
+            if (!confirm(`¿Eliminar definitivamente la asignación de "${nombre}"? Esta acción no se puede deshacer.`)) return;
             try {
-                const res = await fetch('/admin/asignaciones', {
-                    method:  'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
-                    body:    JSON.stringify({
-                        campana_id:   campanaId,
-                        rol:          rol,
-                        user_id:      usuarioId,
-                        superior_id:  superiorId || null,
-                        fecha_inicio: fecha,
-                    }),
+                const res  = await fetch(`/admin/asignaciones/${id}`, {
+                    method:  'DELETE',
+                    headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
                 });
                 const data = await res.json();
-                if (res.ok) { closeCreateModal(); alert(data.message); location.reload(); }
-                else { alert(data.message || 'Error al crear la asignación.'); }
+                if (res.ok) { alert(data.message); location.reload(); }
+                else { alert(data.message || 'Error al eliminar.'); }
             } catch(e) { alert('Error de conexión.'); }
         }
 
@@ -693,83 +741,6 @@
             } catch(e) { alert('Error de conexión.'); }
         }
 
-        // ── Transferir ────────────────────────────────────────────────────────────
-
-        async function openTransferirModal(id, usuario, campana, campanaId, rol, fechaMin) {
-            document.getElementById('tr-id').value         = id;
-            document.getElementById('tr-campana-id').value = campanaId;
-            document.getElementById('tr-rol-actual').value = rol;
-            document.getElementById('tr-info-usuario').textContent = usuario;
-            document.getElementById('tr-info-campana').textContent = 'Campaña actual: ' + campana;
-            document.getElementById('tr-info-rol').textContent     = 'Rol actual: ' + rol;
-            document.getElementById('tr-fecha').min   = fechaMin;
-            document.getElementById('tr-fecha').value = fechaMin;
-            document.getElementById('tr-rol').value    = rol;
-            document.getElementById('tr-nueva-campana').value = campanaId;
-
-            document.getElementById('modal-transferir').classList.replace('hidden', 'flex');
-            await cargarSuperioresTransferir(campanaId, rol);
-        }
-
-        function closeTransferirModal() {
-            document.getElementById('modal-transferir').classList.replace('flex', 'hidden');
-        }
-
-        async function onTransferirCampanaChange() {
-            const campanaId = document.getElementById('tr-nueva-campana').value;
-            const rol       = document.getElementById('tr-rol').value;
-            await cargarSuperioresTransferir(campanaId, rol);
-        }
-
-        async function onTransferirRolChange() {
-            const campanaId = document.getElementById('tr-nueva-campana').value;
-            const rol       = document.getElementById('tr-rol').value;
-            await cargarSuperioresTransferir(campanaId, rol);
-        }
-
-        async function cargarSuperioresTransferir(campanaId, rol) {
-            const sel = document.getElementById('tr-superior');
-            sel.innerHTML = '<option value="">Cargando...</option>';
-            sel.disabled  = true;
-
-            try {
-                const res        = await fetch(`/admin/asignaciones/superiores-disponibles?campana_id=${campanaId}&rol=${encodeURIComponent(rol)}`, {
-                    headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf }
-                });
-                const superiores = await res.json();
-
-                sel.innerHTML = '<option value="">Sin superior (cima de jerarquía)</option>';
-                superiores.forEach(s => {
-                    const opt       = document.createElement('option');
-                    opt.value       = s.id;
-                    opt.textContent = `${s.name} — ${s.rol} [${s.campana}]`;
-                    sel.appendChild(opt);
-                });
-                sel.disabled = false;
-            } catch(e) {
-                sel.innerHTML = '<option value="">Error al cargar superiores</option>';
-            }
-        }
-
-        async function submitTransferir() {
-            const id         = document.getElementById('tr-id').value;
-            const superiorId = document.getElementById('tr-superior').value;
-            const rol        = document.getElementById('tr-rol').value;
-            const fecha      = document.getElementById('tr-fecha').value;
-
-            if (!fecha) { alert('La fecha de inicio es obligatoria.'); return; }
-
-            try {
-                const res = await fetch(`/admin/asignaciones/${id}/transferir`, {
-                    method:  'PATCH',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
-                    body:    JSON.stringify({ superior_id: superiorId || null, rol, fecha_inicio: fecha, campana_id: document.getElementById('tr-nueva-campana').value }),
-                });
-                const data = await res.json();
-                if (res.ok) { closeTransferirModal(); alert(data.message); location.reload(); }
-                else { alert(data.message || 'Error al transferir.'); }
-            } catch(e) { alert('Error de conexión.'); }
-        }
         // ── Modal EDITAR ──────────────────────────────────────────────────────
         async function openEditarModal(id, usuario, campanaId, rol, superiorActualId, puedeEditarPropia = false, fechaInicio = '') {
             document.getElementById('edit-id').value         = id;
@@ -777,17 +748,11 @@
             document.getElementById('edit-rol').value        = rol;
             document.getElementById('edit-info-usuario').textContent = usuario;
             document.getElementById('edit-puede-editar-propia').checked = puedeEditarPropia;
+            document.getElementById('edit-fecha-inicio').value = fechaInicio;
 
-            const superiorWrap  = document.getElementById('edit-superior-wrap');
-            const vigenteWrap   = document.getElementById('edit-vigente-wrap');
-            const vigenteInput  = document.getElementById('edit-vigente-desde');
-            const sinSuperior   = nivelRol[rol] >= nivelRol['Jefe Operaciones'];
+            const superiorWrap = document.getElementById('edit-superior-wrap');
+            const sinSuperior  = nivelRol[rol] >= nivelRol['Jefe Operaciones'];
             superiorWrap.classList.toggle('hidden', sinSuperior);
-            vigenteWrap.classList.toggle('hidden', sinSuperior);
-
-            const hoy = new Date().toISOString().slice(0, 10);
-            vigenteInput.min   = fechaInicio || hoy;
-            vigenteInput.value = hoy;
 
             if (!sinSuperior) {
                 const sel = document.getElementById('edit-superior');
@@ -821,15 +786,15 @@
             const id           = document.getElementById('edit-id').value;
             const wrap         = document.getElementById('edit-superior-wrap');
             const sinSuperior  = wrap.classList.contains('hidden');
-            const superiorId   = sinSuperior ? null : document.getElementById('edit-superior').value;
-            const puedeEditar  = document.getElementById('edit-puede-editar-propia').checked;
-            const vigenteDesde = sinSuperior ? null : document.getElementById('edit-vigente-desde').value;
+            const superiorId  = sinSuperior ? null : document.getElementById('edit-superior').value;
+            const puedeEditar = document.getElementById('edit-puede-editar-propia').checked;
+            const fechaInicio = document.getElementById('edit-fecha-inicio').value;
 
             try {
                 const res  = await fetch(`/admin/asignaciones/${id}/editar`, {
                     method: 'PATCH',
                     headers: { 'X-CSRF-TOKEN': csrf, 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                    body: JSON.stringify({ superior_id: superiorId || null, puede_editar_propia_asistencia: puedeEditar, vigente_desde: vigenteDesde }),
+                    body: JSON.stringify({ superior_id: superiorId || null, puede_editar_propia_asistencia: puedeEditar, fecha_inicio: fechaInicio }),
                 });
                 const data = await res.json();
                 if (res.ok) { closeEditarModal(); location.reload(); }

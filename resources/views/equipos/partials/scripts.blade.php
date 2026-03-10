@@ -406,7 +406,7 @@ async function submitSolicitar() {
 
 // ── Aprobar ────────────────────────────────────────────────────────────────
 async function aprobar(id) {
-    if (!confirm('¿Aprobar este préstamo? Se actualizará el equipo_dia para todo el rango.')) return;
+    if (!confirm('¿Aprobar este préstamo?')) return;
     try {
         const res  = await fetch(`/equipos/prestamos/${id}/aprobar`, {
             method: 'POST',
@@ -489,44 +489,5 @@ async function cancelar(id) {
     });
 });
 
-// ── Auto-carry manual (provisional) ───────────────────────────────────────
-function abrirModalAutoCarry() {
-    document.getElementById('modal-autocarry').classList.remove('hidden');
-    document.getElementById('autocarry-msg').classList.add('hidden');
-}
-function cerrarModalAutoCarry() {
-    document.getElementById('modal-autocarry').classList.add('hidden');
-}
-async function ejecutarAutoCarry() {
-    const fecha = document.getElementById('autocarry-fecha').value;
-    if (!fecha) return;
-    const btn = document.getElementById('autocarry-btn');
-    const msg = document.getElementById('autocarry-msg');
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Ejecutando...';
-    msg.classList.add('hidden');
-    try {
-        const res = await fetch('{{ route("equipos.auto-carry") }}', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF },
-            body: JSON.stringify({ fecha }),
-        });
-        const text = await res.text();
-        let data = {};
-        try { data = JSON.parse(text); } catch(e) {}
-        msg.className = res.ok
-            ? 'mb-3 text-sm rounded-lg px-3 py-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
-            : 'mb-3 text-sm rounded-lg px-3 py-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300';
-        msg.textContent = data.message || (res.ok ? 'Ejecutado correctamente.' : `Error ${res.status}: ${text.substring(0, 200)}`);
-        msg.classList.remove('hidden');
-    } catch (e) {
-        msg.className = 'mb-3 text-sm rounded-lg px-3 py-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300';
-        msg.textContent = 'Error de red: ' + e.message;
-        msg.classList.remove('hidden');
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fa-solid fa-rotate"></i> Ejecutar';
-    }
-}
 </script>
 @endpush

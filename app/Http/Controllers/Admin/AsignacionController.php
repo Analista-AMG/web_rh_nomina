@@ -10,9 +10,7 @@ use App\Models\Scopes\AlcanceUsuarioScope;
 use App\Models\User;
 use App\Models\UserAsignacion;
 use Carbon\Carbon;
-use Carbon\CarbonPeriod;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 
 class AsignacionController extends Controller
@@ -114,17 +112,13 @@ class AsignacionController extends Controller
             ->get()
             ->keyBy('numero_documento');
 
-        // IDs de campañas raíz (parent_id = null) — excluidas del selector de transferencia
-        $campanasPadreIds = Campana::whereNull('parent_id')->pluck('id')->toArray();
-
         return view('admin.asignaciones.index', [
-            'asignaciones'    => $asignaciones,
-            'campanas'        => $campanas,
-            'campanasPadreIds' => $campanasPadreIds,
-            'esAdmin'         => $this->esAdmin(),
-            'miNivelMax'      => $this->miNivelMax(),
+            'asignaciones'   => $asignaciones,
+            'campanas'       => $campanas,
+            'esAdmin'        => $this->esAdmin(),
+            'miNivelMax'     => $this->miNivelMax(),
             'mostrarCerradas' => $mostrarCerradas,
-            'personasPorDoc'  => $personasPorDoc,
+            'personasPorDoc' => $personasPorDoc,
         ]);
     }
 
@@ -149,16 +143,25 @@ class AsignacionController extends Controller
 
         User::findOrFail($request->user_id);
 
-        $existente = UserAsignacion::where('user_id', (int) $request->user_id)
-            ->where('campana_id', $campanaId)
-            ->whereNull('fecha_fin')
-            ->first();
+        // Colaboradores no pueden tener asignaciones simultáneas en ninguna campaña.
+        // Roles superiores (Supervisor, Coordinador, JO) sí pueden tener varias.
+        if ($request->rol === UserAsignacion::ROL_COLABORADOR) {
+            $solapada = UserAsignacion::where('user_id', (int) $request->user_id)
+                ->where('estado', UserAsignacion::ESTADO_APROBADO)
+                ->where('fecha_inicio', '<=', $request->fecha_inicio)
+                ->where(fn($q) => $q->whereNull('fecha_fin')->orWhere('fecha_fin', '>=', $request->fecha_inicio))
+                ->with('campana')
+                ->first();
 
-        if ($existente) {
-            return response()->json([
-                'success' => false,
-                'message' => 'El usuario ya tiene una asignación activa en esta campaña.',
-            ], 422);
+            if ($solapada) {
+                $detalle = $solapada->campana?->nombre ?? 'otra campaña';
+                $desde   = $solapada->fecha_inicio->format('d/m/Y');
+                $hasta   = $solapada->fecha_fin ? $solapada->fecha_fin->format('d/m/Y') : 'sin fecha fin';
+                return response()->json([
+                    'success' => false,
+                    'message' => "El colaborador ya tiene una asignación activa en {$detalle} del {$desde} al {$hasta}. Ciérrala antes de crear una nueva.",
+                ], 422);
+            }
         }
 
         if ($request->superior_id) {
@@ -199,10 +202,6 @@ class AsignacionController extends Controller
             'creado_por'   => (int) auth()->id(),
         ]);
 
-        if ($autoAprobar) {
-            $this->generarEquipoDiaDesdeAsignacion($asignacion);
-        }
-
         $msg = $autoAprobar
             ? 'Asignación creada y aprobada.'
             : 'Solicitud creada. Pendiente de aprobación.';
@@ -228,8 +227,6 @@ class AsignacionController extends Controller
             'aprobado_en'    => now(),
             'motivo_rechazo' => null,
         ]);
-
-        $this->generarEquipoDiaDesdeAsignacion($a);
 
         return response()->json(['success' => true, 'message' => 'Asignación aprobada.']);
     }
@@ -293,85 +290,6 @@ class AsignacionController extends Controller
         return response()->json(['success' => true, 'message' => 'Asignación cerrada definitivamente.']);
     }
 
-    public function transferir(Request $request, $id)
-    {
-        $a = UserAsignacion::findOrFail($id);
-
-        abort_if($a->fecha_fin !== null, 422, 'La asignación ya está cerrada.');
-        abort_unless($a->estado === UserAsignacion::ESTADO_APROBADO, 422, 'Solo se pueden transferir asignaciones aprobadas.');
-        abort_unless($this->puedeAprobarRol($a->rol), 403, 'Sin autoridad para transferir este rol.');
-
-        $permitidos = $this->campanaIdsPermitidos();
-        if ($permitidos !== null) {
-            abort_unless(in_array((int) $a->campana_id, $permitidos), 403);
-        }
-
-        $request->validate([
-            'superior_id'  => 'nullable|integer',
-            'rol'          => 'nullable|in:' . implode(',', UserAsignacion::ROLES),
-            'fecha_inicio' => 'required|date',
-            'campana_id'   => 'nullable|integer',
-        ]);
-
-        $nuevaCampanaId = $request->filled('campana_id') ? (int) $request->campana_id : (int) $a->campana_id;
-
-        if ($permitidos !== null && !in_array($nuevaCampanaId, $permitidos)) {
-            return response()->json(['success' => false, 'message' => 'No tienes acceso a esa campaña.'], 403);
-        }
-
-        if (Carbon::parse($request->fecha_inicio)->lte($a->fecha_inicio)) {
-            return response()->json(['success' => false, 'message' => 'La fecha de inicio debe ser posterior a la fecha de inicio de la asignación actual (' . $a->fecha_inicio->format('d/m/Y') . ').'], 422);
-        }
-
-        $nuevoRol = $request->rol ?? $a->rol;
-
-        if ($nuevoRol !== $a->rol && !$this->puedeAprobarRol($nuevoRol)) {
-            return response()->json(['success' => false, 'message' => 'Sin autoridad para asignar este rol.'], 403);
-        }
-
-        if ($request->superior_id) {
-            $superiorQuery = UserAsignacion::where('user_id', (int) $request->superior_id)->vigentes();
-            if ($permitidos !== null) {
-                $superiorQuery->whereIn('campana_id', $permitidos);
-            }
-            $asignacionesSuperior = $superiorQuery->get();
-
-            if ($asignacionesSuperior->isEmpty()) {
-                return response()->json(['success' => false, 'message' => 'El nuevo superior no tiene asignación vigente en las campañas permitidas.'], 422);
-            }
-
-            $nivelMaxSuperior = $asignacionesSuperior->max(fn($a) => UserAsignacion::NIVEL_ROL[$a->rol] ?? 0);
-            if ($nivelMaxSuperior <= (UserAsignacion::NIVEL_ROL[$nuevoRol] ?? 0)) {
-                return response()->json(['success' => false, 'message' => 'El superior debe tener un rol de mayor jerarquía.'], 422);
-            }
-        }
-
-        DB::transaction(function () use ($a, $request, $nuevoRol, $nuevaCampanaId) {
-            $fechaInicioNueva = Carbon::parse($request->fecha_inicio);
-            $fechaFinAnterior = $fechaInicioNueva->copy()->subDay()->toDateString();
-            $fechaFinAnterior = max($fechaFinAnterior, $a->fecha_inicio->toDateString());
-
-            $a->update(['fecha_fin' => $fechaFinAnterior, 'activo' => false]);
-
-            $nueva = UserAsignacion::create([
-                'user_id'      => $a->user_id,
-                'campana_id'   => $nuevaCampanaId,
-                'rol'          => $nuevoRol,
-                'superior_id'  => $request->superior_id ? (int) $request->superior_id : null,
-                'estado'       => UserAsignacion::ESTADO_APROBADO,
-                'aprobado_por' => (int) auth()->id(),
-                'aprobado_en'  => now(),
-                'activo'       => true,
-                'fecha_inicio' => $request->fecha_inicio,
-                'creado_por'   => (int) auth()->id(),
-            ]);
-
-            $this->generarEquipoDiaDesdeAsignacion($nueva);
-        });
-
-        return response()->json(['success' => true, 'message' => 'Asignación transferida exitosamente.']);
-    }
-
     public function editar(Request $request, $id)
     {
         $a = UserAsignacion::findOrFail($id);
@@ -387,7 +305,7 @@ class AsignacionController extends Controller
         $request->validate([
             'superior_id'                    => 'nullable|integer',
             'puede_editar_propia_asistencia' => 'nullable|boolean',
-            'vigente_desde'                  => 'nullable|date|before_or_equal:today',
+            'fecha_inicio'                   => 'nullable|date',
         ]);
 
         if ($request->superior_id) {
@@ -407,7 +325,11 @@ class AsignacionController extends Controller
             }
         }
 
-        $campos        = ['superior_id' => $request->superior_id ? (int) $request->superior_id : null];
+        $campos = ['superior_id' => $request->superior_id ? (int) $request->superior_id : null];
+
+        if ($request->filled('fecha_inicio')) {
+            $campos['fecha_inicio'] = $request->fecha_inicio;
+        }
         $oldSuperiorId = $a->superior_id;
         $newSuperiorId = $campos['superior_id'];
 
@@ -415,7 +337,7 @@ class AsignacionController extends Controller
             $campos['puede_editar_propia_asistencia'] = (bool) $request->puede_editar_propia_asistencia;
         }
 
-        DB::transaction(function () use ($a, $campos, $oldSuperiorId, $newSuperiorId, $asignacionesSuperior, $request) {
+        DB::transaction(function () use ($a, $campos, $oldSuperiorId, $newSuperiorId, $asignacionesSuperior) {
             $a->update($campos);
 
             if ($oldSuperiorId && $newSuperiorId && $oldSuperiorId !== $newSuperiorId) {
@@ -437,52 +359,6 @@ class AsignacionController extends Controller
                                 'campana_origen_id'    => $nuevaCampana,
                             ]);
 
-                        // Actualizar equipo_dia desde vigente_desde hasta hoy
-                        if ($request->filled('vigente_desde')) {
-                            $vigenteDesde = $request->vigente_desde;
-                            $hoy          = Carbon::today()->toDateString();
-                            $now          = now();
-
-                            // 1. Actualizar registros existentes (cualquier origen)
-                            DB::table('dbo.equipo_dia')
-                                ->where('empleado_id', $empleadoId)
-                                ->whereBetween('fecha', [$vigenteDesde, $hoy])
-                                ->update([
-                                    'supervisor_id' => $newSuperiorId,
-                                    'campana_id'    => $nuevaCampana,
-                                    'origen'        => \App\Models\EquipoDia::ORIGEN_BASE,
-                                    'prestamo_id'   => null,
-                                    'updated_at'    => $now,
-                                ]);
-
-                            // 2. Insertar fechas que no tienen registro
-                            $existentes = DB::table('dbo.equipo_dia')
-                                ->where('empleado_id', $empleadoId)
-                                ->whereBetween('fecha', [$vigenteDesde, $hoy])
-                                ->pluck('fecha')
-                                ->map(fn($f) => (string) $f)
-                                ->flip()
-                                ->all();
-
-                            $inserts = [];
-                            foreach (CarbonPeriod::create($vigenteDesde, $hoy) as $fecha) {
-                                $fStr = $fecha->toDateString();
-                                if (isset($existentes[$fStr])) continue;
-                                $inserts[] = [
-                                    'empleado_id'   => $empleadoId,
-                                    'supervisor_id' => $newSuperiorId,
-                                    'campana_id'    => $nuevaCampana,
-                                    'fecha'         => $fStr,
-                                    'origen'        => \App\Models\EquipoDia::ORIGEN_BASE,
-                                    'prestamo_id'   => null,
-                                    'created_at'    => $now,
-                                    'updated_at'    => $now,
-                                ];
-                            }
-                            foreach (array_chunk($inserts, 100) as $chunk) {
-                                DB::table('dbo.equipo_dia')->insert($chunk);
-                            }
-                        }
                     }
                 }
             }
@@ -527,6 +403,14 @@ class AsignacionController extends Controller
         return $ids;
     }
 
+    public function destroy(int $id)
+    {
+        $asignacion = UserAsignacion::findOrFail($id);
+        $asignacion->delete();
+
+        return response()->json(['message' => 'Asignación eliminada correctamente.']);
+    }
+
     // ── API helpers ───────────────────────────────────────────────────────────
 
     public function usuariosDisponibles(Request $request)
@@ -567,18 +451,13 @@ class AsignacionController extends Controller
 
         if (empty($rolesSuperiores)) return response()->json([]);
 
-        // Buscar en todas las campañas que el usuario puede gestionar,
-        // no solo en ancestros — permite al JO/Coordinador elegir superiores
-        // de cualquier sub-campaña que administre.
         $permitidos = $this->campanaIdsPermitidos();
+        if ($permitidos !== null && !in_array($campanaId, $permitidos)) abort(403);
 
         $query = UserAsignacion::with(['usuario', 'campana'])
             ->whereIn('rol', $rolesSuperiores)
+            ->where('campana_id', $campanaId)
             ->vigentes();
-
-        if ($permitidos !== null) {
-            $query->whereIn('campana_id', $permitidos);
-        }
 
         $asignaciones = $query->get();
 
@@ -591,57 +470,4 @@ class AsignacionController extends Controller
         ]));
     }
 
-    /**
-     * Genera registros en equipo_dia desde fecha_inicio hasta hoy para un colaborador recién aprobado.
-     */
-    private function generarEquipoDiaDesdeAsignacion(UserAsignacion $a): void
-    {
-        if ($a->rol !== UserAsignacion::ROL_COLABORADOR || !$a->superior_id) return;
-
-        $fechaInicio = Carbon::parse($a->fecha_inicio)->toDateString();
-        $hoy         = Carbon::today()->toDateString();
-
-        if ($fechaInicio > $hoy) return;
-
-        $user = User::find($a->user_id);
-        if (!$user || !$user->numero_documento) return;
-
-        $personaId = DB::table('nomina.dim_personas')
-            ->where('numero_documento', $user->numero_documento)
-            ->value('id');
-
-        if (!$personaId) return;
-
-        $yaExisten = DB::table('dbo.equipo_dia')
-            ->where('empleado_id', $personaId)
-            ->whereBetween('fecha', [$fechaInicio, $hoy])
-            ->pluck('fecha')
-            ->map(fn($f) => (string) $f)
-            ->toArray();
-
-        $now     = now();
-        $inserts = [];
-
-        foreach (CarbonPeriod::create($fechaInicio, $hoy) as $fecha) {
-            $fechaStr = $fecha->toDateString();
-            if (in_array($fechaStr, $yaExisten)) continue;
-
-            $inserts[] = [
-                'supervisor_id' => $a->superior_id,
-                'empleado_id'   => $personaId,
-                'campana_id'    => $a->campana_id,
-                'fecha'         => $fechaStr,
-                'origen'        => \App\Models\EquipoDia::ORIGEN_BASE,
-                'prestamo_id'   => null,
-                'created_at'    => $now,
-                'updated_at'    => $now,
-            ];
-        }
-
-        if (empty($inserts)) return;
-
-        foreach (array_chunk($inserts, 100) as $chunk) {
-            DB::table('dbo.equipo_dia')->insert($chunk);
-        }
-    }
 }

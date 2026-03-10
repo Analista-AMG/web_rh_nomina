@@ -8,14 +8,6 @@
             <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Gestión de préstamos temporales entre supervisores</p>
         </div>
         <div class="flex items-center gap-3">
-            @role('Administrador')
-            <button type="button" onclick="abrirModalAutoCarry()"
-                class="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-gray-400 dark:border-gray-500 text-xs font-medium text-gray-500 dark:text-gray-400 hover:border-amber-500 hover:text-amber-600 transition-colors cursor-pointer bg-white dark:bg-[#273142]"
-                title="Provisional — rellenar equipo_dia para una fecha">
-                <i class="fa-solid fa-rotate"></i>
-                Auto-carry
-            </button>
-            @endrole
             @if($totalPendientes > 0)
             <span class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-sm font-medium rounded-lg">
                 <i class="fa-solid fa-clock-rotate-left"></i>
@@ -107,29 +99,6 @@
         @endif
     </div>
 
-    {{-- ── Modal Auto-carry (provisional) ────────────────────────────────────── --}}
-    @role('Administrador')
-    <div id="modal-autocarry" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-        <div class="bg-white dark:bg-[#1e2736] rounded-xl shadow-xl p-6 w-full max-w-sm">
-            <h2 class="text-base font-semibold text-gray-800 dark:text-white mb-1">Auto-carry manual</h2>
-            <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">Copia equipo_dia del día anterior a la fecha seleccionada y aplica préstamos activos.</p>
-            <div id="autocarry-msg" class="hidden mb-3 text-sm rounded-lg px-3 py-2"></div>
-            <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Fecha destino</label>
-            <input type="date" id="autocarry-fecha" value="{{ now()->toDateString() }}"
-                class="w-full px-3 py-2 rounded-lg border border-light-border dark:border-dark-border bg-white dark:bg-[#273142] text-gray-800 dark:text-white text-sm mb-4">
-            <div class="flex gap-2 justify-end">
-                <button type="button" onclick="cerrarModalAutoCarry()"
-                    class="px-4 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
-                    Cancelar
-                </button>
-                <button type="button" id="autocarry-btn" onclick="ejecutarAutoCarry()"
-                    class="px-4 py-2 text-sm rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-medium cursor-pointer flex items-center gap-2">
-                    <i class="fa-solid fa-rotate"></i> Ejecutar
-                </button>
-            </div>
-        </div>
-    </div>
-    @endrole
 
     {{-- ── Modales ──────────────────────────────────────────────────────────── --}}
     @include('equipos.partials.modals.modal-prestar')

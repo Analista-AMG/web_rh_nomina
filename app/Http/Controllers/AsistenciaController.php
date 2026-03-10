@@ -8,7 +8,9 @@ use App\Models\Contrato;
 use App\Models\EquipoPrestamo;
 use App\Models\ItemAsistencia;
 use App\Models\Pago;
+use App\Models\Persona;
 use App\Models\Scopes\AlcanceUsuarioScope;
+use App\Models\User;
 use App\Models\UserAsignacion;
 use App\Services\JerarquiaService;
 use Carbon\Carbon;
@@ -17,7 +19,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 
 class AsistenciaController extends Controller
 {
@@ -144,7 +145,7 @@ class AsistenciaController extends Controller
 
             $filas = $this->construirFilas($contratos, $empleadoEnEquipo, $campanaMap, $asistencias, $fechas, $esAdmin, $esRRHH, $personaIds);
 
-            $equipoDiaSupervisores = $this->cargarEquipoDiaSupervisores($allPersonaIds, $inicioStr, $finStr);
+            $equipoDiaSupervisores = $this->cargarSupervisoresPorDia($prestamosOut, $prestamosIn, $inicioStr, $finStr);
         }
 
         return view('asistencia.index', compact(
@@ -326,10 +327,10 @@ class AsistenciaController extends Controller
             ->where('fecha_fin', '>=', $ini);
 
         $prestamosOut = (clone $base())->where('supervisor_origen_id', $userId)
-            ->get(['empleado_id', 'fecha_inicio', 'fecha_fin']);
+            ->get(['empleado_id', 'supervisor_destino_id', 'fecha_inicio', 'fecha_fin']);
 
         $prestamosIn = (clone $base())->where('supervisor_destino_id', $userId)
-            ->get(['empleado_id', 'fecha_inicio', 'fecha_fin']);
+            ->get(['empleado_id', 'supervisor_origen_id', 'fecha_inicio', 'fecha_fin']);
 
         $prestamosInPersonaIds = $prestamosIn->pluck('empleado_id')->map(fn ($id) => (int) $id)->unique()->toArray();
 
@@ -358,13 +359,15 @@ class AsistenciaController extends Controller
 
     /**
      * Mapa [persona_id][fecha] => true indicando en qué días cada persona
-     * pertenece al equipo del supervisor (base + préstamos in/out).
+     * pertenece al equipo del usuario (base desde UserAsignacion + ajuste por préstamos).
+     *
+     * Fuente única de verdad: UserAsignacion + EquipoPrestamo.
      */
     private function construirMapaEnEquipo(
         bool $esAdmin,
         bool $esRRHH,
         Collection $contratos,
-        ?array $personaIds,
+        ?array $editablePersonaIds,
         Collection $prestamosOut,
         Collection $prestamosIn,
         array $fechas,
@@ -384,67 +387,77 @@ class AsistenciaController extends Controller
             return $mapa;
         }
 
-        if ($esRRHH) {
-            // RRHH ve todos pero solo edita su equipo directo (equipo_dia)
-            $equipoDia = \Illuminate\Support\Facades\DB::table('dbo.equipo_dia')
-                ->where('supervisor_id', $userId)
-                ->whereBetween('fecha', [$inicioStr, $finStr])
-                ->get(['empleado_id', 'fecha']);
+        $allPersonaIds = $contratos->pluck('persona_id')->unique()->map(fn ($id) => (int) $id)->toArray();
+        [$personaToUser, $userToPersona] = $this->resolverPersonaUserMap($allPersonaIds);
 
-            foreach ($equipoDia as $row) {
-                $mapa[(int) $row->empleado_id][$row->fecha] = true;
+        if ($esRRHH) {
+            // RRHH editable: personas con asignación donde superior_id = este usuario
+            $asigs = UserAsignacion::where('superior_id', $userId)
+                ->where('estado', UserAsignacion::ESTADO_APROBADO)
+                ->where('fecha_inicio', '<=', $finStr)
+                ->where(fn ($q) => $q->whereNull('fecha_fin')->orWhere('fecha_fin', '>=', $inicioStr))
+                ->get(['user_id', 'fecha_inicio', 'fecha_fin']);
+
+            foreach ($asigs as $a) {
+                $pid = $userToPersona[(int) $a->user_id] ?? null;
+                if (!$pid) continue;
+                $desde = max($a->fecha_inicio->format('Y-m-d'), $inicioStr);
+                $hasta = min($a->fecha_fin?->format('Y-m-d') ?? $finStr, $finStr);
+                if ($desde > $hasta) continue;
+                foreach (CarbonPeriod::create($desde, $hasta) as $d) {
+                    $mapa[$pid][$d->format('Y-m-d')] = true;
+                }
             }
 
-            // Si tiene el flag puede_editar_propia_asistencia, incluir todos los días del período
-            // para su propia persona (sin depender de equipo_dia, que puede no existir para supervisores)
             if ($propioIdRRHH !== null) {
-                foreach ($fechas as $fecha) {
-                    $mapa[$propioIdRRHH][$fecha->format('Y-m-d')] = true;
+                foreach ($fechas as $f) {
+                    $mapa[$propioIdRRHH][$f->format('Y-m-d')] = true;
                 }
             }
         } else {
-            // Usar equipo_dia para respetar la fecha de inicio real de cada colaborador.
-            // Supervisores: tienen registros directos → mapa preciso desde su fecha_inicio.
-            // Coordinadores/JO: no tienen registros directos → fallback a todos los días.
-            $personasConEquipo = [];
+            // Supervisor: días exactos en que fue superior directo (superior_id = userId)
+            $directos = UserAsignacion::where('superior_id', $userId)
+                ->where('estado', UserAsignacion::ESTADO_APROBADO)
+                ->where('fecha_inicio', '<=', $finStr)
+                ->where(fn ($q) => $q->whereNull('fecha_fin')->orWhere('fecha_fin', '>=', $inicioStr))
+                ->get(['user_id', 'fecha_inicio', 'fecha_fin']);
 
-            if ($userId && !empty($personaIds)) {
-                $rows = \Illuminate\Support\Facades\DB::table('dbo.equipo_dia')
-                    ->where('supervisor_id', $userId)
-                    ->whereIn('empleado_id', $personaIds)
-                    ->whereBetween('fecha', [$inicioStr, $finStr])
-                    ->get(['empleado_id', 'fecha']);
-
-                foreach ($rows as $row) {
-                    $mapa[(int) $row->empleado_id][$row->fecha] = true;
+            $personasDirectas = [];
+            foreach ($directos as $a) {
+                $pid = $userToPersona[(int) $a->user_id] ?? null;
+                if (!$pid) continue;
+                $desde = max($a->fecha_inicio->format('Y-m-d'), $inicioStr);
+                $hasta = min($a->fecha_fin?->format('Y-m-d') ?? $finStr, $finStr);
+                if ($desde > $hasta) continue;
+                foreach (CarbonPeriod::create($desde, $hasta) as $d) {
+                    $mapa[$pid][$d->format('Y-m-d')] = true;
                 }
-
-                $personasConEquipo = collect($rows)->pluck('empleado_id')
-                    ->unique()->map(fn ($id) => (int) $id)->toArray();
+                $personasDirectas[] = $pid;
             }
 
-            // Coordinador/JO: no tienen registros directos en equipo_dia.
-            // - Colaboradores: tienen equipo_dia → heredar esos registros (misma restricción que su supervisor).
-            // - Supervisores/Coordinadores visibles: no tienen equipo_dia → fallback todos los días.
-            $sinEquipo = array_values(array_diff($personaIds ?? [], $personasConEquipo));
-            if (!empty($sinEquipo)) {
-                $rowsFallback = \Illuminate\Support\Facades\DB::table('dbo.equipo_dia')
-                    ->whereIn('empleado_id', $sinEquipo)
-                    ->whereBetween('fecha', [$inicioStr, $finStr])
-                    ->get(['empleado_id', 'fecha']);
+            // Coordinador/JO: personas visibles que no son subordinados directos.
+            // Se usan sus propias fechas de asignación activa en el período.
+            $noDirectas = array_values(array_diff($editablePersonaIds ?? [], $personasDirectas));
+            if (!empty($noDirectas)) {
+                $userIdsNd = array_values(array_filter(
+                    array_map(fn ($pid) => $personaToUser[$pid] ?? null, $noDirectas)
+                ));
+                if (!empty($userIdsNd)) {
+                    $asigs = UserAsignacion::whereIn('user_id', $userIdsNd)
+                        ->where('estado', UserAsignacion::ESTADO_APROBADO)
+                        ->where('fecha_inicio', '<=', $finStr)
+                        ->where(fn ($q) => $q->whereNull('fecha_fin')->orWhere('fecha_fin', '>=', $inicioStr))
+                        ->get(['user_id', 'fecha_inicio', 'fecha_fin']);
 
-                $conRegistros = collect($rowsFallback)
-                    ->pluck('empleado_id')->unique()->map(fn ($id) => (int) $id)->toArray();
-
-                // Personas con equipo_dia en el período → solo esas fechas
-                foreach ($rowsFallback as $row) {
-                    $mapa[(int) $row->empleado_id][$row->fecha] = true;
-                }
-
-                // Personas sin equipo_dia en el período (supervisores, coordinadores) → todos los días
-                foreach (array_diff($sinEquipo, $conRegistros) as $pid) {
-                    foreach ($fechas as $fecha) {
-                        $mapa[$pid][$fecha->format('Y-m-d')] = true;
+                    foreach ($asigs as $a) {
+                        $pid = $userToPersona[(int) $a->user_id] ?? null;
+                        if (!$pid) continue;
+                        $desde = max($a->fecha_inicio->format('Y-m-d'), $inicioStr);
+                        $hasta = min($a->fecha_fin?->format('Y-m-d') ?? $finStr, $finStr);
+                        if ($desde > $hasta) continue;
+                        foreach (CarbonPeriod::create($desde, $hasta) as $d) {
+                            $mapa[$pid][$d->format('Y-m-d')] = true;
+                        }
                     }
                 }
             }
@@ -470,6 +483,37 @@ class AsistenciaController extends Controller
         }
 
         return $mapa;
+    }
+
+    /**
+     * Resuelve mapa bidireccional persona_id ↔ user_id para un conjunto de personas.
+     * Ruta: persona.numero_documento → users.numero_documento.
+     */
+    private function resolverPersonaUserMap(array $personaIds): array
+    {
+        if (empty($personaIds)) return [[], []];
+
+        $docs = Persona::withoutGlobalScope(AlcanceUsuarioScope::class)
+            ->whereIn('id', $personaIds)
+            ->whereNotNull('numero_documento')
+            ->pluck('numero_documento', 'id');
+
+        if ($docs->isEmpty()) return [[], []];
+
+        $users = User::whereIn('numero_documento', $docs->values())
+            ->pluck('id', 'numero_documento');
+
+        $personaToUser = [];
+        $userToPersona = [];
+        foreach ($docs as $personaId => $doc) {
+            $uid = $users[$doc] ?? null;
+            if ($uid) {
+                $personaToUser[(int) $personaId] = (int) $uid;
+                $userToPersona[(int) $uid]        = (int) $personaId;
+            }
+        }
+
+        return [$personaToUser, $userToPersona];
     }
 
     /**
@@ -525,28 +569,57 @@ class AsistenciaController extends Controller
     }
 
     /**
-     * Mapa [persona_id][fecha] => nombre del supervisor según equipo_dia.
+     * Mapa [persona_id][fecha] => nombre del supervisor.
+     * Derivado de UserAsignacion (base) + EquipoPrestamo (override).
      */
-    private function cargarEquipoDiaSupervisores(?array $personaIds, string $ini, string $fin): array
+    /**
+     * Mapa [persona_id][fecha] => nombre del supervisor "del otro lado" del préstamo.
+     *
+     * - Préstamos salientes (supervisor_origen = yo): loan days → nombre supervisor_destino.
+     *   Visible para mí en esas celdas donde el colaborador ya no está en mi equipo.
+     *
+     * - Préstamos entrantes (supervisor_destino = yo): días fuera del rango del préstamo → nombre supervisor_origen.
+     *   Visible para mí en celdas donde el colaborador no es editable por mí.
+     *   Los días del préstamo en sí (editables para mí) no tienen tooltip.
+     */
+    private function cargarSupervisoresPorDia(Collection $prestamosOut, Collection $prestamosIn, string $ini, string $fin): array
     {
-        $query = DB::table('dbo.equipo_dia')
-            ->whereBetween('fecha', [$ini, $fin]);
+        if ($prestamosOut->isEmpty() && $prestamosIn->isEmpty()) return [];
 
-        if ($personaIds !== null) {
-            if (empty($personaIds)) return [];
-            $query->whereIn('empleado_id', $personaIds);
+        $userIds = collect()
+            ->merge($prestamosOut->pluck('supervisor_destino_id'))
+            ->merge($prestamosIn->pluck('supervisor_origen_id'))
+            ->filter()->unique()->values()->toArray();
+
+        if (empty($userIds)) return [];
+
+        $names = User::whereIn('id', $userIds)->pluck('name', 'id');
+        $map   = [];
+
+        // Salientes: días del préstamo → mostrar a dónde fue el colaborador
+        foreach ($prestamosOut as $p) {
+            $supName = $names[$p->supervisor_destino_id] ?? null;
+            if (!$supName) continue;
+            $desde = max($p->fecha_inicio->format('Y-m-d'), $ini);
+            $hasta = min($p->fecha_fin->format('Y-m-d'), $fin);
+            if ($desde > $hasta) continue;
+            foreach (CarbonPeriod::create($desde, $hasta) as $d) {
+                $map[(int) $p->empleado_id][$d->format('Y-m-d')] = $supName;
+            }
         }
 
-        $recs = $query->get(['empleado_id', 'fecha', 'supervisor_id']);
-
-        $names = \App\Models\User::whereIn('id', $recs->pluck('supervisor_id')->filter()->unique()->toArray())
-            ->pluck('name', 'id');
-
-        $map = [];
-        foreach ($recs as $rec) {
-            $name = $names[$rec->supervisor_id] ?? null;
-            if ($name) {
-                $map[(int) $rec->empleado_id][$rec->fecha] = $name;
+        // Entrantes: días FUERA del préstamo → mostrar de dónde viene el colaborador
+        foreach ($prestamosIn as $p) {
+            $supName   = $names[$p->supervisor_origen_id] ?? null;
+            if (!$supName) continue;
+            $loanDesde = max($p->fecha_inicio->format('Y-m-d'), $ini);
+            $loanHasta = min($p->fecha_fin->format('Y-m-d'), $fin);
+            foreach (CarbonPeriod::create($ini, $fin) as $d) {
+                $dStr = $d->format('Y-m-d');
+                if ($dStr >= $loanDesde && $dStr <= $loanHasta) continue; // skip loan days
+                if (!isset($map[(int) $p->empleado_id][$dStr])) {
+                    $map[(int) $p->empleado_id][$dStr] = $supName;
+                }
             }
         }
 

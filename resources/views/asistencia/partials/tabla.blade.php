@@ -148,7 +148,7 @@
                                 $tdBg = 'group-hover:bg-gray-50 dark:group-hover:bg-[#323d4d]';
                             }
                         @endphp
-                        <td data-fecha="{{ $fStr }}" title="{{ $supNombre ?? 'Sin registro de equipo' }}" class="px-1 py-1 text-center border-r border-gray-200 dark:border-gray-700 {{ $tdBg }}">
+                        <td data-fecha="{{ $fStr }}" @if($dentroRango && ($bloqueado || !$enEquipo) && $supNombre) title="{{ $supNombre }}" @endif class="px-1 py-1 text-center border-r border-gray-200 dark:border-gray-700 {{ $tdBg }}">
                             @if(!$dentroRango)
                                 <span class="text-gray-300 dark:text-gray-600 text-xs"><i class="fa-solid fa-lock text-[10px]"></i></span>
                             @elseif($bloqueado)

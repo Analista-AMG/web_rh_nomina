@@ -112,10 +112,6 @@ Route::middleware(['auth', 'asignacion'])->group(function () {
         ->name('calculos.ejecutar');
 
     // 8. Rutas de Equipos
-    Route::middleware(['role:Administrador'])
-        ->post('/equipos/auto-carry', [App\Http\Controllers\PrestamoController::class, 'autoCarry'])
-        ->name('equipos.auto-carry');
-
     Route::middleware(['permission:equipos.manage'])->group(function () {
         // Préstamos multi-día
         Route::get('/equipos', [App\Http\Controllers\PrestamoController::class, 'index'])->name('equipos.index');
@@ -173,9 +169,11 @@ Route::middleware(['auth', 'asignacion'])->group(function () {
             Route::patch('/asignaciones/{id}/rechazar', [AsignacionController::class, 'rechazar'])->name('asignaciones.rechazar');
             Route::patch('/asignaciones/{id}/pausar', [AsignacionController::class, 'pausar'])->name('asignaciones.pausar');
             Route::patch('/asignaciones/{id}/cerrar', [AsignacionController::class, 'cerrar'])->name('asignaciones.cerrar');
-            Route::patch('/asignaciones/{id}/transferir', [AsignacionController::class, 'transferir'])->name('asignaciones.transferir');
             Route::patch('/asignaciones/{id}/editar', [AsignacionController::class, 'editar'])->name('asignaciones.editar');
         });
+        Route::middleware(['role:Administrador'])
+            ->delete('/asignaciones/{id}', [AsignacionController::class, 'destroy'])
+            ->name('asignaciones.destroy');
 
         // Campañas
         Route::middleware(['permission:campanas.view'])->group(function () {

@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Contrato;
-use App\Models\EquipoDia;
 use App\Models\EquipoPrestamo;
 use App\Models\Persona;
 use App\Models\Scopes\AlcanceUsuarioScope;
@@ -11,10 +10,8 @@ use App\Models\User;
 use App\Models\UserAsignacion;
 use App\Services\JerarquiaService;
 use Carbon\Carbon;
-use Carbon\CarbonPeriod;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
@@ -217,38 +214,20 @@ class PrestamoController extends Controller
         return response()->json(['success' => true, 'id' => $prestamo->id]);
     }
 
-    // ── Aprobar préstamo → aplica equipo_dia para todo el rango ──────────────
-
     public function aprobarPrestamo(EquipoPrestamo $prestamo): JsonResponse
     {
         if ($prestamo->estado !== EquipoPrestamo::ESTADO_PENDIENTE) {
             return response()->json(['error' => 'Este préstamo ya fue procesado.'], 422);
         }
 
-        DB::transaction(function () use ($prestamo) {
-            $prestamo->update([
-                'estado'       => EquipoPrestamo::ESTADO_APROBADO,
-                'aprobado_por' => (int) Auth::id(),
-                'aprobado_en'  => now(),
-            ]);
-
-            foreach (CarbonPeriod::create($prestamo->fecha_inicio, $prestamo->fecha_fin) as $date) {
-                EquipoDia::updateOrCreate(
-                    ['empleado_id' => $prestamo->empleado_id, 'fecha' => $date->toDateString()],
-                    [
-                        'supervisor_id' => $prestamo->supervisor_destino_id,
-                        'campana_id'    => $prestamo->campana_destino_id,
-                        'origen'        => EquipoDia::ORIGEN_PRESTAMO,
-                        'prestamo_id'   => $prestamo->id,
-                    ]
-                );
-            }
-        });
+        $prestamo->update([
+            'estado'       => EquipoPrestamo::ESTADO_APROBADO,
+            'aprobado_por' => (int) Auth::id(),
+            'aprobado_en'  => now(),
+        ]);
 
         return response()->json(['success' => true]);
     }
-
-    // ── Anular préstamo aprobado (revierte equipo_dia de fechas futuras) ──────
 
     public function anularPrestamo(Request $request, EquipoPrestamo $prestamo): JsonResponse
     {
@@ -270,26 +249,12 @@ class PrestamoController extends Controller
             }
         }
 
-        DB::transaction(function () use ($prestamo, $request) {
-            foreach (CarbonPeriod::create($prestamo->fecha_inicio, $prestamo->fecha_fin) as $date) {
-                EquipoDia::updateOrCreate(
-                    ['empleado_id' => $prestamo->empleado_id, 'fecha' => $date->toDateString()],
-                    [
-                        'supervisor_id' => $prestamo->supervisor_origen_id,
-                        'campana_id'    => $prestamo->campana_origen_id,
-                        'origen'        => EquipoDia::ORIGEN_BASE,
-                        'prestamo_id'   => null,
-                    ]
-                );
-            }
-
-            $prestamo->update([
-                'estado'         => EquipoPrestamo::ESTADO_ANULADO,
-                'motivo_rechazo' => $request->motivo_anulacion ?? null,
-                'aprobado_por'   => (int) Auth::id(),
-                'aprobado_en'    => now(),
-            ]);
-        });
+        $prestamo->update([
+            'estado'         => EquipoPrestamo::ESTADO_ANULADO,
+            'motivo_rechazo' => $request->motivo_anulacion ?? null,
+            'aprobado_por'   => (int) Auth::id(),
+            'aprobado_en'    => now(),
+        ]);
 
         return response()->json(['success' => true]);
     }
@@ -413,16 +378,4 @@ class PrestamoController extends Controller
         );
     }
 
-    // ── Auto-carry (provisional) ──────────────────────────────────────────────
-
-    public function autoCarry(Request $request): JsonResponse
-    {
-        $request->validate(['fecha' => 'required|date_format:Y-m-d']);
-
-        Artisan::call('equipo:auto-carry', ['--fecha' => $request->fecha]);
-
-        $output = trim(Artisan::output());
-
-        return response()->json(['message' => $output ?: "Auto-carry ejecutado para {$request->fecha}."]);
-    }
 }
