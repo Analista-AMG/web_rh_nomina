@@ -11,8 +11,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withSchedule(function (\Illuminate\Console\Scheduling\Schedule $schedule) {
-        // Auto-carry: genera equipo_dia para mañana a medianoche (idempotente)
-        $schedule->command('equipo:auto-carry')->dailyAt('00:00');
+        //
     })
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([

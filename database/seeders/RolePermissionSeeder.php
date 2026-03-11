@@ -38,6 +38,9 @@ class RolePermissionSeeder extends Seeder
             'asistencia.view',
             'asistencia.edit',
 
+            // Módulo Reportes
+            'reportes.asistencia.view',
+
             // Módulo Adicionales
             'adicionales.view',
             'adicionales.edit',

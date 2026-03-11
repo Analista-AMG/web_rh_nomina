@@ -118,6 +118,27 @@
             @endif
             @endif
 
+            {{-- Subordinados directos (client-side, solo para jerarquía) --}}
+            @if(!$esAdmin && $mostrarFiltroDirectos)
+            <div>
+                <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">
+                    <i class="fa-solid fa-sitemap mr-1"></i>Ver
+                </label>
+                <div class="flex items-center gap-1 bg-gray-50 dark:bg-[#1b2431] rounded-lg px-3 py-2 border border-gray-200 dark:border-gray-700">
+                    <button type="button" onclick="filtrarDirectos(false)"
+                        id="btn-directos-todos"
+                        class="px-2.5 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer bg-primary text-white shadow-sm">
+                        Todos
+                    </button>
+                    <button type="button" onclick="filtrarDirectos(true)"
+                        id="btn-directos-solo"
+                        class="px-2.5 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600">
+                        Mis directos
+                    </button>
+                </div>
+            </div>
+            @endif
+
             {{-- Buscar colaborador (client-side) --}}
             <div class="flex-1 min-w-[200px]">
                 <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">

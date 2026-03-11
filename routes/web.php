@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\PersonaController;
+use App\Http\Controllers\Reportes\AsistenciaReporteController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Admin\EmpresaController;
 use App\Http\Controllers\Admin\CampanaController;
@@ -73,6 +74,11 @@ Route::middleware(['auth', 'asignacion'])->group(function () {
     Route::middleware(['permission:contratos.edit'])
         ->put('/contratos/movimientos/{movimiento}', [App\Http\Controllers\ContratoMovimientoController::class, 'update'])
         ->name('contratos.movimientos.update');
+
+    // 5b. Rutas de Reportes
+    Route::middleware(['permission:reportes.asistencia.view'])->group(function () {
+        Route::get('/reportes/asistencia', [AsistenciaReporteController::class, 'index'])->name('reportes.asistencia');
+    });
 
     // 5. Rutas de Asistencia - Protegidas por permisos
     Route::middleware(['permission:asistencia.view'])->group(function () {

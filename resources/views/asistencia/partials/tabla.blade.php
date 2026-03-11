@@ -81,12 +81,13 @@
                     $contrato = $fila['contrato'];
                     $iniciales = mb_substr($persona->apellido_paterno ?? '?', 0, 1) .
                                  mb_substr(explode(' ', trim($persona->nombres ?? '?'))[0], 0, 1);
-                    $filaNombre  = mb_strtolower(trim(($persona->apellido_paterno ?? '') . ' ' . ($persona->apellido_materno ?? '') . ' ' . ($persona->nombres ?? '')));
-                    $filaCampana = mb_strtolower($fila['campana'] ?? '');
-                    $filaCentro  = mb_strtolower($contrato->centroCosto?->nombre_centro_costo ?? '');
-                    $filaFamilia = mb_strtolower($contrato->familia?->nombre_familia ?? '');
+                    $filaNombre   = mb_strtolower(trim(($persona->apellido_paterno ?? '') . ' ' . ($persona->apellido_materno ?? '') . ' ' . ($persona->nombres ?? '')));
+                    $filaCampana  = mb_strtolower($fila['campana'] ?? '');
+                    $filaCentro   = mb_strtolower($contrato->centroCosto?->nombre_centro_costo ?? '');
+                    $filaFamilia  = mb_strtolower($contrato->familia?->nombre_familia ?? '');
+                    $filaDirecto  = in_array((int)$contrato->persona_id, $directosPersonaIds ?? []) ? '1' : '0';
                 @endphp
-                <tr class="group" data-nombre="{{ $filaNombre }}" data-campana="{{ $filaCampana }}" data-centro="{{ $filaCentro }}" data-familia="{{ $filaFamilia }}">
+                <tr class="group" data-nombre="{{ $filaNombre }}" data-campana="{{ $filaCampana }}" data-centro="{{ $filaCentro }}" data-familia="{{ $filaFamilia }}" data-es-directo="{{ $filaDirecto }}">
                     {{-- Sticky name column --}}
                     <td class="sticky left-0 z-10 bg-white dark:bg-[#273142] px-4 py-2 border-r border-gray-200 dark:border-gray-700">
                         <div class="flex items-center gap-3">
@@ -98,7 +99,7 @@
                                     {{ $persona->apellido_paterno }} {{ $persona->apellido_materno }}
                                     {{ explode(' ', trim($persona->nombres ?? ''))[0] }}
                                 </span>
-                                <span class="text-[11px] text-gray-500">
+                                <span class="text-[13px] text-gray-500 font-bold">
                                     {{ $persona->tipo_documento ?? 'DOC' }}: {{ $persona->numero_documento ?? '---' }}
                                 </span>
                             </div>
@@ -120,12 +121,11 @@
                     {{-- Date cells --}}
                     @foreach($fechas as $fecha)
                         @php
-                            $fStr       = $fecha->format('Y-m-d');
-                            $esFinSem   = $fecha->isWeekend();
-                            $esFer      = isset($feriados[$fStr]);
-
-                            $dentroRango = $fecha->gte($fila['inicio_contrato'])
-                                && (!$fila['fin_efectivo'] || $fecha->lte($fila['fin_efectivo']));
+                            $fStr         = $fecha->format('Y-m-d');
+                            $esFinSem     = $fecha->isWeekend();
+                            $esFer        = isset($feriados[$fStr]);
+                            $contratoFecha = $fila['contrato_por_fecha'][$fStr] ?? null;
+                            $dentroRango  = $contratoFecha !== null;
 
                             $enEquipo   = $esAdmin || (isset($fila['en_equipo'][$fStr]) && (!$userFechaInicioStr || $fStr >= $userFechaInicioStr));
                             $bloqueado  = !$esAdmin && $bloquearAntesDe && $fStr < $bloquearAntesDe;
@@ -170,7 +170,7 @@
                             @else
                                 <select
                                     class="asistencia-select w-full text-xs px-1 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:outline-none focus:ring-1 focus:ring-primary/50 text-center"
-                                    data-contrato="{{ $contrato->id }}"
+                                    data-contrato="{{ $contratoFecha->id }}"
                                     data-fecha="{{ $fStr }}"
                                 >
                                     <option value="">-</option>

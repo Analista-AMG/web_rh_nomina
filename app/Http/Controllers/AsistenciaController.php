@@ -48,6 +48,8 @@ class AsistenciaController extends Controller
         $feriados              = [];
         $equipoDiaSupervisores = [];
         $userFechaInicioStr    = null;
+        $mostrarFiltroDirectos = false;
+        $directosPersonaIds    = [];
 
         if ($pagoSeleccionado) {
             $inicioConsulta = Carbon::parse($pagoSeleccionado->inicio)->startOfDay();
@@ -146,12 +148,45 @@ class AsistenciaController extends Controller
             $filas = $this->construirFilas($contratos, $empleadoEnEquipo, $campanaMap, $asistencias, $fechas, $esAdmin, $esRRHH, $personaIds);
 
             $equipoDiaSupervisores = $this->cargarSupervisoresPorDia($prestamosOut, $prestamosIn, $inicioStr, $finStr);
+
+            // Filtro "Mis directos": visible si tiene asignación de Supervisor, Coordinador o JO vigente
+            if (!$esAdmin && !$esRRHH) {
+                $miMaxNivel = UserAsignacion::where('user_id', $userId)
+                    ->where('estado', UserAsignacion::ESTADO_APROBADO)
+                    ->where('fecha_inicio', '<=', $finStr)
+                    ->where(fn ($q) => $q->whereNull('fecha_fin')->orWhere('fecha_fin', '>=', $inicioStr))
+                    ->get('rol')
+                    ->map(fn ($a) => UserAsignacion::NIVEL_ROL[$a->rol] ?? 0)
+                    ->max() ?? 0;
+
+                if ($miMaxNivel >= 2) {
+                    $mostrarFiltroDirectos = true;
+                    $nivelDirecto = $miMaxNivel - 1;
+                    $rolesDirecto = array_keys(array_filter(UserAsignacion::NIVEL_ROL, fn ($n) => $n === $nivelDirecto));
+
+                    [$personaToUser, $userToPersona] = $this->resolverPersonaUserMap($allPersonaIds ?? []);
+                    $directUserIds = UserAsignacion::whereIn('user_id', array_values($personaToUser))
+                        ->whereIn('rol', $rolesDirecto)
+                        ->where('estado', UserAsignacion::ESTADO_APROBADO)
+                        ->where('fecha_inicio', '<=', $finStr)
+                        ->where(fn ($q) => $q->whereNull('fecha_fin')->orWhere('fecha_fin', '>=', $inicioStr))
+                        ->pluck('user_id')->unique()->toArray();
+                    $propioPersonaId    = $userToPersona[$userId] ?? null;
+                    $directosPersonaIds = array_values(array_unique(array_filter(
+                        array_merge(
+                            $propioPersonaId ? [$propioPersonaId] : [],
+                            array_map(fn ($uid) => $userToPersona[$uid] ?? null, $directUserIds)
+                        )
+                    )));
+                }
+            }
         }
 
         return view('asistencia.index', compact(
             'pagos', 'pagoSeleccionado', 'filas', 'fechas',
             'itemsAsistencia', 'feriados', 'esAdmin', 'hoy', 'diaActual', 'mesActual', 'bloquearAntesDe',
-            'equipoDiaSupervisores', 'userFechaInicioStr'
+            'equipoDiaSupervisores', 'userFechaInicioStr',
+            'mostrarFiltroDirectos', 'directosPersonaIds'
         ));
     }
 
@@ -281,6 +316,7 @@ class AsistenciaController extends Controller
             } else {
                 Asistencia::create([
                     'contrato_id'        => $request->contrato_id,
+                    'persona_id'         => $contrato->persona_id,
                     'fecha'              => $request->fecha,
                     'item_asistencia_id' => $request->item_asistencia_id,
                 ]);
@@ -531,32 +567,48 @@ class AsistenciaController extends Controller
     ): Collection {
         $filas = collect();
 
-        foreach ($contratos as $contrato) {
-            $personaId = (int) $contrato->persona_id;
-            $enEquipo  = $empleadoEnEquipo[$personaId] ?? [];
+        // Una fila por persona, agrupando todos sus contratos del período
+        $contratosPorPersona = $contratos->groupBy(fn ($c) => (int) $c->persona_id);
 
-            // Mostrar la fila si es editable, o si está en visiblePersonaIds (read-only)
+        foreach ($contratosPorPersona as $personaId => $personaContratos) {
+            $enEquipo = $empleadoEnEquipo[$personaId] ?? [];
+
             if (!$esAdmin && !$esRRHH && empty($enEquipo)
                 && ($visiblePersonaIds === null || !in_array($personaId, $visiblePersonaIds))) {
                 continue;
             }
 
-            $inicioC     = Carbon::parse($contrato->inicio_contrato);
-            $finEfectivo = $contrato->fecha_renuncia
-                ? Carbon::parse($contrato->fecha_renuncia)
-                : ($contrato->fin_contrato ? Carbon::parse($contrato->fin_contrato) : null);
+            // Ordenar contratos por fecha de inicio para iterar en orden
+            $sortedContratos = $personaContratos->sortBy('inicio_contrato');
 
+            // Mapa fecha → contrato activo en ese día
+            $contratoPorFecha   = [];
             $asistenciasPeriodo = [];
+
             foreach ($fechas as $fecha) {
                 $fStr = $fecha->format('Y-m-d');
-                $asistenciasPeriodo[$fStr] = $asistencias->get($contrato->id . '_' . $fStr);
+                foreach ($sortedContratos as $c) {
+                    $inicioC     = Carbon::parse($c->inicio_contrato);
+                    $finEfectivo = $c->fecha_renuncia
+                        ? Carbon::parse($c->fecha_renuncia)
+                        : ($c->fin_contrato ? Carbon::parse($c->fin_contrato) : null);
+
+                    if ($fecha->gte($inicioC) && (!$finEfectivo || $fecha->lte($finEfectivo))) {
+                        $contratoPorFecha[$fStr]   = $c;
+                        $asistenciasPeriodo[$fStr] = $asistencias->get($c->id . '_' . $fStr);
+                        break;
+                    }
+                }
             }
 
+            $contratoBase   = $sortedContratos->last();  // más reciente para datos de display
+            $inicioContrato = Carbon::parse($sortedContratos->first()->inicio_contrato);
+
             $filas->push([
-                'contrato'            => $contrato,
-                'persona'             => $contrato->persona,
-                'inicio_contrato'     => $inicioC,
-                'fin_efectivo'        => $finEfectivo,
+                'contrato'            => $contratoBase,
+                'contrato_por_fecha'  => $contratoPorFecha,
+                'persona'             => $contratoBase->persona,
+                'inicio_contrato'     => $inicioContrato,
                 'campana'             => $campanaMap[$personaId] ?? '-',
                 'en_equipo'           => $enEquipo,
                 'asistencias_periodo' => $asistenciasPeriodo,

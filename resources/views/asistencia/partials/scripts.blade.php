@@ -8,19 +8,23 @@ document.addEventListener('DOMContentLoaded', function () {
     };
 
     // ── Filtros client-side ───────────────────────────────────────────────
-    const filtroNombre  = document.getElementById('filtro-nombre');
-    const filtroCampana = document.getElementById('filtro-campana');
-    const filtroCentro  = document.getElementById('filtro-centro');
-    const filtroFamilia = document.getElementById('filtro-familia');
-    const btnLimpiar    = document.getElementById('btn-limpiar-nombre');
-    const contador      = document.getElementById('contador-colaboradores');
+    const filtroNombre      = document.getElementById('filtro-nombre');
+    const filtroCampana     = document.getElementById('filtro-campana');
+    const filtroCentro      = document.getElementById('filtro-centro');
+    const filtroFamilia     = document.getElementById('filtro-familia');
+    const btnDirectosTodos = document.getElementById('btn-directos-todos');
+    const btnDirectosSolo  = document.getElementById('btn-directos-solo');
+    let soloDirectos = false;
+    const btnLimpiar        = document.getElementById('btn-limpiar-nombre');
+    const contador          = document.getElementById('contador-colaboradores');
 
     const filasDatos = [...document.querySelectorAll('tbody tr[data-nombre]')].map(tr => ({
-        el:      tr,
-        nombre:  tr.dataset.nombre  ?? '',
-        campana: tr.dataset.campana ?? '',
-        centro:  tr.dataset.centro  ?? '',
-        familia: tr.dataset.familia ?? '',
+        el:        tr,
+        nombre:    tr.dataset.nombre    ?? '',
+        campana:   tr.dataset.campana   ?? '',
+        centro:    tr.dataset.centro    ?? '',
+        familia:   tr.dataset.familia   ?? '',
+        esDirecto: tr.dataset.esDirecto === '1',
     }));
 
     function buildLabelMap(select) {
@@ -35,10 +39,11 @@ document.addEventListener('DOMContentLoaded', function () {
     };
 
     function coincide(fila, nombre, campana, centro, familia) {
-        return (!nombre  || fila.nombre.includes(nombre))
-            && (!campana || fila.campana === campana)
-            && (!centro  || fila.centro  === centro)
-            && (!familia || fila.familia === familia);
+        return (!nombre       || fila.nombre.includes(nombre))
+            && (!campana      || fila.campana === campana)
+            && (!centro       || fila.centro  === centro)
+            && (!familia      || fila.familia === familia)
+            && (!soloDirectos || fila.esDirecto);
     }
 
     function reconstruirSelect(select, campo, nombre, campana, centro, familia) {
@@ -93,6 +98,23 @@ document.addEventListener('DOMContentLoaded', function () {
     filtroCampana?.addEventListener('change', aplicarFiltros);
     filtroCentro?.addEventListener('change', aplicarFiltros);
     filtroFamilia?.addEventListener('change', aplicarFiltros);
+
+    window.filtrarDirectos = function(solo) {
+        soloDirectos = solo;
+        const activo   = 'bg-primary text-white shadow-sm';
+        const inactivo = 'text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600';
+        btnDirectosTodos?.classList.toggle('bg-primary',    !solo);
+        btnDirectosTodos?.classList.toggle('text-white',    !solo);
+        btnDirectosTodos?.classList.toggle('shadow-sm',     !solo);
+        btnDirectosTodos?.classList.toggle('text-gray-500', solo);
+        btnDirectosTodos?.classList.toggle('dark:text-gray-400', solo);
+        btnDirectosSolo?.classList.toggle('bg-primary',    solo);
+        btnDirectosSolo?.classList.toggle('text-white',    solo);
+        btnDirectosSolo?.classList.toggle('shadow-sm',     solo);
+        btnDirectosSolo?.classList.toggle('text-gray-500', !solo);
+        btnDirectosSolo?.classList.toggle('dark:text-gray-400', !solo);
+        aplicarFiltros();
+    };
 
     // ── Filtro por rango de fechas: muestra/oculta columnas ──────────────
     const filtroDesde = document.getElementById('filtro-fecha-desde');

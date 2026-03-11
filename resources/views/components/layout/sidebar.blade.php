@@ -37,6 +37,7 @@
     @php
         $personalActive     = request()->routeIs('personas.*') || request()->routeIs('contratos.*');
         $operacionesActive  = request()->routeIs('asistencia.*') || request()->routeIs('equipos.*');
+        $reportesActive     = request()->routeIs('reportes.*');
         $remunerActive      = request()->routeIs('adicionales.*') || request()->routeIs('calculos.*') || request()->routeIs('dashboard');
         $gestionActive      = request()->routeIs('admin.users.*') || request()->routeIs('admin.roles.*') || request()->routeIs('admin.audit.*');
         $orgActive          = request()->routeIs('admin.empresas.*') || request()->routeIs('admin.campanas.*') || request()->routeIs('admin.asignaciones.*');
@@ -109,6 +110,25 @@
                 </ul>
             </li>
             @endcanany
+
+            {{-- GRUPO: Reportes --}}
+            @can('reportes.asistencia.view')
+            <li class="nav-group" data-group="reportes" data-active="{{ $reportesActive ? '1' : '0' }}">
+                <button class="nav-group-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg {{ $reportesActive ? 'text-primary' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors cursor-pointer" title="Reportes">
+                    <i class="fa-solid fa-chart-bar text-lg flex-shrink-0"></i>
+                    <span class="sidebar-text font-medium flex-1 text-left">Reportes</span>
+                    <i class="fa-solid fa-chevron-down text-xs sidebar-text nav-group-chevron transition-transform duration-200 flex-shrink-0"></i>
+                </button>
+                <ul class="nav-group-items overflow-hidden transition-all duration-200 space-y-0.5" style="max-height:0;">
+                    <li>
+                        <a href="{{ route('reportes.asistencia') }}" class="nav-link flex items-center gap-3 pl-9 pr-4 py-2.5 rounded-lg {{ request()->routeIs('reportes.asistencia') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors" title="Asistencia">
+                            <i class="fa-solid fa-clipboard-list text-sm flex-shrink-0"></i>
+                            <span class="sidebar-text font-medium">Asistencia</span>
+                        </a>
+                    </li>
+                </ul>
+            </li>
+            @endcan
 
             {{-- GRUPO: Remuneraciones --}}
             @canany(['adicionales.view', 'calculos.view', 'dashboard.view'])
