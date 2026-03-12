@@ -198,17 +198,21 @@
                                                 </option>
                                             @endforeach
                                         </select>
+                                        @php
+                                            $btnInitText = $tieneTardanza && $minTardanzaVal ? 'T+'.$minTardanzaVal.'m' : 'T';
+                                        @endphp
                                         <button type="button"
                                                 @click.prevent.stop="if (hasItem) open = !open"
                                                 :disabled="!hasItem"
+                                                @if(!$valorActual) disabled @endif
+                                                class="tard-badge flex-shrink-0 text-[9px] font-bold px-1 py-0.5 rounded leading-none transition-colors {{ !$valorActual ? 'opacity-30 cursor-not-allowed' : '' }}"
                                                 :class="!hasItem ? 'opacity-30 cursor-not-allowed bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500' : tard ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400 cursor-pointer' : 'bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500 hover:text-amber-400 cursor-pointer'"
-                                                class="tard-badge flex-shrink-0 text-[9px] font-bold px-1 py-0.5 rounded leading-none transition-colors"
                                                 title="Tardanza"
-                                                x-text="tard && mins ? 'T+' + mins + 'm' : 'T'">
-                                        </button>
+                                                x-text="tard && mins ? 'T+' + mins + 'm' : 'T'">{{ $btnInitText }}</button>
                                     </div>
                                     {{-- Panel tardanza --}}
                                     <div x-show="open"
+                                         style="display:none"
                                          x-transition:enter="transition ease-out duration-100"
                                          x-transition:enter-start="opacity-0 scale-95"
                                          x-transition:enter-end="opacity-100 scale-100"
@@ -216,7 +220,7 @@
                                          x-transition:leave-start="opacity-100 scale-100"
                                          x-transition:leave-end="opacity-0 scale-95"
                                          class="absolute left-0 mt-1 z-50 p-2 bg-white dark:bg-[#1e2836] rounded-lg border border-amber-200 dark:border-amber-700 shadow-lg min-w-[110px]">
-                                        <label class="flex items-center gap-1.5 text-[11px] text-amber-700 dark:text-amber-300 cursor-pointer">
+                                        <label class="flex items-center gap-1.5 text-[11px] text-[#e67e22] dark:text-[#e67e22] cursor-pointer">
                                             <input type="checkbox"
                                                    class="tardanza-check w-3 h-3 accent-amber-500"
                                                    :checked="tard"
@@ -226,7 +230,7 @@
                                         <input type="number"
                                                x-show="tard"
                                                x-model="mins"
-                                               class="min-tardanza-input mt-1.5 w-full text-[11px] px-1.5 py-1 rounded border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                                               class="min-tardanza-input mt-1.5 w-full text-[11px] px-1.5 py-1 rounded border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-amber-400 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                                                min="1" max="999"
                                                placeholder="minutos">
                                     </div>
