@@ -196,6 +196,8 @@ class AsistenciaController extends Controller
             'contrato_id'        => 'required|integer',
             'fecha'              => 'required|date',
             'item_asistencia_id' => 'nullable|integer',
+            'tardanza'           => 'boolean',
+            'min_tardanza'       => 'nullable|integer|min:1|max:999',
         ]);
 
         $contrato = Contrato::withoutGlobalScope(AlcanceUsuarioScope::class)->find($request->contrato_id);
@@ -311,15 +313,23 @@ class AsistenciaController extends Controller
             ->first();
 
         if ($request->item_asistencia_id) {
+            $tardanza    = (bool) $request->input('tardanza', false);
+            $minTardanza = $tardanza ? $request->input('min_tardanza') : null;
+
+            $payload = [
+                'item_asistencia_id' => $request->item_asistencia_id,
+                'tardanza'           => $tardanza,
+                'min_tardanza'       => $minTardanza,
+            ];
+
             if ($asistencia) {
-                $asistencia->update(['item_asistencia_id' => $request->item_asistencia_id]);
+                $asistencia->update($payload);
             } else {
-                Asistencia::create([
-                    'contrato_id'        => $request->contrato_id,
-                    'persona_id'         => $contrato->persona_id,
-                    'fecha'              => $request->fecha,
-                    'item_asistencia_id' => $request->item_asistencia_id,
-                ]);
+                Asistencia::create(array_merge([
+                    'contrato_id' => $request->contrato_id,
+                    'persona_id'  => $contrato->persona_id,
+                    'fecha'       => $request->fecha,
+                ], $payload));
             }
         } elseif ($asistencia) {
             $asistencia->delete();

@@ -176,9 +176,14 @@ document.addEventListener('DOMContentLoaded', function () {
     const itemsMap = @json($itemsAsistencia->mapWithKeys(fn($i) => [$i->id => $i->codigo_asistencia]));
 
     function guardarAsistencia(sel) {
+        const grupo            = sel.closest('.asist-grupo');
         const contratoId       = sel.dataset.contrato;
         const fecha            = sel.dataset.fecha;
         const itemAsistenciaId = sel.value || null;
+        const tardanzaCheck    = grupo?.querySelector('.tardanza-check');
+        const minTardanzaInput = grupo?.querySelector('.min-tardanza-input');
+        const tardanza         = tardanzaCheck?.checked ?? false;
+        const minTardanza      = (tardanza && minTardanzaInput?.value) ? parseInt(minTardanzaInput.value) : null;
 
         sel.classList.add('opacity-50');
         sel.disabled = true;
@@ -194,6 +199,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 contrato_id:        parseInt(contratoId),
                 fecha:              fecha,
                 item_asistencia_id: itemAsistenciaId ? parseInt(itemAsistenciaId) : null,
+                tardanza:           tardanza,
+                min_tardanza:       minTardanza,
             }),
         })
         .then(r => r.json())
@@ -223,6 +230,21 @@ document.addEventListener('DOMContentLoaded', function () {
         sel.addEventListener('change', function () {
             guardarAsistencia(this);
             this.dataset.prevValue = this.value;
+        });
+    });
+
+    document.querySelectorAll('.tardanza-check').forEach(chk => {
+        chk.addEventListener('change', function () {
+            const sel = this.closest('.asist-grupo')?.querySelector('.asistencia-select');
+            if (sel) guardarAsistencia(sel);
+        });
+    });
+
+    document.querySelectorAll('.min-tardanza-input').forEach(inp => {
+        inp.addEventListener('blur', function () {
+            const grupo = this.closest('.asist-grupo');
+            const sel   = grupo?.querySelector('.asistencia-select');
+            if (sel && sel.value) guardarAsistencia(sel);
         });
     });
 

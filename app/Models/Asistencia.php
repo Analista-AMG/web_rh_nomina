@@ -25,10 +25,13 @@ class Asistencia extends Model
         'persona_id',
         'fecha',
         'item_asistencia_id',
+        'tardanza',
+        'min_tardanza',
     ];
 
     protected $casts = [
-        'fecha' => 'date',
+        'fecha'    => 'date',
+        'tardanza' => 'boolean',
     ];
 
     public function contrato()

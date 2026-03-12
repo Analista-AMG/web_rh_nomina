@@ -130,9 +130,11 @@
                             $enEquipo   = $esAdmin || (isset($fila['en_equipo'][$fStr]) && (!$userFechaInicioStr || $fStr >= $userFechaInicioStr));
                             $bloqueado  = !$esAdmin && $bloquearAntesDe && $fStr < $bloquearAntesDe;
 
-                            $asistencia  = $fila['asistencias_periodo'][$fStr] ?? null;
-                            $valorActual = $asistencia?->item_asistencia_id ?? '';
-                            $codigoBadge = $asistencia?->itemAsistencia?->codigo_asistencia ?? '';
+                            $asistencia     = $fila['asistencias_periodo'][$fStr] ?? null;
+                            $valorActual    = $asistencia?->item_asistencia_id ?? '';
+                            $codigoBadge    = $asistencia?->itemAsistencia?->codigo_asistencia ?? '';
+                            $tieneTardanza  = (bool) ($asistencia?->tardanza ?? false);
+                            $minTardanzaVal = $asistencia?->min_tardanza ?? null;
 
                             $supNombre = $equipoDiaSupervisores[(int)$contrato->persona_id][$fStr] ?? null;
 
@@ -152,34 +154,83 @@
                             @if(!$dentroRango)
                                 <span class="text-gray-300 dark:text-gray-600 text-xs"><i class="fa-solid fa-lock text-[10px]"></i></span>
                             @elseif($bloqueado)
-                                <div class="flex items-center justify-center gap-1 text-xs text-amber-500 dark:text-amber-400 px-1 py-1" title="Periodo cerrado">
-                                    @if($codigoBadge)
-                                        <span class="font-medium text-amber-700 dark:text-amber-300">{{ $codigoBadge }}</span>
+                                <div class="flex flex-col items-center justify-center text-xs text-amber-500 dark:text-amber-400 px-1 py-1" title="Periodo cerrado">
+                                    <div class="flex items-center gap-1">
+                                        @if($codigoBadge)
+                                            <span class="font-medium text-amber-700 dark:text-amber-300">{{ $codigoBadge }}</span>
+                                        @endif
+                                        <i class="fa-solid fa-lock text-[9px]"></i>
+                                    </div>
+                                    @if($tieneTardanza)
+                                        <span class="text-[9px] text-amber-500 font-medium leading-tight">T{{ $minTardanzaVal ? '+'.$minTardanzaVal.'m' : '' }}</span>
                                     @endif
-                                    <i class="fa-solid fa-lock text-[9px]"></i>
                                 </div>
                             @elseif(!$enEquipo)
-                                <div class="flex items-center justify-center gap-1 text-xs text-gray-400 dark:text-gray-500 px-1 py-1 rounded border border-gray-200 dark:border-gray-700 bg-blue-50/50 dark:bg-blue-900/10">
-                                    @if($codigoBadge)
-                                        <span class="font-medium">{{ $codigoBadge }}</span>
-                                    @else
-                                        <span>-</span>
+                                <div class="flex flex-col items-center justify-center text-xs text-gray-400 dark:text-gray-500 px-1 py-1 rounded border border-gray-200 dark:border-gray-700 bg-blue-50/50 dark:bg-blue-900/10">
+                                    <div class="flex items-center gap-1">
+                                        @if($codigoBadge)
+                                            <span class="font-medium">{{ $codigoBadge }}</span>
+                                        @else
+                                            <span>-</span>
+                                        @endif
+                                        <i class="fa-solid fa-lock text-[9px] text-blue-400"></i>
+                                    </div>
+                                    @if($tieneTardanza)
+                                        <span class="text-[9px] text-amber-500 font-medium leading-tight">T{{ $minTardanzaVal ? '+'.$minTardanzaVal.'m' : '' }}</span>
                                     @endif
-                                    <i class="fa-solid fa-lock text-[9px] text-blue-400"></i>
                                 </div>
                             @else
-                                <select
-                                    class="asistencia-select w-full text-xs px-1 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:outline-none focus:ring-1 focus:ring-primary/50 text-center"
-                                    data-contrato="{{ $contratoFecha->id }}"
-                                    data-fecha="{{ $fStr }}"
-                                >
-                                    <option value="">-</option>
-                                    @foreach($itemsAsistencia as $item)
-                                        <option value="{{ $item->id }}" {{ $valorActual == $item->id ? 'selected' : '' }}>
-                                            {{ $item->codigo_asistencia }}
-                                        </option>
-                                    @endforeach
-                                </select>
+                                <div class="asist-grupo relative"
+                                     x-data="{ open: false, tard: {{ $tieneTardanza ? 'true' : 'false' }}, mins: '{{ $minTardanzaVal ?? '' }}', hasItem: {{ $valorActual ? 'true' : 'false' }} }"
+                                     @click.outside="open = false">
+                                    {{-- Select + badge --}}
+                                    <div class="flex items-center gap-0.5">
+                                        <select
+                                            class="asistencia-select w-full text-xs px-1 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:outline-none focus:ring-1 focus:ring-primary/50 text-center"
+                                            data-contrato="{{ $contratoFecha->id }}"
+                                            data-fecha="{{ $fStr }}"
+                                            @change="hasItem = !!$event.target.value; if (!hasItem) { open = false; tard = false; mins = ''; }"
+                                        >
+                                            <option value="">-</option>
+                                            @foreach($itemsAsistencia as $item)
+                                                <option value="{{ $item->id }}" {{ $valorActual == $item->id ? 'selected' : '' }}>
+                                                    {{ $item->codigo_asistencia }}
+                                                </option>
+                                            @endforeach
+                                        </select>
+                                        <button type="button"
+                                                @click.prevent.stop="if (hasItem) open = !open"
+                                                :disabled="!hasItem"
+                                                :class="!hasItem ? 'opacity-30 cursor-not-allowed bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500' : tard ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400 cursor-pointer' : 'bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500 hover:text-amber-400 cursor-pointer'"
+                                                class="tard-badge flex-shrink-0 text-[9px] font-bold px-1 py-0.5 rounded leading-none transition-colors"
+                                                title="Tardanza"
+                                                x-text="tard && mins ? 'T+' + mins + 'm' : 'T'">
+                                        </button>
+                                    </div>
+                                    {{-- Panel tardanza --}}
+                                    <div x-show="open"
+                                         x-transition:enter="transition ease-out duration-100"
+                                         x-transition:enter-start="opacity-0 scale-95"
+                                         x-transition:enter-end="opacity-100 scale-100"
+                                         x-transition:leave="transition ease-in duration-75"
+                                         x-transition:leave-start="opacity-100 scale-100"
+                                         x-transition:leave-end="opacity-0 scale-95"
+                                         class="absolute left-0 mt-1 z-50 p-2 bg-white dark:bg-[#1e2836] rounded-lg border border-amber-200 dark:border-amber-700 shadow-lg min-w-[110px]">
+                                        <label class="flex items-center gap-1.5 text-[11px] text-amber-700 dark:text-amber-300 cursor-pointer">
+                                            <input type="checkbox"
+                                                   class="tardanza-check w-3 h-3 accent-amber-500"
+                                                   :checked="tard"
+                                                   @change="tard = $event.target.checked; if (!tard) mins = ''">
+                                            <span>Tardanza</span>
+                                        </label>
+                                        <input type="number"
+                                               x-show="tard"
+                                               x-model="mins"
+                                               class="min-tardanza-input mt-1.5 w-full text-[11px] px-1.5 py-1 rounded border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                                               min="1" max="999"
+                                               placeholder="minutos">
+                                    </div>
+                                </div>
                             @endif
                         </td>
                     @endforeach
