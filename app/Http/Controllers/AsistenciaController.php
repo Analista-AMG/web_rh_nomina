@@ -161,12 +161,9 @@ class AsistenciaController extends Controller
 
                 if ($miMaxNivel >= 2) {
                     $mostrarFiltroDirectos = true;
-                    $nivelDirecto = $miMaxNivel - 1;
-                    $rolesDirecto = array_keys(array_filter(UserAsignacion::NIVEL_ROL, fn ($n) => $n === $nivelDirecto));
 
                     [$personaToUser, $userToPersona] = $this->resolverPersonaUserMap($allPersonaIds ?? []);
-                    $directUserIds = UserAsignacion::whereIn('user_id', array_values($personaToUser))
-                        ->whereIn('rol', $rolesDirecto)
+                    $directUserIds = UserAsignacion::where('superior_id', $userId)
                         ->where('estado', UserAsignacion::ESTADO_APROBADO)
                         ->where('fecha_inicio', '<=', $finStr)
                         ->where(fn ($q) => $q->whereNull('fecha_fin')->orWhere('fecha_fin', '>=', $inicioStr))
