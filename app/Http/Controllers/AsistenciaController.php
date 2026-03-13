@@ -222,7 +222,7 @@ class AsistenciaController extends Controller
                 ->where('fin', '>=', $fechaStr)
                 ->first();
 
-            if ($pagoFecha && $pagoActual && $pagoFecha->id < $pagoActual->id && $hoy->day > 3) {
+            if ($pagoFecha && $pagoActual && $pagoFecha->periodo < $pagoActual->periodo && $hoy->day > 3) {
                 return response()->json([
                     'error' => 'El período está cerrado. Solo se puede editar el período anterior los primeros 3 días del mes.',
                 ], 403);
@@ -338,9 +338,10 @@ class AsistenciaController extends Controller
     // ── Helpers privados ──────────────────────────────────────────────────────
 
     /**
-     * Fecha más antigua editable según el período de pago actual.
-     * Día 1-3: período anterior sigue editable.
-     * Día 4+:  solo el período actual y futuros.
+     * Fecha más antigua editable según el período de pago activo.
+     * Ambas quincenas del período actual siempre son editables.
+     * Día 1-3 del mes: el período anterior también es editable (gracia).
+     * Día 4+: solo el período actual.
      */
     private function resolverBloqueo(Carbon $hoy): ?string
     {
@@ -350,14 +351,26 @@ class AsistenciaController extends Controller
 
         if (!$pagoActual) return null;
 
+        // Q1 del período actual para que ambas quincenas queden editables
+        $q1Actual = Pago::where('periodo', $pagoActual->periodo)
+            ->orderBy('quincena')
+            ->first();
+
+        $inicioEditable = ($q1Actual ?? $pagoActual)->inicio->format('Y-m-d');
+
         if ($hoy->day > 3) {
-            return $pagoActual->inicio->format('Y-m-d');
+            return $inicioEditable;
         }
 
-        $pagoPrevio = Pago::where('id', '<', $pagoActual->id)->orderByDesc('id')->first();
-        return $pagoPrevio
-            ? $pagoPrevio->inicio->format('Y-m-d')
-            : $pagoActual->inicio->format('Y-m-d');
+        // Gracia días 1-3: permitir también el período anterior completo
+        $q1Previo = Pago::where('periodo', '<', $pagoActual->periodo)
+            ->orderByDesc('periodo')
+            ->orderBy('quincena')
+            ->first();
+
+        return $q1Previo
+            ? $q1Previo->inicio->format('Y-m-d')
+            : $inicioEditable;
     }
 
     /**
