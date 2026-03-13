@@ -1,6 +1,6 @@
 {
   "resources/css/app.css": {
-    "file": "assets/app-CufFh6Zo.css",
+    "file": "assets/app-xZsQUGei.css",
     "src": "resources/css/app.css",
     "isEntry": true,
     "name": "app",
@@ -15,7 +15,7 @@
     "isEntry": true
   },
   "resources/js/pages/contratos.js": {
-    "file": "assets/contratos-DV_bxSLP.js",
+    "file": "assets/contratos-D1-HgcVY.js",
     "name": "contratos",
     "src": "resources/js/pages/contratos.js",
     "isEntry": true
