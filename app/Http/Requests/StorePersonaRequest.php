@@ -23,7 +23,7 @@ class StorePersonaRequest extends FormRequest
             'apellido_materno'               => 'nullable|max:255',
             'fecha_nacimiento'               => ['nullable', 'date', 'before_or_equal:' . now()->subYears(18)->toDateString()],
             'genero'                         => 'nullable|integer|in:1,2',
-            'pais'                           => 'nullable',
+            'nacionalidad'                   => 'nullable',
             'departamento'                   => 'nullable',
             'provincia'                      => 'nullable',
             'distrito'                       => 'nullable',

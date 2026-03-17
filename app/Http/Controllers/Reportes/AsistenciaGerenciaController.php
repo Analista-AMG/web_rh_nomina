@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Reportes;
 
 use App\Http\Controllers\Controller;
 use App\Models\Asistencia;
+use App\Models\Campana;
 use App\Models\Contrato;
 use App\Models\Pago;
 use App\Models\Persona;
@@ -16,7 +17,7 @@ use Carbon\CarbonPeriod;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
-class AsistenciaReporteController extends Controller
+class AsistenciaGerenciaController extends Controller
 {
     public function __construct(protected JerarquiaService $jerarquia) {}
 
@@ -38,7 +39,7 @@ class AsistenciaReporteController extends Controller
         $diasPeriodo = collect();
 
         if (!$pagoSeleccionado) {
-            return view('reportes.asistencia.index', compact('pagos', 'pagoSeleccionado', 'filas', 'diasPeriodo'));
+            return view('reportes.asistencia-gerencia.index', compact('pagos', 'pagoSeleccionado', 'filas', 'diasPeriodo'));
         }
 
         $inicioStr = $pagoSeleccionado->inicio->format('Y-m-d');
@@ -71,7 +72,7 @@ class AsistenciaReporteController extends Controller
         $allPersonaIds       = $contratos->pluck('persona_id')->unique()->map(fn($id) => (int) $id)->toArray();
 
         if (empty($allPersonaIds)) {
-            return view('reportes.asistencia.index', compact('pagos', 'pagoSeleccionado', 'filas', 'diasPeriodo', 'esAdmin'));
+            return view('reportes.asistencia-gerencia.index', compact('pagos', 'pagoSeleccionado', 'filas', 'diasPeriodo'));
         }
 
         [$personaToUser, $userToPersona] = $this->resolverPersonaUserMap($allPersonaIds);
@@ -84,7 +85,7 @@ class AsistenciaReporteController extends Controller
             ->get()
             ->keyBy(fn($a) => $a->contrato_id . '_' . $a->fecha->format('Y-m-d'));
 
-        // 4. Asignaciones del período para personas visibles
+        // 4. Asignaciones del período para usuarios visibles
         $asignaciones = UserAsignacion::whereIn('user_id', $allUserIds)
             ->where('estado', UserAsignacion::ESTADO_APROBADO)
             ->where('fecha_inicio', '<=', $finStr)
@@ -92,84 +93,41 @@ class AsistenciaReporteController extends Controller
             ->with('campana')
             ->get();
 
-        // 5. Responsables: user_ids visibles que aparecen como superior_id de alguien visible
-        $responsableUserIds = $asignaciones
-            ->pluck('superior_id')
-            ->filter()
-            ->unique()
-            ->intersect($allUserIds)   // el responsable también debe ser visible
-            ->values()
-            ->toArray();
-
-        if (empty($responsableUserIds)) {
-            return view('reportes.asistencia.index', compact('pagos', 'pagoSeleccionado', 'filas', 'diasPeriodo', 'esAdmin'));
+        // 5. Cargar campañas con su padre
+        $campanaIds = $asignaciones->pluck('campana_id')->filter()->unique()->toArray();
+        if (empty($campanaIds)) {
+            return view('reportes.asistencia-gerencia.index', compact('pagos', 'pagoSeleccionado', 'filas', 'diasPeriodo'));
         }
+        $campanas = Campana::whereIn('id', $campanaIds)->with('padre')->get()->keyBy('id');
 
-        // 6. Asignaciones propias de los responsables (rol, campaña, puede_editar_propia)
-        $asigPropias = UserAsignacion::whereIn('user_id', $responsableUserIds)
-            ->where('estado', UserAsignacion::ESTADO_APROBADO)
-            ->where('fecha_inicio', '<=', $finStr)
-            ->where(fn($q) => $q->whereNull('fecha_fin')->orWhere('fecha_fin', '>=', $inicioStr))
-            ->with('campana')
-            ->get()
-            ->groupBy('user_id');
+        // Nombres de todos los usuarios para el detalle
+        $userNames = User::whereIn('id', $allUserIds)->pluck('name', 'id');
 
-        // 7. Subordinados directos por responsable (del universo visible)
-        $subPorResponsable = $asignaciones
-            ->whereIn('superior_id', $responsableUserIds)
-            ->groupBy('superior_id');
+        // 6. Construir fila por campaña
+        $asigPorCampana = $asignaciones->groupBy('campana_id');
 
-        // 8. Nombres de todos los usuarios relevantes
-        $userNames = User::whereIn('id', array_unique(array_merge($responsableUserIds, $allUserIds)))
-            ->pluck('name', 'id');
+        foreach ($asigPorCampana as $campanaId => $asigsCampana) {
+            $campana = $campanas[$campanaId] ?? null;
+            if (!$campana) continue;
 
-        // 9. Construir filas del reporte
-        foreach ($responsableUserIds as $supUserId) {
-            $supAsigs = $asigPropias[$supUserId] ?? collect();
-
-            // Rol más alto en el período
-            $rolNivel  = $supAsigs->map(fn($a) => UserAsignacion::NIVEL_ROL[$a->rol] ?? 0)->max() ?? 0;
-            $rolNombre = collect(UserAsignacion::NIVEL_ROL)->search($rolNivel) ?: '—';
-
-            // Campaña del rol más alto
-            $supCampana = $supAsigs
-                ->sortByDesc(fn($a) => UserAsignacion::NIVEL_ROL[$a->rol] ?? 0)
-                ->first()?->campana?->nombre ?? '—';
-
-            // ¿Registra su propia asistencia?
-            $puedePropia  = $supAsigs->contains('puede_editar_propia_asistencia', true);
-            $supPersonaId = $userToPersona[$supUserId] ?? null;
-
-            // Directos en el universo visible
-            $directosUserIds = ($subPorResponsable[$supUserId] ?? collect())
-                ->pluck('user_id')->unique()->toArray();
-
-            $grupoPersonaIds = array_values(array_filter(
-                array_map(fn($uid) => $userToPersona[$uid] ?? null, $directosUserIds)
+            // Personas en esta campaña
+            $userIdsCampana    = $asigsCampana->pluck('user_id')->unique()->toArray();
+            $personaIdsCampana = array_values(array_filter(
+                array_map(fn($uid) => $userToPersona[$uid] ?? null, $userIdsCampana)
             ));
 
             if ($personaIds !== null) {
-                $grupoPersonaIds = array_values(array_intersect($grupoPersonaIds, $personaIds));
+                $personaIdsCampana = array_values(array_intersect($personaIdsCampana, $personaIds));
             }
 
-            // Incluirse a sí mismo si aplica
-            if ($puedePropia && $supPersonaId) {
-                $grupoPersonaIds = array_values(array_unique(array_merge([$supPersonaId], $grupoPersonaIds)));
-            }
+            if (empty($personaIdsCampana)) continue;
 
-            if (empty($grupoPersonaIds)) continue;
-
-            // Calcular cobertura del grupo
+            // Cobertura total de la campaña
             $totalEsperado = 0;
             $totalLlenado  = 0;
-            $detalleColabs = [];
 
-            foreach ($grupoPersonaIds as $personaId) {
-                $persona         = $contratosPorPersona[$personaId]?->first()?->persona;
+            foreach ($personaIdsCampana as $personaId) {
                 $contratosPersona = ($contratosPorPersona[$personaId] ?? collect())->sortBy('inicio_contrato');
-                $esperadoColab   = 0;
-                $llenadoColab    = 0;
-                $fechasVacias    = [];
 
                 foreach ($diasPeriodo as $fecha) {
                     $fStr = $fecha->format('Y-m-d');
@@ -180,56 +138,111 @@ class AsistenciaReporteController extends Controller
                             : ($c->fin_contrato ? Carbon::parse($c->fin_contrato) : null);
 
                         if ($fecha->gte($inicioC) && (!$finEfectivo || $fecha->lte($finEfectivo))) {
-                            $esperadoColab++;
+                            $totalEsperado++;
                             if (isset($asistenciasSet[$c->id . '_' . $fStr])) {
-                                $llenadoColab++;
-                            } else {
-                                $fechasVacias[] = $fStr;
+                                $totalLlenado++;
                             }
                             break;
                         }
                     }
                 }
-
-                $totalEsperado += $esperadoColab;
-                $totalLlenado  += $llenadoColab;
-
-                if ($esperadoColab > 0 && $llenadoColab < $esperadoColab) {
-                    $nombre = $persona
-                        ? trim(($persona->apellido_paterno ?? '') . ' ' . ($persona->apellido_materno ?? '') . ' ' . (explode(' ', trim($persona->nombres ?? ''))[0] ?? ''))
-                        : ($userNames[$supUserId] ?? '—');
-
-                    $detalleColabs[] = [
-                        'nombre'    => $nombre,
-                        'vacios'    => $esperadoColab - $llenadoColab,
-                        'esperados' => $esperadoColab,
-                        'fechas'    => $fechasVacias,
-                        'es_propio' => ($personaId === $supPersonaId),
-                    ];
-                }
             }
 
             if ($totalEsperado === 0) continue;
 
-            usort($detalleColabs, fn($a, $b) => $b['vacios'] <=> $a['vacios']);
+            // 7. Detalle: responsables dentro de la campaña con días vacíos
+            $responsableIds = $asigsCampana
+                ->pluck('superior_id')
+                ->filter()
+                ->unique()
+                ->intersect($userIdsCampana)
+                ->values()
+                ->toArray();
+
+            $asigPropiasCampana = $asignaciones->whereIn('user_id', $responsableIds)->groupBy('user_id');
+            $subPorResp         = $asigsCampana->whereIn('superior_id', $responsableIds)->groupBy('superior_id');
+
+            $detalleResponsables = [];
+
+            foreach ($responsableIds as $supUserId) {
+                $directosUserIds = ($subPorResp[$supUserId] ?? collect())
+                    ->pluck('user_id')->unique()->toArray();
+
+                $puedePropia  = ($asigPropiasCampana[$supUserId] ?? collect())->contains('puede_editar_propia_asistencia', true);
+                $supPersonaId = $userToPersona[$supUserId] ?? null;
+
+                $grupoPersonaIds = array_values(array_filter(
+                    array_map(fn($uid) => $userToPersona[$uid] ?? null, $directosUserIds)
+                ));
+
+                if ($puedePropia && $supPersonaId) {
+                    $grupoPersonaIds = array_values(array_unique(array_merge([$supPersonaId], $grupoPersonaIds)));
+                }
+
+                $grupoPersonaIds = array_values(array_intersect($grupoPersonaIds, $personaIdsCampana));
+
+                if (empty($grupoPersonaIds)) continue;
+
+                $espResp  = 0;
+                $llenResp = 0;
+
+                foreach ($grupoPersonaIds as $personaId) {
+                    $contratosPersona = ($contratosPorPersona[$personaId] ?? collect())->sortBy('inicio_contrato');
+
+                    foreach ($diasPeriodo as $fecha) {
+                        $fStr = $fecha->format('Y-m-d');
+                        foreach ($contratosPersona as $c) {
+                            $inicioC     = Carbon::parse($c->inicio_contrato);
+                            $finEfectivo = $c->fecha_renuncia
+                                ? Carbon::parse($c->fecha_renuncia)
+                                : ($c->fin_contrato ? Carbon::parse($c->fin_contrato) : null);
+
+                            if ($fecha->gte($inicioC) && (!$finEfectivo || $fecha->lte($finEfectivo))) {
+                                $espResp++;
+                                if (isset($asistenciasSet[$c->id . '_' . $fStr])) {
+                                    $llenResp++;
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if ($espResp === 0) continue;
+
+                // Obtener rol del responsable en esta campaña
+                $rolNivel  = ($asigPropiasCampana[$supUserId] ?? collect())->map(fn($a) => UserAsignacion::NIVEL_ROL[$a->rol] ?? 0)->max() ?? 0;
+                $rolNombre = collect(UserAsignacion::NIVEL_ROL)->search($rolNivel) ?: '—';
+
+                $detalleResponsables[] = [
+                    'nombre'       => $userNames[$supUserId] ?? '—',
+                    'rol'          => $rolNombre,
+                    'colaboradores'=> count($grupoPersonaIds),
+                    'vacios'       => $espResp - $llenResp,
+                    'esperados'    => $espResp,
+                    'cobertura'    => round($llenResp / $espResp * 100),
+                ];
+            }
+
+            usort($detalleResponsables, fn($a, $b) => $b['vacios'] <=> $a['vacios']);
 
             $filas->push([
-                'supervisor'    => $userNames[$supUserId] ?? '—',
-                'rol'           => $rolNombre,
-                'campana'       => $supCampana,
-                'colaboradores' => count($grupoPersonaIds),
+                'campana'       => $campana->nombre,
+                'padre'         => $campana->padre?->nombre,
+                'colaboradores' => count($personaIdsCampana),
+                'responsables'  => count($responsableIds),
                 'esperados'     => $totalEsperado,
                 'llenados'      => $totalLlenado,
                 'vacios'        => $totalEsperado - $totalLlenado,
                 'cobertura'     => round($totalLlenado / $totalEsperado * 100),
-                'detalle'       => $detalleColabs,
+                'detalle'       => $detalleResponsables,
             ]);
         }
 
         $filas = $filas->sortByDesc('vacios')->values();
 
-        return view('reportes.asistencia.index', compact(
-            'pagos', 'pagoSeleccionado', 'filas', 'diasPeriodo', 'esAdmin'
+        return view('reportes.asistencia-gerencia.index', compact(
+            'pagos', 'pagoSeleccionado', 'filas', 'diasPeriodo'
         ));
     }
 

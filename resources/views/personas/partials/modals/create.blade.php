@@ -8,7 +8,7 @@
         <div class="p-8 space-y-7">
 
             <x-ui.modal-section label="Identificación" icon="fa-id-card">
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
                     <x-forms.field label="Tipo Documento" for="new-tipo_documento">
                         <x-forms.select id="new-tipo_documento" name="tipo_documento">
                             <option value="DNI">DNI</option>
@@ -34,6 +34,17 @@
                             <option value="2">Femenino</option>
                         </x-forms.select>
                     </x-forms.field>
+
+                    <x-forms.field label="Nacionalidad" for="new-nacionalidad">
+                        <x-forms.select id="new-nacionalidad" name="nacionalidad">
+                            <option value="">Seleccione</option>
+                            @foreach ($paises as $pais)
+                                <option value="{{ $pais->id }}">
+                                    {{ $pais->nombre }} ({{ $pais->codigo_pais }})
+                                </option>
+                            @endforeach
+                        </x-forms.select>
+                    </x-forms.field>
                 </div>
             </x-ui.modal-section>
 
@@ -56,19 +67,8 @@
                 </div>
             </x-ui.modal-section>
 
-            <x-ui.modal-section label="Ubicación" icon="fa-location-dot">
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                    <x-forms.field label="País" for="new-pais">
-                        <x-forms.select id="new-pais" name="pais">
-                            <option value="">Seleccione</option>
-                            @foreach ($paises as $pais)
-                                <option value="{{ $pais->id }}" data-codigo="{{ $pais->codigo_pais }}">
-                                    {{ $pais->nombre }} ({{ $pais->codigo_pais }})
-                                </option>
-                            @endforeach
-                        </x-forms.select>
-                    </x-forms.field>
-
+            <x-ui.modal-section label="Ubicación Actual" icon="fa-location-dot">
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
                     <x-forms.field label="Departamento" for="new-departamento">
                         <x-forms.select id="new-departamento" name="departamento">
                             <option value="">Seleccione</option>

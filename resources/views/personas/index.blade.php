@@ -65,7 +65,7 @@
                     data-materno="{{ $persona->apellido_materno }}"
                     data-nac="{{ $fechaNacIso }}"
                     data-genero="{{ $persona->genero }}"
-                    data-pais="{{ $persona->pais }}"
+                    data-nacionalidad="{{ $persona->nacionalidad }}"
                     data-departamento="{{ $persona->departamento }}"
                     data-provincia="{{ $persona->provincia }}"
                     data-distrito="{{ $persona->distrito }}"

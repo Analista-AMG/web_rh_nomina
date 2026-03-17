@@ -198,7 +198,7 @@ window.closeModal = function (id) {
             apellido_materno:               g('edit-materno'),
             fecha_nacimiento:               g('edit-nac'),
             genero:                         g('edit-genero'),
-            pais:                           g('edit-pais'),
+            nacionalidad:                   g('edit-nacionalidad'),
             departamento:                   g('edit-departamento'),
             provincia:                      g('edit-provincia'),
             distrito:                       g('edit-distrito'),
@@ -245,12 +245,13 @@ window.closeModal = function (id) {
             setVal('edit-paterno',     d.paterno);
             setVal('edit-materno',     d.materno);
             setVal('edit-nac',         d.nac);
-            setVal('edit-genero',      d.genero || '1');
-            setVal('edit-telefono',    normalizeTelefono(d.telefono));
-            setVal('edit-correo-pers', d.correoPers);
-            setVal('edit-correo-corp', d.correoCorp);
-            setVal('edit-direccion',   d.direccion);
-            editCascade?.setValues(d.pais, d.departamento, d.provincia, d.distrito);
+            setVal('edit-genero',         d.genero || '1');
+            setVal('edit-nacionalidad',   d.nacionalidad);
+            setVal('edit-telefono',       normalizeTelefono(d.telefono));
+            setVal('edit-correo-pers',    d.correoPers);
+            setVal('edit-correo-corp',    d.correoCorp);
+            setVal('edit-direccion',      d.direccion);
+            editCascade?.setValues(d.departamento, d.provincia, d.distrito);
             updateEmailFeedback('edit-correo-pers', 'edit-correo-pers-feedback');
             updateEmailFeedback('edit-correo-corp', 'edit-correo-corp-feedback');
             checkDocumentoDuplicado((d.doc || '').replace(/\D/g, ''), d.id || '', 'edit-doc-feedback', 'edit-doc');
@@ -291,14 +292,23 @@ window.closeModal = function (id) {
             openModal('view-modal');
             modalOpening = false;
 
-            viewCascade?.setValues(d.pais, d.departamento, d.provincia, d.distrito)
+            // Nacionalidad — select oculto solo para resolución de texto
+            const paisSel  = document.getElementById('view-pais');
+            const paisText = document.getElementById('view-pais-text');
+            if (paisSel && paisText) {
+                paisSel.value      = d.nacionalidad ? String(d.nacionalidad) : '';
+                paisText.textContent = paisSel.options[paisSel.selectedIndex]?.text || '—';
+            }
+
+            viewCascade?.setValues(d.departamento, d.provincia, d.distrito)
                 .then(() => {
-                    [['view-pais','view-pais-text'],['view-departamento','view-departamento-text'],
-                     ['view-provincia','view-provincia-text'],['view-distrito','view-distrito-text']]
+                    [['view-departamento','view-departamento-text'],
+                     ['view-provincia','view-provincia-text'],
+                     ['view-distrito','view-distrito-text']]
                         .forEach(([selId, spanId]) => {
                             const sel  = document.getElementById(selId);
                             const span = document.getElementById(spanId);
-                            if (sel && span) span.textContent = sel.options[sel.selectedIndex]?.text || '—';
+                            if (sel && span) span.textContent = sel.value ? (sel.options[sel.selectedIndex]?.text || '—') : '—';
                         });
                 });
         }
@@ -359,7 +369,7 @@ window.closeModal = function (id) {
     nameInput?.addEventListener('input', search);
     searchDocInput?.addEventListener('input', search);
 
-    // ── E. Cascada Pais → Departamento → Provincia → Distrito ─────────────
+    // ── E. Cascada Departamento → Provincia → Distrito ───────────────────
 
     async function loadDistritos(select, provinciaId, selectValue) {
         select.innerHTML = '<option value="">Seleccione un distrito</option>';
@@ -378,13 +388,11 @@ window.closeModal = function (id) {
     }
 
     function bindCascade(prefix) {
-        const pais         = document.getElementById(`${prefix}-pais`);
         const departamento = document.getElementById(`${prefix}-departamento`);
         const provincia    = document.getElementById(`${prefix}-provincia`);
         const distrito     = document.getElementById(`${prefix}-distrito`);
-        if (!pais || !departamento || !provincia || !distrito) return null;
+        if (!departamento || !provincia || !distrito) return null;
 
-        const deptOptions = Array.from(departamento.options);
         const provOptions = Array.from(provincia.options);
 
         const rebuild = (select, options) => {
@@ -394,26 +402,17 @@ window.closeModal = function (id) {
             select.appendChild(frag);
         };
 
-        const filterDepartamentos = () => {
-            rebuild(departamento, deptOptions.filter(o => !o.value || o.dataset.pais === pais.value));
-            departamento.value = '';
-            filterProvincias();
-        };
-
         const filterProvincias = () => {
             rebuild(provincia, provOptions.filter(o => !o.value || o.dataset.departamento === departamento.value));
             provincia.value = '';
             loadDistritos(distrito, '', '');
         };
 
-        pais.addEventListener('change', filterDepartamentos);
         departamento.addEventListener('change', filterProvincias);
         provincia.addEventListener('change', () => loadDistritos(distrito, provincia.value, ''));
 
         return {
-            setValues: async (paisId, departamentoId, provinciaId, distritoId) => {
-                pais.value         = paisId         ? String(paisId)         : '';
-                filterDepartamentos();
+            setValues: async (departamentoId, provinciaId, distritoId) => {
                 departamento.value = departamentoId ? String(departamentoId) : '';
                 filterProvincias();
                 provincia.value    = provinciaId    ? String(provinciaId)    : '';

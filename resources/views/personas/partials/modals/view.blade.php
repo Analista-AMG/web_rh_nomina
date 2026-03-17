@@ -54,6 +54,11 @@
                                 <i class="fa-solid fa-venus-mars text-xs opacity-60"></i>
                                 <span id="view-genero">—</span>
                             </span>
+                            <span class="opacity-30 hidden sm:inline">·</span>
+                            <span class="hidden sm:flex items-center gap-1.5">
+                                <i class="fa-solid fa-flag text-xs opacity-60"></i>
+                                <span id="view-pais-text">—</span>
+                            </span>
                         </div>
 
                     </div>
@@ -90,15 +95,11 @@
                 <div class="sm:col-span-6 px-6 py-5">
                     <p class="text-[12px] font-bold uppercase tracking-widest text-light-muted dark:text-dark-muted mb-3 flex items-center gap-1.5">
                         <i class="fa-solid fa-location-dot view-status-icon text-[16px]"></i>
-                        Ubicación
+                        Ubicación Actual
                     </p>
 
-                    <!-- Geo 2×2 -->
-                    <div class="grid grid-cols-2 gap-x-5 gap-y-3 mb-4">
-                        <div>
-                            <p class="text-[10px] font-semibold uppercase tracking-wider text-light-muted dark:text-dark-muted mb-0.5">País</p>
-                            <p id="view-pais-text" class="text-sm font-semibold text-light-text dark:text-dark-text">—</p>
-                        </div>
+                    <!-- Geo 1×3 -->
+                    <div class="grid grid-cols-3 gap-x-5 gap-y-3 mb-4">
                         <div>
                             <p class="text-[10px] font-semibold uppercase tracking-wider text-light-muted dark:text-dark-muted mb-0.5">Departamento</p>
                             <p id="view-departamento-text" class="text-sm font-semibold text-light-text dark:text-dark-text">—</p>

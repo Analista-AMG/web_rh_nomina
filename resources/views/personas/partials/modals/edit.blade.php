@@ -8,7 +8,7 @@
         <div class="p-8 space-y-7">
 
             <x-ui.modal-section label="Identificación" icon="fa-id-card" icon-class="edit-status-icon">
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
                     <x-forms.field label="Tipo Documento" for="edit-tdoc">
                         <x-forms.select id="edit-tdoc">
                             <option value="DNI">DNI</option>
@@ -32,6 +32,15 @@
                             <option value="2">Femenino</option>
                         </x-forms.select>
                     </x-forms.field>
+
+                    <x-forms.field label="Nacionalidad" for="edit-nacionalidad">
+                        <x-forms.select id="edit-nacionalidad">
+                            <option value="">Seleccione</option>
+                            @foreach ($paises as $pais)
+                                <option value="{{ $pais->id }}">{{ $pais->nombre }} ({{ $pais->codigo_pais }})</option>
+                            @endforeach
+                        </x-forms.select>
+                    </x-forms.field>
                 </div>
             </x-ui.modal-section>
 
@@ -51,17 +60,8 @@
                 </div>
             </x-ui.modal-section>
 
-            <x-ui.modal-section label="Ubicación" icon="fa-location-dot" icon-class="edit-status-icon">
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                    <x-forms.field label="País" for="edit-pais">
-                        <x-forms.select id="edit-pais">
-                            <option value="">Seleccione un país</option>
-                            @foreach ($paises as $pais)
-                                <option value="{{ $pais->id }}">{{ $pais->nombre }} ({{ $pais->codigo_pais }})</option>
-                            @endforeach
-                        </x-forms.select>
-                    </x-forms.field>
-
+            <x-ui.modal-section label="Ubicación Actual" icon="fa-location-dot" icon-class="edit-status-icon">
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
                     <x-forms.field label="Departamento" for="edit-departamento">
                         <x-forms.select id="edit-departamento">
                             <option value="">Seleccione un departamento</option>

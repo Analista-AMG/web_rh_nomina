@@ -207,7 +207,7 @@ class PersonaController extends Controller
                 $persona->tipo_documento,
                 $persona->fecha_nacimiento?->format('d/m/Y') ?? '',
                 $this->mapGenero($persona->genero),
-                $this->mapLookup($persona->pais, $paises),
+                $this->mapLookup($persona->nacionalidad, $paises),
                 $this->mapLookup($persona->departamento, $departamentos),
                 $this->mapLookup($persona->provincia, $provincias),
                 $this->mapLookup($persona->distrito, $distritos),
