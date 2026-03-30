@@ -215,8 +215,10 @@ class AsistenciaController extends Controller
         }
 
         if (!$esAdmin) {
-            $pagoActual = Pago::where('inicio', '<=', $hoy->toDateString())
-                ->where('fin', '>=', $hoy->toDateString())
+            // Período del mes calendario actual (no el pago que cubre la fecha exacta).
+            $periodoMesActual = $hoy->format('Y-m');
+            $pagoActual = Pago::where('periodo', $periodoMesActual)
+                ->orderBy('quincena')
                 ->first();
 
             $pagoFecha = Pago::where('inicio', '<=', $fechaStr)
@@ -346,18 +348,17 @@ class AsistenciaController extends Controller
      */
     private function resolverBloqueo(Carbon $hoy): ?string
     {
-        $pagoActual = Pago::where('inicio', '<=', $hoy->toDateString())
-            ->where('fin', '>=', $hoy->toDateString())
-            ->first();
-
-        if (!$pagoActual) return null;
-
-        // Q1 del período actual para que ambas quincenas queden editables
-        $q1Actual = Pago::where('periodo', $pagoActual->periodo)
+        // Usar el mes calendario actual, no el pago que cubre la fecha exacta.
+        // Evita que un período nuevo que arranca a fin de mes (ej: abril inicia 29-mar)
+        // bloquee el mes en curso (marzo) antes de que termine.
+        $periodoActual = $hoy->format('Y-m');
+        $q1Actual = Pago::where('periodo', $periodoActual)
             ->orderBy('quincena')
             ->first();
 
-        $inicioEditable = ($q1Actual ?? $pagoActual)->inicio->format('Y-m-d');
+        if (!$q1Actual) return null;
+
+        $inicioEditable = $q1Actual->inicio->format('Y-m-d');
 
         if ($hoy->day > 3) {
             return $inicioEditable;
