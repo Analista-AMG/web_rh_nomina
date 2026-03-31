@@ -6,8 +6,9 @@
     </div>
     <div class="px-5 py-4">
         @php
-            // Solo los 2 períodos más recientes (mes actual y anterior)
-            $pagosRecientes = $pagos->groupBy('periodo')->take(2)->reverse();
+            // Solo los 2 períodos más recientes cuya quincena ya inició (excluye futuros)
+            $pagosRecientes = $pagos->filter(fn($p) => $p->inicio <= $hoy)
+                ->groupBy('periodo')->take(2)->reverse();
         @endphp
         <form method="GET" action="{{ route('asistencia.index') }}" id="form-filtro" class="flex flex-wrap items-end gap-4">
             <input type="hidden" name="pago_id" id="pago_id" value="{{ $pagoSeleccionado?->id }}">
@@ -20,8 +21,8 @@
                 <div class="flex items-center gap-2">
                     @foreach($pagosRecientes as $periodo => $grupo)
                         @php
-                            $dt       = \Carbon\Carbon::createFromFormat('Y-m', $periodo)->locale('es');
-                            $mesLabel = mb_strtoupper($dt->isoFormat('MMM')) . '-' . $dt->format('Y');
+                            $dt       = \Carbon\Carbon::parse($periodo . '-01')->locale('es');
+                            $mesLabel = rtrim(mb_strtoupper($dt->isoFormat('MMM')), '.') . '-' . $dt->format('Y');
                         @endphp
                         <div class="flex items-center gap-1 bg-gray-50 dark:bg-[#1b2431] rounded-lg px-3 py-2 border border-gray-200 dark:border-gray-700">
                             <span class="text-[11px] font-bold text-gray-400 dark:text-gray-500 tracking-wide mr-1">{{ $mesLabel }}</span>
