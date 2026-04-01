@@ -10,7 +10,9 @@
 
     {{-- Filtros (período + rol + campaña + nombre) --}}
     @php
-        $pagosRecientes      = $pagos->groupBy('periodo')->take(2)->reverse();
+        $periodoRef     = $pagoSeleccionado?->periodo ?? $pagos->first()?->periodo;
+        $pagosRecientes = $pagos->filter(fn($p) => $p->periodo <= $periodoRef)
+            ->groupBy('periodo')->take(2)->reverse();
         $rolesDisponibles    = $filas->pluck('rol')->unique()->filter()->sort()->values();
         $campanasDisponibles = $filas->pluck('campana')->unique()->filter(fn($c) => $c !== '—')->sort()->values();
     @endphp
@@ -27,8 +29,8 @@
                 <span class="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">Período</span>
                 @foreach($pagosRecientes as $periodo => $grupo)
                     @php
-                        $dt = \Carbon\Carbon::createFromFormat('Y-m', $periodo)->locale('es');
-                        $mesLabel = mb_strtoupper($dt->isoFormat('MMM')) . '-' . $dt->format('Y');
+                        $dt = \Carbon\Carbon::parse($periodo . '-01')->locale('es');
+                        $mesLabel = rtrim(mb_strtoupper($dt->isoFormat('MMM')), '.') . '-' . $dt->format('Y');
                     @endphp
                     <div class="flex items-center gap-1 bg-gray-50 dark:bg-[#1b2431] rounded-lg px-3 py-2 border border-gray-200 dark:border-gray-700">
                         <span class="text-[11px] font-bold text-gray-400 dark:text-gray-500 tracking-wide mr-1">{{ $mesLabel }}</span>

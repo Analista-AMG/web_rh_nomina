@@ -5,7 +5,7 @@
         <h1 class="text-2xl font-bold text-gray-800 dark:text-white">Registro de Asistencia</h1>
         @if(!$esAdmin && $diaActual <= 3 && $pagoSeleccionado)
             <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
-                <i class="fa-solid fa-clock"></i> Gracia: puedes editar el período anterior hasta el día 3
+                <i class="fa-solid fa-clock"></i> Puedes editar el período anterior hasta el día 3
             </span>
         @endif
     </header>

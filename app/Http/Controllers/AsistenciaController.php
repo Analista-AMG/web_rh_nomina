@@ -365,7 +365,7 @@ class AsistenciaController extends Controller
         }
 
         // Gracia días 1-3: permitir también el período anterior completo
-        $q1Previo = Pago::where('periodo', '<', $pagoActual->periodo)
+        $q1Previo = Pago::where('periodo', '<', $periodoActual)
             ->orderByDesc('periodo')
             ->orderBy('quincena')
             ->first();
