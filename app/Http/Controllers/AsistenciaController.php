@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Helpers\PeriodoCalendario;
 use App\Models\Asistencia;
 use App\Models\Calendario;
 use App\Models\Contrato;
 use App\Models\EquipoPrestamo;
 use App\Models\ItemAsistencia;
-use App\Models\Pago;
 use App\Models\Persona;
 use App\Models\Scopes\AlcanceUsuarioScope;
 use App\Models\User;
@@ -32,7 +32,7 @@ class AsistenciaController extends Controller
         $hoy     = Carbon::now();
         $hoyStr  = $hoy->toDateString();
 
-        $pagos           = Pago::orderBy('periodo', 'desc')->orderBy('quincena', 'desc')->get(['id', 'periodo', 'quincena', 'inicio', 'fin']);
+        $pagos           = PeriodoCalendario::listarDesc(24);
         $itemsAsistencia = ItemAsistencia::orderBy('codigo_asistencia')->get();
         $bloquearAntesDe = $esAdmin ? null : $this->resolverBloqueo($hoy);
         $diaActual       = $hoy->day;
@@ -215,17 +215,11 @@ class AsistenciaController extends Controller
         }
 
         if (!$esAdmin) {
-            // Período del mes calendario actual (no el pago que cubre la fecha exacta).
+            // Período calendario: mes de la fecha a editar vs mes actual.
             $periodoMesActual = $hoy->format('Y-m');
-            $pagoActual = Pago::where('periodo', $periodoMesActual)
-                ->orderBy('quincena')
-                ->first();
+            $periodoFecha     = PeriodoCalendario::periodoDeF($fechaStr);
 
-            $pagoFecha = Pago::where('inicio', '<=', $fechaStr)
-                ->where('fin', '>=', $fechaStr)
-                ->first();
-
-            if ($pagoFecha && $pagoActual && $pagoFecha->periodo < $pagoActual->periodo && $hoy->day > 3) {
+            if ($periodoFecha < $periodoMesActual && $hoy->day > 3) {
                 return response()->json([
                     'error' => 'El período está cerrado. Solo se puede editar el período anterior los primeros 3 días del mes.',
                 ], 403);
@@ -250,14 +244,13 @@ class AsistenciaController extends Controller
         if (!$esAdmin) {
             $empleadoId = (int) $contrato->persona_id;
 
-            // Validar con el período completo del pago, igual que la vista.
+            // Rango completo de la quincena que contiene la fecha a editar.
             // Evita rechazar fechas anteriores al fecha_inicio del colaborador
-            // cuando su asignación cubre el período (JO/Coordinador usan fallback de todos los días).
-            $pagoDelDia = Pago::where('inicio', '<=', $fechaStr)
-                ->where('fin', '>=', $fechaStr)
-                ->first();
-            $periodoIni = $pagoDelDia ? $pagoDelDia->inicio->toDateString() : $fechaStr;
-            $periodoFin = $pagoDelDia ? $pagoDelDia->fin->toDateString()   : $fechaStr;
+            // cuando su asignación cubre la quincena (JO/Coordinador usan fallback de todos los días).
+            $qFecha     = PeriodoCalendario::quincenaDeF($fechaStr);
+            $pFecha     = PeriodoCalendario::periodoDeF($fechaStr);
+            $periodoIni = PeriodoCalendario::inicio($pFecha, $qFecha)->toDateString();
+            $periodoFin = PeriodoCalendario::fin($pFecha, $qFecha)->toDateString();
 
             $personaIds = $this->jerarquia->personaIdsVisiblesEnPeriodo($user, $periodoIni, $periodoFin);
             $esMio      = $personaIds === null || in_array($empleadoId, $personaIds);
@@ -341,38 +334,23 @@ class AsistenciaController extends Controller
     // ── Helpers privados ──────────────────────────────────────────────────────
 
     /**
-     * Fecha más antigua editable según el período de pago activo.
-     * Ambas quincenas del período actual siempre son editables.
-     * Día 1-3 del mes: el período anterior también es editable (gracia).
-     * Día 4+: solo el período actual.
+     * Fecha más antigua editable (sin DB).
+     * Ambas quincenas del mes actual siempre son editables.
+     * Días 1-3: el mes anterior también es editable (gracia).
+     * Día 4+: solo el mes actual.
      */
-    private function resolverBloqueo(Carbon $hoy): ?string
+    private function resolverBloqueo(Carbon $hoy): string
     {
-        // Usar el mes calendario actual, no el pago que cubre la fecha exacta.
-        // Evita que un período nuevo que arranca a fin de mes (ej: abril inicia 29-mar)
-        // bloquee el mes en curso (marzo) antes de que termine.
-        $periodoActual = $hoy->format('Y-m');
-        $q1Actual = Pago::where('periodo', $periodoActual)
-            ->orderBy('quincena')
-            ->first();
-
-        if (!$q1Actual) return null;
-
-        $inicioEditable = $q1Actual->inicio->format('Y-m-d');
+        $periodoActual  = $hoy->format('Y-m');
+        $inicioEditable = PeriodoCalendario::inicio($periodoActual, 1)->format('Y-m-d');
 
         if ($hoy->day > 3) {
             return $inicioEditable;
         }
 
-        // Gracia días 1-3: permitir también el período anterior completo
-        $q1Previo = Pago::where('periodo', '<', $periodoActual)
-            ->orderByDesc('periodo')
-            ->orderBy('quincena')
-            ->first();
-
-        return $q1Previo
-            ? $q1Previo->inicio->format('Y-m-d')
-            : $inicioEditable;
+        // Gracia días 1-3: permitir también el mes anterior completo
+        $periodoPrevio = PeriodoCalendario::anterior($periodoActual);
+        return PeriodoCalendario::inicio($periodoPrevio, 1)->format('Y-m-d');
     }
 
     /**

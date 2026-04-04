@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers\Reportes;
 
+use App\Helpers\PeriodoCalendario;
 use App\Http\Controllers\Controller;
 use App\Models\Asistencia;
 use App\Models\Contrato;
-use App\Models\Pago;
 use App\Models\Persona;
 use App\Models\Scopes\AlcanceUsuarioScope;
 use App\Models\User;
@@ -27,7 +27,7 @@ class AsistenciaReporteController extends Controller
         $hoy     = Carbon::today();
         $hoyStr  = $hoy->toDateString();
 
-        $pagos = Pago::orderBy('periodo', 'desc')->orderBy('quincena', 'desc')->get(['id', 'periodo', 'quincena', 'inicio', 'fin']);
+        $pagos = PeriodoCalendario::listarDesc(24);
 
         $pagoId = $request->input('pago_id')
             ?: ($pagos->first(fn($p) => $p->inicio->format('Y-m-d') <= $hoyStr && $p->fin->format('Y-m-d') >= $hoyStr)?->id

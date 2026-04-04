@@ -10,7 +10,9 @@
 
     {{-- Filtros (período + rol + campaña + nombre) --}}
     @php
-        $periodoRef     = $pagoSeleccionado?->periodo ?? $pagos->first()?->periodo;
+        $hoyView    = \Carbon\Carbon::today();
+        $pagoHoy    = $pagos->first(fn($p) => $p->inicio <= $hoyView && $p->fin >= $hoyView);
+        $periodoRef = $pagoHoy?->periodo ?? $pagos->first()?->periodo;
         $pagosRecientes = $pagos->filter(fn($p) => $p->periodo <= $periodoRef)
             ->groupBy('periodo')->take(2)->reverse();
         $rolesDisponibles    = $filas->pluck('rol')->unique()->filter()->sort()->values();

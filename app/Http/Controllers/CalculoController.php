@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Pago;
+use App\Helpers\PeriodoCalendario;
 use App\Models\Planilla;
 use App\Services\CalculoService;
 use Illuminate\Http\JsonResponse;
@@ -19,10 +19,7 @@ class CalculoController extends Controller
 
     public function index(Request $request)
     {
-        $periodos = Pago::select('periodo')
-            ->distinct()
-            ->orderBy('periodo', 'desc')
-            ->pluck('periodo');
+        $periodos = PeriodoCalendario::listarDesc(24)->pluck('periodo')->unique()->values();
 
         $planillas = Planilla::orderBy('nombre_planilla')->get();
 

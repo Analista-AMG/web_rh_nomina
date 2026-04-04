@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Helpers\PeriodoCalendario;
 use App\Models\Adicional;
 use App\Models\CentroCosto;
 use App\Models\Condicion;
 use App\Models\Contrato;
 use App\Models\Familia;
-use App\Models\Pago;
 use App\Models\Planilla;
 use App\Services\JerarquiaService;
 use Carbon\Carbon;
@@ -22,10 +22,7 @@ class AdicionalController extends Controller
 
     public function index(Request $request)
     {
-        $periodos = Pago::select('periodo')
-            ->distinct()
-            ->orderBy('periodo', 'desc')
-            ->pluck('periodo');
+        $periodos = PeriodoCalendario::listarDesc(24)->pluck('periodo')->unique()->values();
 
         $planillas    = collect();
         $familias     = collect();
@@ -39,13 +36,12 @@ class AdicionalController extends Controller
         $totalRegistros = 0;
 
         if ($periodoSeleccionado) {
-            $fechasPeriodo = Pago::where('periodo', $periodoSeleccionado)
-                ->selectRaw('MIN(inicio) as inicio_periodo, MAX(fin) as fin_periodo')
-                ->first();
+            $inicioPeriodo = PeriodoCalendario::inicio($periodoSeleccionado, 1)->toDateString();
+            $finPeriodo    = PeriodoCalendario::fin($periodoSeleccionado, 2)->toDateString();
 
             $personaIds = $this->jerarquia->personaIdsVisibles(auth()->user());
 
-            $finEfectivoCondicion = function ($q) use ($fechasPeriodo) {
+            $finEfectivoCondicion = function ($q) use ($inicioPeriodo) {
                 $q->where(function ($subQ) {
                     $subQ->whereNull('fin_contrato')->whereNull('fecha_renuncia');
                 })->orWhereRaw("
@@ -53,10 +49,10 @@ class AdicionalController extends Controller
                         WHEN fecha_renuncia IS NOT NULL THEN fecha_renuncia
                         ELSE fin_contrato
                     END >= ?
-                ", [$fechasPeriodo->inicio_periodo]);
+                ", [$inicioPeriodo]);
             };
 
-            $baseContratos = Contrato::where('inicio_contrato', '<=', $fechasPeriodo->fin_periodo)
+            $baseContratos = Contrato::where('inicio_contrato', '<=', $finPeriodo)
                 ->where($finEfectivoCondicion);
             $this->jerarquia->aplicarFiltroPersonas($baseContratos, $personaIds, 'persona_id');
 
@@ -157,16 +153,10 @@ class AdicionalController extends Controller
             return response()->json(['error' => 'Contrato no encontrado'], 404);
         }
 
-        // Bloqueo por período: si el período solicitado no es el actual y ya pasaron 3 días del mes
+        // Bloqueo por período: si el período solicitado no es el mes actual y ya pasaron 3 días
         $hoy = Carbon::today();
-        if ($hoy->day > 3) {
-            $pagoActual = Pago::where('inicio', '<=', $hoy->toDateString())
-                ->where('fin', '>=', $hoy->toDateString())
-                ->first();
-
-            if ($pagoActual && $request->periodo !== $pagoActual->periodo) {
-                return response()->json(['error' => 'El período está cerrado. Solo se puede editar el período actual los primeros 3 días del mes.'], 403);
-            }
+        if ($hoy->day > 3 && $request->periodo !== PeriodoCalendario::periodoActual()) {
+            return response()->json(['error' => 'El período está cerrado. Solo se puede editar el período actual los primeros 3 días del mes.'], 403);
         }
 
         $monto = $request->monto;

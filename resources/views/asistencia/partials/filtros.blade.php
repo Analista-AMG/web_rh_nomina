@@ -6,8 +6,10 @@
     </div>
     <div class="px-5 py-4">
         @php
-            // Solo los 2 períodos más recientes cuya quincena ya inició (excluye futuros)
-            $pagosRecientes = $pagos->filter(fn($p) => $p->inicio <= $hoy)
+            // Referencia: período activo hoy (no el seleccionado), excluye períodos futuros
+            $pagoHoy    = $pagos->first(fn($p) => $p->inicio <= $hoy && $p->fin >= $hoy);
+            $periodoRef = $pagoHoy?->periodo ?? $pagos->first()?->periodo;
+            $pagosRecientes = $pagos->filter(fn($p) => $p->periodo <= $periodoRef)
                 ->groupBy('periodo')->take(2)->reverse();
         @endphp
         <form method="GET" action="{{ route('asistencia.index') }}" id="form-filtro" class="flex flex-wrap items-end gap-4">
