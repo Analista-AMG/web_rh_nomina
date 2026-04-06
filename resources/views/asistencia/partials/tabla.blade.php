@@ -87,7 +87,7 @@
                     $filaFamilia  = mb_strtolower($contrato->familia?->nombre_familia ?? '');
                     $filaDirecto  = in_array((int)$contrato->persona_id, $directosPersonaIds ?? []) ? '1' : '0';
                 @endphp
-                <tr class="group" data-nombre="{{ $filaNombre }}" data-campana="{{ $filaCampana }}" data-centro="{{ $filaCentro }}" data-familia="{{ $filaFamilia }}" data-es-directo="{{ $filaDirecto }}">
+                <tr class="group" style="display:none" data-nombre="{{ $filaNombre }}" data-campana="{{ $filaCampana }}" data-centro="{{ $filaCentro }}" data-familia="{{ $filaFamilia }}" data-es-directo="{{ $filaDirecto }}">
                     {{-- Sticky name column --}}
                     <td class="sticky left-0 z-10 bg-white dark:bg-[#273142] px-4 py-2 border-r border-gray-200 dark:border-gray-700">
                         <div class="flex items-center gap-3">

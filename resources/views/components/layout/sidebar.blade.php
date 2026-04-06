@@ -35,7 +35,7 @@
 
     <!-- Navigation -->
     @php
-        $personalActive     = request()->routeIs('personas.*') || request()->routeIs('contratos.*');
+        $personalActive     = request()->routeIs('personas.*') || request()->routeIs('contratos.*') || request()->routeIs('contratos.alertas');
         $operacionesActive  = request()->routeIs('asistencia.*') || request()->routeIs('equipos.*');
         $reportesActive     = request()->routeIs('reportes.*');
         $remunerActive      = request()->routeIs('adicionales.*') || request()->routeIs('calculos.*') || request()->routeIs('dashboard');
@@ -72,9 +72,15 @@
                     @endcan
                     @can('contratos.view')
                     <li>
-                        <a href="{{ route('contratos.index') }}" class="nav-link flex items-center gap-3 pl-9 pr-4 py-2.5 rounded-lg {{ request()->routeIs('contratos.*') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors" title="Contratos">
+                        <a href="{{ route('contratos.index') }}" class="nav-link flex items-center gap-3 pl-9 pr-4 py-2.5 rounded-lg {{ request()->routeIs('contratos.index') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors" title="Contratos">
                             <i class="fa-solid fa-file-contract text-sm flex-shrink-0"></i>
                             <span class="sidebar-text font-medium">Contratos</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{{ route('contratos.alertas') }}" class="nav-link flex items-center gap-3 pl-9 pr-4 py-2.5 rounded-lg {{ request()->routeIs('contratos.alertas') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] hover:text-primary' }} transition-colors" title="Control de Contratos">
+                            <i class="fa-solid fa-triangle-exclamation text-sm flex-shrink-0"></i>
+                            <span class="sidebar-text font-medium">Control</span>
                         </a>
                     </li>
                     @endcan

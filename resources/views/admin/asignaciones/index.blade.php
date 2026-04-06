@@ -14,7 +14,23 @@
             <p class="text-gray-500 dark:text-gray-400 mt-1">Gestión de asignaciones por campaña</p>
         </div>
         <div class="flex items-center gap-3">
-            <a href="{{ request()->fullUrlWithQuery(['cerradas' => $mostrarCerradas ? '0' : '1']) }}"
+            @if($puedeVerSinAsignacion)
+            <a href="{{ request()->fullUrlWithQuery(['sin_asignacion' => $mostrarSinAsignacion ? '0' : '1', 'cerradas' => '0']) }}"
+               class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border transition
+                      {{ $mostrarSinAsignacion
+                         ? 'bg-orange-500 text-white border-orange-500'
+                         : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-orange-400 hover:text-orange-500' }}">
+                <i class="fa-solid fa-user-slash text-xs"></i>
+                Sin asignación
+                @if($countSinAsignacion > 0)
+                <span class="inline-flex items-center justify-center w-4 h-4 rounded-full text-[10px] font-bold
+                    {{ $mostrarSinAsignacion ? 'bg-white text-orange-500' : 'bg-orange-100 text-orange-600 dark:bg-orange-900/40 dark:text-orange-400' }}">
+                    {{ $countSinAsignacion }}
+                </span>
+                @endif
+            </a>
+            @endif
+            <a href="{{ request()->fullUrlWithQuery(['cerradas' => $mostrarCerradas ? '0' : '1', 'sin_asignacion' => '0']) }}"
                class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border transition
                       {{ $mostrarCerradas
                          ? 'bg-gray-700 text-white border-gray-600'
@@ -22,7 +38,7 @@
                 <i class="fa-solid fa-lock text-xs"></i>
                 {{ $mostrarCerradas ? 'Ver activas' : 'Ver cerradas' }}
             </a>
-            @if(!$mostrarCerradas)
+            @if(!$mostrarCerradas && !$mostrarSinAsignacion)
             <button onclick="openCreateModal()"
                 class="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/80 transition flex items-center gap-2 cursor-pointer">
                 <i class="fa-solid fa-plus"></i> Nueva Asignación
@@ -32,7 +48,7 @@
     </header>
 
     {{-- Stats --}}
-    @if(!$mostrarCerradas)
+    @if(!$mostrarCerradas && !$mostrarSinAsignacion)
     <div class="grid grid-cols-3 gap-4 mb-6">
         <div class="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4 flex items-center gap-3">
             <i class="fa-solid fa-clock text-yellow-500 text-2xl"></i>
@@ -59,7 +75,7 @@
     @endif
 
     {{-- Filtros --}}
-    @if(!$mostrarCerradas)
+    @if(!$mostrarCerradas && !$mostrarSinAsignacion)
     <div class="flex gap-3 mb-4">
         <select id="filtro-campana" onchange="filterTable()" class="form-input text-sm" style="width:220px;">
             <option value="">Todas las campañas</option>
@@ -76,7 +92,223 @@
     </div>
     @endif
 
+    {{-- Tabla Sin Asignación --}}
+    @if($mostrarSinAsignacion)
+
+    {{-- Filtros sin asignación --}}
+    <form id="form-sin-asignacion" method="GET" action="{{ route('admin.asignaciones.index') }}" class="mb-4">
+        <input type="hidden" name="sin_asignacion" value="1">
+        <div class="flex gap-3 items-center flex-wrap">
+
+            {{-- Dropdown multi-select: Planilla --}}
+            <div x-data="{
+                    open: false,
+                    selected: {{ json_encode(array_map('intval', $filtroPlanilla)) }},
+                    toggle(id) {
+                        const idx = this.selected.indexOf(id);
+                        if (idx === -1) this.selected.push(id);
+                        else this.selected.splice(idx, 1);
+                        this.$nextTick(() => document.getElementById('form-sin-asignacion').submit());
+                    }
+                 }"
+                 class="relative" @click.outside="open = false">
+
+                <template x-for="id in selected" :key="id">
+                    <input type="hidden" name="planilla_id[]" :value="id">
+                </template>
+
+                <button type="button" @click="open = !open"
+                        class="form-input text-sm flex items-center gap-2 cursor-pointer" style="width:210px;">
+                    <i class="fa-solid fa-file-contract text-gray-400 text-xs shrink-0"></i>
+                    <span class="truncate flex-1 text-left" x-text="selected.length ? selected.length + ' planilla(s)' : 'Todas las planillas'"></span>
+                    <i class="fa-solid fa-chevron-down text-gray-400 text-xs shrink-0 transition-transform" :class="open && 'rotate-180'"></i>
+                </button>
+
+                <div x-show="open" x-transition
+                     class="absolute z-50 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg"
+                     style="min-width:210px; max-height:260px; overflow-y:auto;">
+                    @forelse($planillas as $p)
+                    <label class="flex items-center gap-2.5 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/60 cursor-pointer text-sm text-gray-700 dark:text-gray-300">
+                        <input type="checkbox" value="{{ $p->id }}"
+                               :checked="selected.includes({{ $p->id }})"
+                               @change="toggle({{ $p->id }})"
+                               class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                        <span class="truncate">{{ $p->nombre_planilla }}</span>
+                    </label>
+                    @empty
+                    <p class="px-3 py-2 text-sm text-gray-400">Sin opciones</p>
+                    @endforelse
+                </div>
+            </div>
+
+            {{-- Dropdown multi-select: Centro de Costo --}}
+            <div x-data="{
+                    open: false,
+                    selected: {{ json_encode(array_map('intval', $filtroCentro)) }},
+                    toggle(id) {
+                        const idx = this.selected.indexOf(id);
+                        if (idx === -1) this.selected.push(id);
+                        else this.selected.splice(idx, 1);
+                        this.$nextTick(() => document.getElementById('form-sin-asignacion').submit());
+                    }
+                 }"
+                 class="relative" @click.outside="open = false">
+
+                {{-- Inputs ocultos --}}
+                <template x-for="id in selected" :key="id">
+                    <input type="hidden" name="centro_costo_id[]" :value="id">
+                </template>
+
+                <button type="button" @click="open = !open"
+                        class="form-input text-sm flex items-center gap-2 cursor-pointer" style="width:230px;">
+                    <i class="fa-solid fa-building text-gray-400 text-xs shrink-0"></i>
+                    <span class="truncate flex-1 text-left" x-text="selected.length ? selected.length + ' centro(s)' : 'Todos los centros'"></span>
+                    <i class="fa-solid fa-chevron-down text-gray-400 text-xs shrink-0 transition-transform" :class="open && 'rotate-180'"></i>
+                </button>
+
+                <div x-show="open" x-transition
+                     class="absolute z-50 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg"
+                     style="min-width:230px; max-height:260px; overflow-y:auto;">
+                    @forelse($centrosCosto as $cc)
+                    <label class="flex items-center gap-2.5 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/60 cursor-pointer text-sm text-gray-700 dark:text-gray-300">
+                        <input type="checkbox" value="{{ $cc->id }}"
+                               :checked="selected.includes({{ $cc->id }})"
+                               @change="toggle({{ $cc->id }})"
+                               class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                        <span class="truncate">{{ $cc->nombre_centro_costo }}</span>
+                    </label>
+                    @empty
+                    <p class="px-3 py-2 text-sm text-gray-400">Sin opciones</p>
+                    @endforelse
+                </div>
+            </div>
+
+            {{-- Dropdown multi-select: Familia --}}
+            <div x-data="{
+                    open: false,
+                    selected: {{ json_encode(array_map('intval', $filtroFamilia)) }},
+                    toggle(id) {
+                        const idx = this.selected.indexOf(id);
+                        if (idx === -1) this.selected.push(id);
+                        else this.selected.splice(idx, 1);
+                        this.$nextTick(() => document.getElementById('form-sin-asignacion').submit());
+                    }
+                 }"
+                 class="relative" @click.outside="open = false">
+
+                {{-- Inputs ocultos --}}
+                <template x-for="id in selected" :key="id">
+                    <input type="hidden" name="familia_id[]" :value="id">
+                </template>
+
+                <button type="button" @click="open = !open"
+                        class="form-input text-sm flex items-center gap-2 cursor-pointer" style="width:210px;">
+                    <i class="fa-solid fa-layer-group text-gray-400 text-xs shrink-0"></i>
+                    <span class="truncate flex-1 text-left" x-text="selected.length ? selected.length + ' familia(s)' : 'Todas las familias'"></span>
+                    <i class="fa-solid fa-chevron-down text-gray-400 text-xs shrink-0 transition-transform" :class="open && 'rotate-180'"></i>
+                </button>
+
+                <div x-show="open" x-transition
+                     class="absolute z-50 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg"
+                     style="min-width:210px; max-height:260px; overflow-y:auto;">
+                    @forelse($familias as $f)
+                    <label class="flex items-center gap-2.5 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/60 cursor-pointer text-sm text-gray-700 dark:text-gray-300">
+                        <input type="checkbox" value="{{ $f->id }}"
+                               :checked="selected.includes({{ $f->id }})"
+                               @change="toggle({{ $f->id }})"
+                               class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                        <span class="truncate">{{ $f->nombre_familia }}</span>
+                    </label>
+                    @empty
+                    <p class="px-3 py-2 text-sm text-gray-400">Sin opciones</p>
+                    @endforelse
+                </div>
+            </div>
+
+            {{-- Limpiar filtros --}}
+            @if(!empty($filtroPlanilla) || !empty($filtroCentro) || !empty($filtroFamilia))
+                <a href="{{ route('admin.asignaciones.index', ['sin_asignacion' => '1']) }}"
+                   class="inline-flex items-center px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                    <i class="fa-solid fa-xmark"></i>
+                </a>
+            @endif
+        </div>
+    </form>
+
+    <div class="bg-white dark:bg-gray-800 shadow-sm rounded-lg overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left">
+                <thead class="border-b dark:border-gray-700">
+                    <tr>
+                        <th class="px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Colaborador</th>
+                        <th class="px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Documento</th>
+                        <th class="px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Contrato activo</th>
+                        <th class="px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Planilla</th>
+                        <th class="px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Centro de Costo</th>
+                        <th class="px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Familia</th>
+                        <th class="px-4 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase text-center">Acción</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($sinAsignacion as $row)
+                    <tr class="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors">
+                        <td class="px-4 py-3">
+                            <div class="font-medium text-gray-900 dark:text-white text-sm">{{ $row->user->name }}</div>
+                            <div class="text-xs text-gray-400 mt-0.5">
+                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
+                                    Sin asignación
+                                </span>
+                            </div>
+                        </td>
+                        <td class="px-4 py-3 text-sm font-mono text-gray-600 dark:text-gray-300">
+                            {{ $row->user->numero_documento ?? '—' }}
+                        </td>
+                        <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
+                            @if($row->contrato)
+                                {{ $row->contrato->inicio_contrato?->format('d/m/Y') }}
+                                @if($row->contrato->fin_contrato)
+                                    <span class="text-gray-400">→</span>
+                                    {{ $row->contrato->fin_contrato?->format('d/m/Y') }}
+                                @else
+                                    <span class="text-gray-400">→ Indefinido</span>
+                                @endif
+                            @else
+                                <span class="text-gray-400">—</span>
+                            @endif
+                        </td>
+                        <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
+                            {{ $row->contrato?->planilla?->nombre_planilla ?? '—' }}
+                        </td>
+                        <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
+                            {{ $row->contrato?->centroCosto?->nombre_centro_costo ?? '—' }}
+                        </td>
+                        <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
+                            {{ $row->contrato?->familia?->nombre_familia ?? '—' }}
+                        </td>
+                        <td class="px-4 py-3 text-center">
+                            <button onclick="openCreateModalPreFilled({{ $row->user->id }}, '{{ addslashes($row->user->name) }}', '{{ $row->user->numero_documento }}')"
+                                class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition font-medium cursor-pointer">
+                                <i class="fa-solid fa-user-plus text-[10px]"></i>
+                                Asignar
+                            </button>
+                        </td>
+                    </tr>
+                    @empty
+                    <tr>
+                        <td colspan="7" class="px-4 py-14 text-center text-gray-400 dark:text-gray-500">
+                            <i class="fa-solid fa-circle-check text-4xl mb-3 block text-green-400"></i>
+                            Todos los colaboradores con contrato activo tienen asignación vigente.
+                        </td>
+                    </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </div>
+    @endif
+
     {{-- Tabla --}}
+    @if(!$mostrarSinAsignacion)
     <div class="bg-white dark:bg-gray-800 shadow-sm rounded-lg overflow-hidden">
         <div class="overflow-x-auto">
             <table class="w-full text-left">
@@ -236,6 +468,7 @@
             </table>
         </div>
     </div>
+    @endif
 
     {{-- ── Modal Crear ────────────────────────────────────────────────────── --}}
     <div id="modal-create" class="fixed inset-0 z-50 hidden items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4">
@@ -420,6 +653,14 @@
             resetSuperiorSelect();
             hideNotes();
             document.getElementById('modal-create').classList.replace('hidden', 'flex');
+        }
+
+        function openCreateModalPreFilled(userId, userName, userDoc) {
+            openCreateModal();
+            // Pre-seleccionar el usuario (se muestra como chip, usuario solo elige rol/campaña)
+            usuariosSeleccionados = [{ id: userId, name: userName, numero_documento: userDoc }];
+            renderChips();
+            actualizarSearchPlaceholder();
         }
 
         function closeCreateModal() {

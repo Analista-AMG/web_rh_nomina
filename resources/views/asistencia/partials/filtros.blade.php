@@ -13,7 +13,12 @@
                 ->groupBy('periodo')->take(2)->reverse();
         @endphp
         <form method="GET" action="{{ route('asistencia.index') }}" id="form-filtro" class="flex flex-wrap items-end gap-4">
-            <input type="hidden" name="pago_id" id="pago_id" value="{{ $pagoSeleccionado?->id }}">
+            <input type="hidden" name="pago_id"   id="pago_id"        value="{{ $pagoSeleccionado?->id }}">
+            <input type="hidden" name="f_nombre"  id="hidden-f-nombre"  value="{{ request('f_nombre') }}">
+            <input type="hidden" name="f_campana" id="hidden-f-campana" value="{{ request('f_campana') }}">
+            <input type="hidden" name="f_centro"  id="hidden-f-centro"  value="{{ request('f_centro') }}">
+            <input type="hidden" name="f_familia" id="hidden-f-familia" value="{{ request('f_familia') }}">
+            <input type="hidden" name="f_directos" id="hidden-f-directos" value="{{ request('f_directos', '0') }}">
 
             {{-- Período: solo mes actual y anterior --}}
             <div>

@@ -50,6 +50,7 @@
             </div>
         @else
             @include('asistencia.partials.tabla')
+        <div id="paginacion-asistencia"></div>
         @endif
     @else
         <div class="bg-white dark:bg-[#273142] rounded-xl p-12 text-center shadow-sm border border-light-border dark:border-dark-border">

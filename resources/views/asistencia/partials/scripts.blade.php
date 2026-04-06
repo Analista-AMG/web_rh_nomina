@@ -1,9 +1,15 @@
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    // Seleccionar período y auto-submit
+    // Seleccionar período y auto-submit — preserva filtros client-side en la URL
     window.seleccionarPago = function (id) {
         document.getElementById('pago_id').value = id;
+        const set = (elId, val) => { const el = document.getElementById(elId); if (el) el.value = val ?? ''; };
+        set('hidden-f-nombre',  document.getElementById('filtro-nombre')?.value ?? '');
+        set('hidden-f-campana', document.getElementById('filtro-campana')?.value ?? '');
+        set('hidden-f-centro',  document.getElementById('filtro-centro')?.value ?? '');
+        set('hidden-f-familia', document.getElementById('filtro-familia')?.value ?? '');
+        set('hidden-f-directos', soloDirectos ? '1' : '0');
         document.getElementById('form-filtro').submit();
     };
 
@@ -26,6 +32,10 @@ document.addEventListener('DOMContentLoaded', function () {
         familia:   tr.dataset.familia   ?? '',
         esDirecto: tr.dataset.esDirecto === '1',
     }));
+
+    const POR_PAGINA = 20;
+    let paginaActual = 1;
+    let filasFiltradas = [...filasDatos];
 
     function buildLabelMap(select) {
         const map = { _placeholder: select?.options[0]?.text ?? 'Todos' };
@@ -72,20 +82,86 @@ document.addEventListener('DOMContentLoaded', function () {
         const centro  = filtroCentro?.value  ?? '';
         const familia = filtroFamilia?.value  ?? '';
 
-        let visible = 0;
-        filasDatos.forEach(fila => {
-            const match = coincide(fila, nombre, campana, centro, familia);
-            fila.el.style.display = match ? '' : 'none';
-            if (match) visible++;
-        });
+        filasFiltradas = filasDatos.filter(fila => coincide(fila, nombre, campana, centro, familia));
+        paginaActual = 1;
+        renderPagina();
 
-        if (contador) contador.textContent = visible;
         if (btnLimpiar) btnLimpiar.classList.toggle('hidden', !nombre);
 
         reconstruirSelect(filtroCampana, 'campana', nombre, '',      centro,  familia);
         reconstruirSelect(filtroCentro,  'centro',  nombre, campana, '',      familia);
         reconstruirSelect(filtroFamilia, 'familia', nombre, campana, centro,  '');
     }
+
+    function renderPagina() {
+        const total       = filasFiltradas.length;
+        const totalPaginas = Math.max(1, Math.ceil(total / POR_PAGINA));
+        if (paginaActual > totalPaginas) paginaActual = totalPaginas;
+
+        const inicio = (paginaActual - 1) * POR_PAGINA;
+        const fin    = inicio + POR_PAGINA;
+
+        filasDatos.forEach(f => f.el.style.display = 'none');
+        filasFiltradas.slice(inicio, fin).forEach(f => f.el.style.display = '');
+
+        if (contador) contador.textContent = total;
+
+        renderPaginacion(total, totalPaginas);
+    }
+
+    function renderPaginacion(total, totalPaginas) {
+        const container = document.getElementById('paginacion-asistencia');
+        if (!container) return;
+
+        if (totalPaginas <= 1) { container.innerHTML = ''; return; }
+
+        const desde = Math.max(1, paginaActual - 2);
+        const hasta  = Math.min(totalPaginas, paginaActual + 2);
+
+        const btnBase  = 'px-3 py-2 text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors';
+        const btnActivo = 'px-3 py-2 text-white bg-primary border border-primary rounded-md shadow-sm';
+        const btnDis   = 'px-3 py-2 text-gray-400 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md cursor-not-allowed';
+        const dots     = `<li><span class="px-3 py-2 text-gray-500 dark:text-gray-400">…</span></li>`;
+
+        let items = '';
+
+        // Anterior
+        items += paginaActual === 1
+            ? `<li><span class="${btnDis}"><i class="fa-solid fa-chevron-left"></i></span></li>`
+            : `<li><button onclick="irPagina(${paginaActual - 1})" class="${btnBase}"><i class="fa-solid fa-chevron-left"></i></button></li>`;
+
+        if (desde > 1) {
+            items += `<li><button onclick="irPagina(1)" class="${btnBase}">1</button></li>`;
+            if (desde > 2) items += dots;
+        }
+
+        for (let p = desde; p <= hasta; p++) {
+            items += p === paginaActual
+                ? `<li><span class="${btnActivo}">${p}</span></li>`
+                : `<li><button onclick="irPagina(${p})" class="${btnBase}">${p}</button></li>`;
+        }
+
+        if (hasta < totalPaginas) {
+            if (hasta < totalPaginas - 1) items += dots;
+            items += `<li><button onclick="irPagina(${totalPaginas})" class="${btnBase}">${totalPaginas}</button></li>`;
+        }
+
+        // Siguiente
+        items += paginaActual === totalPaginas
+            ? `<li><span class="${btnDis}"><i class="fa-solid fa-chevron-right"></i></span></li>`
+            : `<li><button onclick="irPagina(${paginaActual + 1})" class="${btnBase}"><i class="fa-solid fa-chevron-right"></i></button></li>`;
+
+        container.innerHTML = `
+            <nav class="flex items-center justify-center mt-4 px-1">
+                <ul class="flex items-center gap-1">${items}</ul>
+            </nav>`;
+    }
+
+    window.irPagina = function(p) {
+        paginaActual = p;
+        renderPagina();
+        document.querySelector('.overflow-x-auto')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
 
     function dispararNombre() {
         if (!filtroNombre) return;
@@ -172,6 +248,23 @@ document.addEventListener('DOMContentLoaded', function () {
         aplicarFiltros();
     });
 
+    // Restaurar filtros client-side desde URL (persistidos al cambiar período)
+    const _p = new URLSearchParams(window.location.search);
+    if (filtroNombre  && _p.get('f_nombre'))  filtroNombre.value  = _p.get('f_nombre');
+    if (filtroCampana && _p.get('f_campana')) filtroCampana.value = _p.get('f_campana');
+    if (filtroCentro  && _p.get('f_centro'))  filtroCentro.value  = _p.get('f_centro');
+    if (filtroFamilia && _p.get('f_familia')) filtroFamilia.value = _p.get('f_familia');
+    if (_p.get('f_directos') === '1' && btnDirectosTodos && btnDirectosSolo) {
+        soloDirectos = true;
+        btnDirectosTodos.classList.remove('bg-primary', 'text-white', 'shadow-sm');
+        btnDirectosTodos.classList.add('text-gray-500', 'dark:text-gray-400');
+        btnDirectosSolo.classList.add('bg-primary', 'text-white', 'shadow-sm');
+        btnDirectosSolo.classList.remove('text-gray-500', 'dark:text-gray-400');
+    }
+
+    // Paginación inicial (aplica filtros restaurados)
+    aplicarFiltros();
+
     // Items map: id => codigo for column-action feedback
     const itemsMap = @json($itemsAsistencia->mapWithKeys(fn($i) => [$i->id => $i->codigo_asistencia]));
 
@@ -255,6 +348,8 @@ document.addEventListener('DOMContentLoaded', function () {
             if (!itemId) return;
 
             document.querySelectorAll(`.asistencia-select[data-fecha="${fecha}"]`).forEach(cellSel => {
+                // Solo filas visibles en la página actual
+                if (cellSel.closest('tr')?.style.display === 'none') return;
                 if (cellSel.value !== itemId) {
                     const opt = cellSel.querySelector(`option[value="${itemId}"]`);
                     if (opt) {
