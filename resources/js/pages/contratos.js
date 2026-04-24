@@ -360,19 +360,21 @@ function abrirVerMovimiento(data) {
 // =============================================================
 function collectMovData(p) {
     return {
-        cargo_id:            document.getElementById(`${p}-cargo-id`)?.value,
-        planilla_id:         document.getElementById(`${p}-planilla-id`)?.value,
-        inicio:              document.getElementById(`${p}-inicio`)?.value,
-        fin:                 document.getElementById(`${p}-fin`)?.value || null,
-        haber_basico:        document.getElementById(`${p}-haber`)?.value,
-        movilidad:           document.getElementById(`${p}-movilidad`)?.value,
-        asignacion_familiar: document.getElementById(`${p}-asignacion`)?.value,
-        fondo_pensiones_id:  document.getElementById(`${p}-fp-id`)?.value,
-        condicion_id:        document.getElementById(`${p}-condicion-id`)?.value,
-        banco_id:            document.getElementById(`${p}-banco-id`)?.value,
-        centro_costo_id:     document.getElementById(`${p}-centro-costo-id`)?.value,
-        familia_id:          document.getElementById(`${p}-familia-id`)?.value,
-        moneda_id:           document.getElementById(`${p}-moneda-id`)?.value,
+        cargo_id:               document.getElementById(`${p}-cargo-id`)?.value,
+        planilla_id:            document.getElementById(`${p}-planilla-id`)?.value,
+        inicio:                 document.getElementById(`${p}-inicio`)?.value,
+        fin:                    document.getElementById(`${p}-fin`)?.value || null,
+        haber_basico:           document.getElementById(`${p}-haber`)?.value,
+        movilidad:              document.getElementById(`${p}-movilidad`)?.value,
+        asignacion_familiar:    document.getElementById(`${p}-asignacion`)?.value,
+        fondo_pensiones_id:     document.getElementById(`${p}-fp-id`)?.value,
+        condicion_id:           document.getElementById(`${p}-condicion-id`)?.value,
+        banco_id:               document.getElementById(`${p}-banco-id`)?.value,
+        centro_costo_id:        document.getElementById(`${p}-centro-costo-id`)?.value,
+        familia_id:             document.getElementById(`${p}-familia-id`)?.value,
+        moneda_id:              document.getElementById(`${p}-moneda-id`)?.value,
+        numero_cuenta:          document.getElementById(`${p}-numero-cuenta`)?.value || null,
+        codigo_interbancario:   document.getElementById(`${p}-codigo-interbancario`)?.value || null,
     };
 }
 
@@ -396,9 +398,11 @@ async function abrirEditMovimiento(data) {
     editFin.value    = data.movFinRaw      || '';
 
     // Campos simples
-    setVal('edit-mov-id',         data.movId            || '');
-    setVal('edit-mov-haber',      parseFloat(data.movHaberRaw || 0).toFixed(2));
-    setVal('edit-mov-asignacion', data.movAsignacionRaw || '0');
+    setVal('edit-mov-id',                   data.movId                   || '');
+    setVal('edit-mov-haber',                parseFloat(data.movHaberRaw || 0).toFixed(2));
+    setVal('edit-mov-asignacion',           data.movAsignacionRaw        || '0');
+    setVal('edit-mov-numero-cuenta',        data.movNumeroCuenta         || '');
+    setVal('edit-mov-codigo-interbancario', data.movCodigoInterbancario  || '');
 
     openModal('edit-movimiento-modal');
 

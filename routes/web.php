@@ -54,6 +54,10 @@ Route::middleware(['auth', 'asignacion'])->group(function () {
         ->get('/contratos/alertas', [App\Http\Controllers\ContratoAlertasController::class, 'index'])
         ->name('contratos.alertas');
 
+    Route::middleware(['permission:contratos.view'])
+        ->get('/contratos/alertas/exportar', [App\Http\Controllers\ContratoAlertasController::class, 'exportar'])
+        ->name('contratos.alertas.exportar');
+
     Route::middleware(['permission:contratos.create'])
         ->post('/contratos', [App\Http\Controllers\ContratoController::class, 'store'])
         ->name('contratos.store');

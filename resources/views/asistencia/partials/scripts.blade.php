@@ -192,56 +192,6 @@ document.addEventListener('DOMContentLoaded', function () {
         aplicarFiltros();
     };
 
-    // ── Filtro por rango de fechas: muestra/oculta columnas ──────────────
-    const filtroDesde = document.getElementById('filtro-fecha-desde');
-    const filtroHasta = document.getElementById('filtro-fecha-hasta');
-
-    const rangoBase = '{{ \Carbon\Carbon::parse($pagoSeleccionado?->inicio)->format("d/m/Y") }} – {{ \Carbon\Carbon::parse($pagoSeleccionado?->fin)->format("d/m/Y") }}';
-
-    function fmt(ymd) {
-        if (!ymd) return '';
-        const [y, m, d] = ymd.split('-');
-        return `${d}/${m}/${y}`;
-    }
-
-    function aplicarFiltroFechas() {
-        const desde = filtroDesde?.value ?? '';
-        const hasta = filtroHasta?.value ?? '';
-
-        if (desde && filtroHasta) filtroHasta.min = desde;
-        if (hasta && filtroDesde) filtroDesde.max = hasta;
-
-        document.querySelectorAll('th[data-fecha], td[data-fecha]').forEach(el => {
-            const f = el.dataset.fecha;
-            const visible = (!desde && !hasta)
-                || (!desde && f <= hasta)
-                || (!hasta && f >= desde)
-                || (f >= desde && f <= hasta);
-            el.style.display = visible ? '' : 'none';
-        });
-
-        document.querySelectorAll('th[data-mes]').forEach(th => {
-            const mes = th.dataset.mes;
-            const visibles = [...document.querySelectorAll(`th[data-fecha]`)]
-                .filter(el => el.dataset.fecha.startsWith(mes) && el.style.display !== 'none').length;
-            th.style.display = visibles === 0 ? 'none' : '';
-            if (visibles > 0) th.colSpan = visibles;
-        });
-
-        const statsRango = document.getElementById('stats-rango');
-        if (statsRango) {
-            if (!desde && !hasta) {
-                statsRango.textContent = rangoBase;
-            } else {
-                const d = desde ? fmt(desde) : rangoBase.split(' – ')[0];
-                const h = hasta ? fmt(hasta) : rangoBase.split(' – ')[1];
-                statsRango.textContent = `${d} – ${h}`;
-            }
-        }
-    }
-
-    filtroDesde?.addEventListener('change', aplicarFiltroFechas);
-    filtroHasta?.addEventListener('change', aplicarFiltroFechas);
 
     btnLimpiar?.addEventListener('click', () => {
         if (filtroNombre) filtroNombre.value = '';

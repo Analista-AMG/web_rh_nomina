@@ -11,7 +11,7 @@
     {{-- Filtros --}}
     @php
         $hoyView    = \Carbon\Carbon::today();
-        $pagoHoy    = $pagos->first(fn($p) => $p->inicio <= $hoyView && $p->fin >= $hoyView);
+        $pagoHoy    = $pagos->first(fn($p) => $p->quincena > 0 && $p->inicio <= $hoyView && $p->fin >= $hoyView);
         $periodoRef = $pagoHoy?->periodo ?? $pagos->first()?->periodo;
         $pagosRecientes = $pagos->filter(fn($p) => $p->periodo <= $periodoRef)
             ->groupBy('periodo')->take(2)->reverse();
@@ -42,7 +42,7 @@
                                 title="{{ \Carbon\Carbon::parse($pago->inicio)->format('d/m') }} – {{ \Carbon\Carbon::parse($pago->fin)->format('d/m') }}"
                                 class="px-2.5 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer
                                     {{ $sel ? 'bg-primary text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600' }}">
-                                Q{{ $pago->quincena }}
+                                {{ $pago->quincena === 0 ? 'Todo' : 'Q'.$pago->quincena }}
                             </button>
                         @endforeach
                     </div>

@@ -97,7 +97,7 @@
 
             {{-- Sección: Previsional --}}
             <x-ui.modal-section label="Previsional" icon="fa-building-columns">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <x-forms.field label="Fondo de Pensiones" for="edit-mov-fp-id">
                         <x-forms.select id="edit-mov-fp-id" class="w-full">
                             <option value="">Cargando...</option>
@@ -108,6 +108,16 @@
                         <x-forms.select id="edit-mov-banco-id" class="w-full">
                             <option value="">Cargando...</option>
                         </x-forms.select>
+                    </x-forms.field>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <x-forms.field label="Nº Cuenta" for="edit-mov-numero-cuenta">
+                        <x-forms.text-input id="edit-mov-numero-cuenta" type="text" class="w-full font-mono" placeholder="Número de cuenta" />
+                    </x-forms.field>
+
+                    <x-forms.field label="CCI" for="edit-mov-codigo-interbancario">
+                        <x-forms.text-input id="edit-mov-codigo-interbancario" type="text" class="w-full font-mono" placeholder="Código interbancario" />
                     </x-forms.field>
                 </div>
             </x-ui.modal-section>

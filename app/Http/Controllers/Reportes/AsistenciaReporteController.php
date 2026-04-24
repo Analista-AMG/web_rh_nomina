@@ -55,6 +55,7 @@ class AsistenciaReporteController extends Controller
 
         // 2. Contratos vigentes en el período
         $q = Contrato::withoutGlobalScope(AlcanceUsuarioScope::class)
+            ->whereHas('persona', fn($q) => $q->withoutGlobalScope(AlcanceUsuarioScope::class))
             ->with(['persona' => fn($q) => $q->withoutGlobalScope(AlcanceUsuarioScope::class)])
             ->where('inicio_contrato', '<=', $finStr)
             ->where(function ($q) use ($inicioStr) {

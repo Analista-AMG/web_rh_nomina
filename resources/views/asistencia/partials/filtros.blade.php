@@ -43,7 +43,7 @@
                                     title="{{ $tip }}"
                                     class="px-2.5 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer
                                         {{ $sel ? 'bg-primary text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 hover:text-gray-800 dark:hover:text-white' }}">
-                                    Q{{ $pago->quincena }}
+                                    {{ $pago->quincena === 0 ? 'Todo' : 'Q'.$pago->quincena }}
                                 </button>
                             @endforeach
                         </div>
@@ -51,27 +51,6 @@
                 </div>
             </div>
 
-            {{-- Filtro por rango de fechas (client-side, limitado al período seleccionado) --}}
-            @if($pagoSeleccionado)
-            @php
-                $periodoMin = \Carbon\Carbon::parse($pagoSeleccionado->inicio)->format('Y-m-d');
-                $periodoMax = \Carbon\Carbon::parse($pagoSeleccionado->fin)->format('Y-m-d');
-            @endphp
-            <div>
-                <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">
-                    <i class="fa-regular fa-calendar-day mr-1"></i>Rango de fechas
-                </label>
-                <div class="flex items-center gap-2">
-                    <input type="date" id="filtro-fecha-desde"
-                        min="{{ $periodoMin }}" max="{{ $periodoMax }}"
-                        class="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#1b2431] text-sm text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50">
-                    <span class="text-gray-400 dark:text-gray-500 text-xs font-medium">—</span>
-                    <input type="date" id="filtro-fecha-hasta"
-                        min="{{ $periodoMin }}" max="{{ $periodoMax }}"
-                        class="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#1b2431] text-sm text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50">
-                </div>
-            </div>
-            @endif
 
             {{-- Campaña (client-side) --}}
             @if($pagoSeleccionado && $filas->isNotEmpty())

@@ -39,8 +39,8 @@ class AsistenciaController extends Controller
         $mesActual       = $hoy->format('Y-m');
 
         $pagoId = $request->input('pago_id')
-            ?: ($pagos->first(fn ($p) => $p->inicio->format('Y-m-d') <= $hoyStr && $p->fin->format('Y-m-d') >= $hoyStr)?->id
-                ?? $pagos->first()?->id);
+            ?: ($pagos->first(fn ($p) => $p->quincena > 0 && $p->inicio->format('Y-m-d') <= $hoyStr && $p->fin->format('Y-m-d') >= $hoyStr)?->id
+                ?? $pagos->where('quincena', '>', 0)->first()?->id);
         $pagoSeleccionado = $pagoId ? $pagos->firstWhere('id', $pagoId) : null;
 
         $filas                 = collect();
@@ -198,7 +198,9 @@ class AsistenciaController extends Controller
             'min_tardanza'       => 'nullable|integer|min:1|max:999',
         ]);
 
-        $contrato = Contrato::withoutGlobalScope(AlcanceUsuarioScope::class)->find($request->contrato_id);
+        $contrato = Contrato::withoutGlobalScope(AlcanceUsuarioScope::class)
+            ->whereHas('persona', fn($q) => $q->withoutGlobalScope(AlcanceUsuarioScope::class))
+            ->find($request->contrato_id);
         if (!$contrato) {
             return response()->json(['error' => 'Contrato no encontrado'], 404);
         }
@@ -379,6 +381,7 @@ class AsistenciaController extends Controller
     private function cargarContratos(?array $personaIds, string $ini, string $fin): Collection
     {
         $q = Contrato::withoutGlobalScope(AlcanceUsuarioScope::class)
+            ->whereHas('persona', fn($q) => $q->withoutGlobalScope(AlcanceUsuarioScope::class))
             ->with(['persona' => fn ($q) => $q->withoutGlobalScope(AlcanceUsuarioScope::class), 'condicion', 'centroCosto', 'familia'])
             ->where('inicio_contrato', '<=', $fin)
             ->where(function ($q) use ($ini) {

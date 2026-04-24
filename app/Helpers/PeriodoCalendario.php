@@ -82,12 +82,17 @@ class PeriodoCalendario
      */
     public static function objeto(string $periodo, int $quincena): object
     {
+        $base = Carbon::parse($periodo . '-01');
+
+        $inicio = $quincena === 0 ? $base->copy() : static::inicio($periodo, $quincena);
+        $fin    = $quincena === 0 ? $base->copy()->endOfMonth()->startOfDay() : static::fin($periodo, $quincena);
+
         return (object) [
             'id'       => (int) (str_replace('-', '', $periodo) . $quincena),
             'periodo'  => $periodo,
             'quincena' => $quincena,
-            'inicio'   => static::inicio($periodo, $quincena),
-            'fin'      => static::fin($periodo, $quincena),
+            'inicio'   => $inicio,
+            'fin'      => $fin,
         ];
     }
 
@@ -141,6 +146,7 @@ class PeriodoCalendario
 
         for ($i = 0; $i < $meses; $i++) {
             $p = $base->copy()->subMonths($i)->format('Y-m');
+            $periodos->push(static::objeto($p, 0));
             $periodos->push(static::objeto($p, 2));
             $periodos->push(static::objeto($p, 1));
         }

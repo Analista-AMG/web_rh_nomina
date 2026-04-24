@@ -95,6 +95,7 @@ class JerarquiaService
         }
 
         return $this->cache[$user->id] = Persona::withoutGlobalScope(AlcanceUsuarioScope::class)
+
             ->whereIn('numero_documento', $docs)
             ->pluck('id')
             ->map(fn($id) => (int) $id)
@@ -200,6 +201,7 @@ class JerarquiaService
         }
 
         return Persona::withoutGlobalScope(AlcanceUsuarioScope::class)
+
             ->whereIn('numero_documento', $docs)
             ->pluck('id')
             ->map(fn($id) => (int) $id)
@@ -223,6 +225,7 @@ class JerarquiaService
     public function campanaDelEmpleado(int $personaId): ?int
     {
         $persona = Persona::withoutGlobalScope(AlcanceUsuarioScope::class)
+
             ->where('id', $personaId)
             ->whereNotNull('numero_documento')
             ->first();
@@ -245,6 +248,7 @@ class JerarquiaService
     public function resolverSupervisorOrigen(int $empleadoId, int $fallbackUserId): int
     {
         $persona = Persona::withoutGlobalScope(AlcanceUsuarioScope::class)
+
             ->where('id', $empleadoId)
             ->whereNotNull('numero_documento')
             ->first();
@@ -274,6 +278,7 @@ class JerarquiaService
         if (empty($personaIds)) return [];
 
         $docs = Persona::withoutGlobalScope(AlcanceUsuarioScope::class)
+
             ->whereIn('id', $personaIds)
             ->whereNotNull('numero_documento')
             ->pluck('numero_documento', 'id');
@@ -313,6 +318,7 @@ class JerarquiaService
         if (!$user->numero_documento) return null;
 
         $id = Persona::withoutGlobalScope(AlcanceUsuarioScope::class)
+
             ->where('numero_documento', $user->numero_documento)
             ->value('id');
 

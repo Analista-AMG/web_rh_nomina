@@ -52,10 +52,12 @@ class ContratoMovimientoController extends Controller
             'asignacion_familiar'=> 'required|boolean',
             'fondo_pensiones_id' => "nullable|exists:{$conn}.nomina.dim_fondos_pensiones,id",
             'condicion_id'       => "nullable|exists:{$conn}.nomina.dim_condiciones,id",
-            'banco_id'           => "nullable|exists:{$conn}.nomina.dim_bancos,id",
+            'banco_id'            => "nullable|exists:{$conn}.nomina.dim_bancos,id",
             'centro_costo_id'    => "nullable|exists:{$conn}.nomina.dim_centro_costos,id",
             'familia_id'         => "nullable|exists:{$conn}.nomina.dim_familias,id",
             'moneda_id'          => "nullable|exists:{$conn}.nomina.dim_monedas,id",
+            'numero_cuenta'      => 'nullable|string|max:100',
+            'codigo_interbancario' => 'nullable|string|max:20',
         ]);
 
         $movimiento = ContratoMovimiento::findOrFail($id);
@@ -72,12 +74,14 @@ class ContratoMovimientoController extends Controller
                     'asignacion_familiar' => $movimiento->asignacion_familiar,
                     'haber_basico'        => $movimiento->haber_basico,
                     'movilidad'           => $movimiento->movilidad,
-                    'banco_id'            => $movimiento->banco_id,
-                    'moneda_id'           => $movimiento->moneda_id,
-                    'centro_costo_id'     => $movimiento->centro_costo_id,
-                    'familia_id'          => $movimiento->familia_id,
-                    'inicio_contrato'     => $movimiento->inicio,
-                    'fin_contrato'        => $movimiento->fin,
+                    'banco_id'             => $movimiento->banco_id,
+                    'moneda_id'            => $movimiento->moneda_id,
+                    'centro_costo_id'      => $movimiento->centro_costo_id,
+                    'familia_id'           => $movimiento->familia_id,
+                    'numero_cuenta'        => $movimiento->numero_cuenta,
+                    'codigo_interbancario' => $movimiento->codigo_interbancario,
+                    'inicio_contrato'      => $movimiento->inicio,
+                    'fin_contrato'         => $movimiento->fin,
                 ]);
             }
         });

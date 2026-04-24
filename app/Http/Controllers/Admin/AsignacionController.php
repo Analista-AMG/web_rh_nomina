@@ -104,17 +104,13 @@ class AsignacionController extends Controller
         if ($puedeVerSinAsignacion) {
             $userIdsAsignados = UserAsignacion::vigentes()->pluck('user_id')->toArray();
 
-            // IDs de centros de costo de Gerencia (excluidos)
-            $centrosGerencia = CentroCosto::where('nombre_centro_costo', 'like', '%Gerencia%')
-                ->pluck('id')->toArray();
-
             // Personas con contrato activo hoy (sin baja), respetando filtros
             $docsActivos = Persona::withoutGlobalScope(AlcanceUsuarioScope::class)
+    
                 ->whereHas('contratos', fn($q) => $q
                     ->withoutGlobalScope(AlcanceUsuarioScope::class)
                     ->whereRaw('inicio_contrato <= CAST(GETDATE() AS DATE)')
                     ->whereRaw('(' . Contrato::FIN_EFECTIVO . ' IS NULL OR ' . Contrato::FIN_EFECTIVO . ' > CAST(GETDATE() AS DATE))')
-                    ->when($centrosGerencia, fn($q) => $q->whereNotIn('centro_costo_id', $centrosGerencia))
                     ->when($filtroPlanilla, fn($q) => $q->whereIn('planilla_id',     $filtroPlanilla))
                     ->when($filtroCentro,  fn($q) => $q->whereIn('centro_costo_id', $filtroCentro))
                     ->when($filtroFamilia, fn($q) => $q->whereIn('familia_id',      $filtroFamilia))
@@ -131,13 +127,12 @@ class AsignacionController extends Controller
             $countSinAsignacion = $usersSinAsignacion->count();
 
             if ($mostrarSinAsignacion) {
-                // Base sin filtros de usuario (solo Gerencia excluida) para dropdowns coherentes
                 $docsBase = Persona::withoutGlobalScope(AlcanceUsuarioScope::class)
+        
                     ->whereHas('contratos', fn($q) => $q
                         ->withoutGlobalScope(AlcanceUsuarioScope::class)
                         ->whereRaw('inicio_contrato <= CAST(GETDATE() AS DATE)')
                         ->whereRaw('(' . Contrato::FIN_EFECTIVO . ' IS NULL OR ' . Contrato::FIN_EFECTIVO . ' > CAST(GETDATE() AS DATE))')
-                        ->when($centrosGerencia, fn($q) => $q->whereNotIn('centro_costo_id', $centrosGerencia))
                     )
                     ->pluck('numero_documento')->filter();
 
@@ -149,7 +144,6 @@ class AsignacionController extends Controller
                 $baseDropdown = fn() => Contrato::withoutGlobalScope(AlcanceUsuarioScope::class)
                     ->whereRaw('inicio_contrato <= CAST(GETDATE() AS DATE)')
                     ->whereRaw('(' . Contrato::FIN_EFECTIVO . ' IS NULL OR ' . Contrato::FIN_EFECTIVO . ' > CAST(GETDATE() AS DATE))')
-                    ->when($centrosGerencia, fn($q) => $q->whereNotIn('centro_costo_id', $centrosGerencia))
                     ->whereHas('persona', fn($q) => $q
                         ->withoutGlobalScope(AlcanceUsuarioScope::class)
                         ->whereIn('numero_documento', $docsBaseElegibles)
@@ -186,12 +180,12 @@ class AsignacionController extends Controller
                 $docsNecesarios = $usersSinAsignacion->pluck('numero_documento');
 
                 $personasSinAsig = Persona::withoutGlobalScope(AlcanceUsuarioScope::class)
+        
                     ->whereIn('numero_documento', $docsNecesarios)
                     ->with(['contratos' => fn($q) => $q
                         ->withoutGlobalScope(AlcanceUsuarioScope::class)
                         ->activos()
                         ->whereNull('fecha_renuncia')
-                        ->when($centrosGerencia, fn($q) => $q->whereNotIn('centro_costo_id', $centrosGerencia))
                         ->when($filtroPlanilla, fn($q) => $q->whereIn('planilla_id',     $filtroPlanilla))
                         ->when($filtroCentro,   fn($q) => $q->whereIn('centro_costo_id', $filtroCentro))
                         ->when($filtroFamilia,  fn($q) => $q->whereIn('familia_id',      $filtroFamilia))
@@ -210,9 +204,38 @@ class AsignacionController extends Controller
         }
 
         // ── Asignaciones normales ─────────────────────────────────────────────
+        $filtroCampana      = request()->input('campana_id');
+        $filtroEstado       = request()->input('estado');
+        $filtroEstadoPersona = request()->input('estado_persona');
+
         $query = UserAsignacion::with(['usuario', 'campana', 'superior'])
             ->when(!$mostrarCerradas, fn ($q) => $q->whereNull('fecha_fin'))
             ->when($mostrarCerradas,  fn ($q) => $q->whereNotNull('fecha_fin'))
+            ->when($filtroCampana,    fn ($q) => $q->where('campana_id', $filtroCampana))
+            ->when($filtroEstado,     fn ($q) => $q->where('estado', $filtroEstado))
+            ->when($filtroEstadoPersona, function ($q) use ($filtroEstadoPersona) {
+                $contratoVigenteScope = fn($q) => $q
+                    ->withoutGlobalScope(AlcanceUsuarioScope::class)
+                    ->whereRaw('inicio_contrato <= CAST(GETDATE() AS DATE)')
+                    ->whereRaw('(' . Contrato::FIN_EFECTIVO . ' IS NULL OR ' . Contrato::FIN_EFECTIVO . ' >= CAST(GETDATE() AS DATE))');
+
+                $personasQuery = Persona::withoutGlobalScope(AlcanceUsuarioScope::class)
+                    ->whereNotNull('numero_documento');
+
+                if ($filtroEstadoPersona === 'activo') {
+                    $personasQuery->whereHas('contratos', $contratoVigenteScope);
+                } elseif ($filtroEstadoPersona === 'inactivo') {
+                    $personasQuery
+                        ->whereHas('contratos', fn($q) => $q->withoutGlobalScope(AlcanceUsuarioScope::class))
+                        ->whereDoesntHave('contratos', $contratoVigenteScope);
+                } elseif ($filtroEstadoPersona === 'pendiente') {
+                    $personasQuery->whereDoesntHave('contratos', fn($q) => $q->withoutGlobalScope(AlcanceUsuarioScope::class));
+                }
+
+                $docs    = $personasQuery->pluck('numero_documento');
+                $userIds = User::whereIn('numero_documento', $docs)->pluck('id');
+                $q->whereIn('user_id', $userIds);
+            })
             ->orderByRaw("CASE estado WHEN 'pendiente' THEN 1 WHEN 'aprobado' THEN 2 ELSE 3 END")
             ->orderBy('created_at', 'desc');
 
@@ -227,13 +250,18 @@ class AsignacionController extends Controller
             }
         }
 
-        $asignaciones = $query->get();
+        $statsQuery   = clone $query;
+        $statsPendientes = (clone $statsQuery)->where('estado', 'pendiente')->count();
+        $statsAprobadas  = (clone $statsQuery)->where('estado', 'aprobado')->count();
+        $statsRechazadas = (clone $statsQuery)->where('estado', 'rechazado')->count();
+
+        $asignaciones = $query->paginate(15)->appends(request()->except('page'));
 
         $docs = $asignaciones->map(fn ($a) => $a->usuario?->numero_documento)
             ->filter()->unique()->values();
 
         $personasPorDoc = Persona::withoutGlobalScope(AlcanceUsuarioScope::class)
-            ->with('contratos')
+            ->with(['contratos' => fn($q) => $q->orderByDesc('inicio_contrato')])
             ->whereIn('numero_documento', $docs)
             ->get()
             ->keyBy('numero_documento');
@@ -255,6 +283,12 @@ class AsignacionController extends Controller
             'filtroCentro'         => $filtroCentro,
             'filtroFamilia'        => $filtroFamilia,
             'personasPorDoc'       => $personasPorDoc,
+            'statsPendientes'      => $statsPendientes,
+            'statsAprobadas'       => $statsAprobadas,
+            'statsRechazadas'      => $statsRechazadas,
+            'filtroCampana'         => $filtroCampana,
+            'filtroEstado'          => $filtroEstado,
+            'filtroEstadoPersona'   => $filtroEstadoPersona,
         ]);
     }
 
@@ -480,6 +514,7 @@ class AsignacionController extends Controller
                 $user = $a->usuario;
                 if ($user?->numero_documento) {
                     $empleadoId = Persona::withoutGlobalScope(AlcanceUsuarioScope::class)
+            
                         ->where('numero_documento', $user->numero_documento)
                         ->value('id');
 

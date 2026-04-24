@@ -122,8 +122,9 @@
         })();
     </script>
 
-    {{-- Tabs --}}
-    <div class="mb-4 flex gap-1 border-b border-light-border dark:border-dark-border">
+    {{-- Tabs + botón exportar --}}
+    <div class="mb-4 flex items-end justify-between border-b border-light-border dark:border-dark-border">
+    <div class="flex gap-1">
         @php
             $tabs = [
                 'vencidos'   => ['label' => 'Vencidos sin acción', 'count' => $countVencidos,  'color' => 'red'],
@@ -132,17 +133,7 @@
             ];
         @endphp
         @foreach($tabs as $key => $t)
-            @php
-                $params = array_filter([
-                    'tab'             => $key,
-                    'empresa'         => $empresa,
-                    'planilla_id'     => $planillaId,
-                    'centro_costo_id' => $centroCostoId,
-                    'familia_id'      => $familiaId,
-                    'nombre'          => $nombre,
-                ]);
-            @endphp
-            <a href="{{ route('contratos.alertas', $params) }}"
+            <a href="{{ route('contratos.alertas', ['tab' => $key]) }}"
                class="px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px
                    {{ $tab === $key
                        ? 'border-primary text-primary'
@@ -156,6 +147,8 @@
                 @endif
             </a>
         @endforeach
+    </div>
+
     </div>
 
     {{-- Tabla --}}
@@ -266,12 +259,29 @@
             </table>
         </div>
 
-        {{-- Paginación --}}
-        @if($filas->hasPages())
-            <div class="mt-4 flex justify-center">
-                {{ $filas->links('vendor.pagination.tailwind') }}
+        {{-- Paginación + exportar --}}
+        @php
+            $exportParams = array_filter([
+                'tab'             => $tab,
+                'empresa'         => $empresa,
+                'planilla_id'     => $planillaId,
+                'centro_costo_id' => $centroCostoId,
+                'familia_id'      => $familiaId,
+                'nombre'          => $nombre,
+            ]);
+        @endphp
+        <div class="mt-4 flex items-center justify-between">
+            <div class="flex-1 flex justify-center">
+                @if($filas->hasPages())
+                    {{ $filas->links('vendor.pagination.tailwind') }}
+                @endif
             </div>
-        @endif
+            <a href="{{ route('contratos.alertas.exportar', $exportParams) }}"
+               class="ml-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-xs font-medium hover:bg-green-100 dark:hover:bg-green-900/40 transition shrink-0">
+                <i class="fa-solid fa-file-excel text-sm"></i>
+                Exportar Excel
+            </a>
+        </div>
     @endif
 
 </x-app-layout>

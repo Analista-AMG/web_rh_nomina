@@ -3,9 +3,9 @@
 
     @php
         $nivelRol   = ['Colaborador' => 1, 'Supervisor' => 2, 'Coordinador' => 3, 'Jefe Operaciones' => 4];
-        $pendientes = $asignaciones->where('estado', 'pendiente')->count();
-        $aprobadas  = $asignaciones->where('estado', 'aprobado')->count();
-        $rechazadas = $asignaciones->where('estado', 'rechazado')->count();
+        $pendientes = $statsPendientes;
+        $aprobadas  = $statsAprobadas;
+        $rechazadas = $statsRechazadas;
     @endphp
 
     <header class="mb-6 flex items-center justify-between">
@@ -15,7 +15,7 @@
         </div>
         <div class="flex items-center gap-3">
             @if($puedeVerSinAsignacion)
-            <a href="{{ request()->fullUrlWithQuery(['sin_asignacion' => $mostrarSinAsignacion ? '0' : '1', 'cerradas' => '0']) }}"
+            <a href="{{ $mostrarSinAsignacion ? route('admin.asignaciones.index') : route('admin.asignaciones.index', ['sin_asignacion' => 1]) }}"
                class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border transition
                       {{ $mostrarSinAsignacion
                          ? 'bg-orange-500 text-white border-orange-500'
@@ -30,7 +30,7 @@
                 @endif
             </a>
             @endif
-            <a href="{{ request()->fullUrlWithQuery(['cerradas' => $mostrarCerradas ? '0' : '1', 'sin_asignacion' => '0']) }}"
+            <a href="{{ $mostrarCerradas ? route('admin.asignaciones.index') : route('admin.asignaciones.index', ['cerradas' => 1]) }}"
                class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border transition
                       {{ $mostrarCerradas
                          ? 'bg-gray-700 text-white border-gray-600'
@@ -76,20 +76,28 @@
 
     {{-- Filtros --}}
     @if(!$mostrarCerradas && !$mostrarSinAsignacion)
-    <div class="flex gap-3 mb-4">
-        <select id="filtro-campana" onchange="filterTable()" class="form-input text-sm" style="width:220px;">
+    <form method="GET" action="{{ route('admin.asignaciones.index') }}" class="flex gap-3 mb-4">
+        <input type="hidden" name="cerradas" value="0">
+        <select name="campana_id" onchange="this.form.submit()" class="form-input text-sm" style="width:220px;">
             <option value="">Todas las campañas</option>
             @foreach($campanas as $c)
-            <option value="{{ $c->id }}">{{ $c->nombre }}</option>
+            <option value="{{ $c->id }}" @selected($filtroCampana == $c->id)>{{ $c->nombre }}</option>
             @endforeach
         </select>
-        <select id="filtro-estado" onchange="filterTable()" class="form-input text-sm" style="width:180px;">
-            <option value="">Todos los estados</option>
-            <option value="pendiente">Pendientes</option>
-            <option value="aprobado">Aprobadas</option>
-            <option value="rechazado">Rechazadas</option>
+        <select name="estado_persona" onchange="this.form.submit()" class="form-input text-sm" style="width:200px;">
+            <option value="">Todos los contratos</option>
+            <option value="activo"    @selected($filtroEstadoPersona === 'activo')>Activo</option>
+            <option value="inactivo"  @selected($filtroEstadoPersona === 'inactivo')>Inactivo</option>
+            <option value="pendiente" @selected($filtroEstadoPersona === 'pendiente')>Pendiente</option>
         </select>
-    </div>
+        @if($filtroCampana || $filtroEstadoPersona)
+        <a href="{{ route('admin.asignaciones.index') }}"
+           class="inline-flex items-center px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+           title="Limpiar filtros">
+            <i class="fa-solid fa-xmark"></i>
+        </a>
+        @endif
+    </form>
     @endif
 
     {{-- Tabla Sin Asignación --}}
@@ -343,9 +351,18 @@
                             <div class="flex items-center gap-1.5 mt-0.5">
                                 <span class="text-xs text-gray-400">{{ $a->usuario->numero_documento }}</span>
                                 @if($persona)
-                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium {{ $persona->estadoBadgeClass }}">
-                                    {{ $persona->estadoLabel }}
-                                </span>
+                                @php
+                                        $contratoRef = $persona->contrato_activo ?? $persona->contratos->first();
+                                        $finEfectivo = $contratoRef
+                                            ? ($contratoRef->fecha_renuncia ?? $contratoRef->fin_contrato)
+                                            : null;
+                                    @endphp
+                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium {{ $persona->estadoBadgeClass }}">
+                                        {{ $persona->estadoLabel }}
+                                        @if($finEfectivo)
+                                            · {{ $finEfectivo->format('d/m/Y') }}
+                                        @endif
+                                    </span>
                                 @endif
                             </div>
                             @endif
@@ -468,6 +485,13 @@
             </table>
         </div>
     </div>
+
+    {{-- Paginación --}}
+    @if(!$mostrarSinAsignacion && $asignaciones->hasPages())
+    <div class="mt-4">
+        {{ $asignaciones->links() }}
+    </div>
+    @endif
     @endif
 
     {{-- ── Modal Crear ────────────────────────────────────────────────────── --}}
@@ -634,16 +658,6 @@
         const csrf     = document.querySelector('meta[name="csrf-token"]').content;
         const miNivel  = {{ $miNivelMax }};
         const nivelRol = { 'Colaborador': 1, 'Supervisor': 2, 'Coordinador': 3, 'Jefe Operaciones': 4 };
-
-        function filterTable() {
-            const campana = document.getElementById('filtro-campana').value;
-            const estado  = document.getElementById('filtro-estado').value;
-            document.querySelectorAll('#tabla-body tr[data-campana]').forEach(row => {
-                const ok = (!campana || row.dataset.campana === campana)
-                        && (!estado  || row.dataset.estado  === estado);
-                row.style.display = ok ? '' : 'none';
-            });
-        }
 
         function openCreateModal() {
             document.getElementById('create-rol').value    = '';
