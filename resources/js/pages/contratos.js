@@ -191,7 +191,8 @@ function abrirVerContrato(d) {
     setTxt('view-condicion',      d.condicion);
     setTxt('view-centro-costo',   d.centroCosto);
     setTxt('view-familia',        d.familia);
-    setTxt('view-periodo-prueba', d.periodoPrueba);
+    setTxt('view-periodo-prueba',   d.periodoPrueba);
+    setTxt('view-suspension-renta', d.suspensionRenta);
     setTxt('view-inicio',         d.inicio);
     setTxt('view-fin',            d.fin);
     setTxt('view-fecha-renuncia', d.fechaRenuncia);
@@ -338,7 +339,8 @@ function abrirVerMovimiento(data) {
     setTxt('view-mov-condicion',      data.movCondicion   || 'N/A');
     setTxt('view-mov-centro-costo',   data.movCentroCosto || 'N/A');
     setTxt('view-mov-familia',        data.movFamilia     || 'N/A');
-    setTxt('view-mov-asignacion',     data.movAsignacion  || 'No');
+    setTxt('view-mov-asignacion',       data.movAsignacion      || 'No');
+    setTxt('view-mov-suspension-renta', data.movSuspensionRenta || 'No');
     setTxt('view-mov-inicio',         data.movInicio       || '—');
     setTxt('view-mov-fin',            data.movFin          || 'Indefinido');
     setTxt('view-mov-fecha-registro', data.movFechaRegistro || '—');
@@ -375,6 +377,7 @@ function collectMovData(p) {
         moneda_id:              document.getElementById(`${p}-moneda-id`)?.value,
         numero_cuenta:          document.getElementById(`${p}-numero-cuenta`)?.value || null,
         codigo_interbancario:   document.getElementById(`${p}-codigo-interbancario`)?.value || null,
+        suspension_renta:       document.getElementById(`${p}-suspension-renta`)?.value ?? '0',
     };
 }
 
@@ -403,6 +406,7 @@ async function abrirEditMovimiento(data) {
     setVal('edit-mov-asignacion',           data.movAsignacionRaw        || '0');
     setVal('edit-mov-numero-cuenta',        data.movNumeroCuenta         || '');
     setVal('edit-mov-codigo-interbancario', data.movCodigoInterbancario  || '');
+    setVal('edit-mov-suspension-renta',     data.movSuspensionRentaRaw   || '0');
 
     openModal('edit-movimiento-modal');
 
@@ -470,7 +474,8 @@ async function abrirAddMovimiento(dataset) {
             setVal('add-mov-banco-id',        lastMov.banco_id           || '');
             setVal('add-mov-centro-costo-id', lastMov.centro_costo_id    || '');
             setVal('add-mov-familia-id',      lastMov.familia_id         || '');
-            setVal('add-mov-moneda-id',       lastMov.moneda_id          || '');
+            setVal('add-mov-moneda-id',         lastMov.moneda_id          || '');
+            setVal('add-mov-suspension-renta',  lastMov.suspension_renta ? '1' : '0');
         }
     } catch (e) {
         console.error('Error parseando datos del último movimiento:', e);
@@ -828,7 +833,8 @@ async function abrirModalCrear() {
         setVal('crear-codigo-interbancario',     d.codigo_interbancario     || '');
         setVal('crear-numero-cuenta-cts',        d.numero_cuenta_cts        || '');
         setVal('crear-codigo-interbancario-cts', d.codigo_interbancario_cts || '');
-        setVal('crear-periodo-prueba',           d.periodo_prueba ? '1' : '0');
+        setVal('crear-periodo-prueba',           d.periodo_prueba   ? '1' : '0');
+        setVal('crear-suspension-renta',         d.suspension_renta ? '1' : '0');
     }
 }
 

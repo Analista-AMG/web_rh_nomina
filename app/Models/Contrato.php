@@ -39,7 +39,7 @@ class Contrato extends Model
         'numero_cuenta_cts', 'codigo_interbancario_cts',
         'moneda_id', 'familia_id',
         'inicio_contrato', 'fin_contrato', 'fecha_renuncia',
-        'periodo_prueba', 'centro_costo_id'
+        'periodo_prueba', 'suspension_renta', 'centro_costo_id'
     ];
 
     protected $casts = [
@@ -48,6 +48,7 @@ class Contrato extends Model
         'fecha_renuncia'     => 'date',
         'asignacion_familiar'=> 'boolean',
         'periodo_prueba'     => 'boolean',
+        'suspension_renta'   => 'boolean',
         'haber_basico'       => 'decimal:2',
         'movilidad'          => 'decimal:2',
     ];

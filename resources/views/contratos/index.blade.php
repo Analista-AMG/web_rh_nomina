@@ -140,6 +140,7 @@
                                 data-numero-cuenta-cts="{{ $contrato->numero_cuenta_cts ?? 'N/A' }}"
                                 data-codigo-interbancario-cts="{{ $contrato->codigo_interbancario_cts ?? 'N/A' }}"
                                 data-periodo-prueba="{{ $contrato->periodo_prueba ? 'Sí' : 'No' }}"
+                                data-suspension-renta="{{ $contrato->suspension_renta ? 'Sí' : 'No' }}"
                                 data-estado="{{ $estadoTexto }}" />
 
                             {{-- Botón Añadir Movimiento --}}
@@ -157,6 +158,7 @@
                                     'moneda_id'          => $ultimoMov->moneda_id,
                                     'haber'              => $ultimoMov->haber_basico,
                                     'asignacion'         => $ultimoMov->asignacion_familiar ? 1 : 0,
+                                    'suspension_renta'   => $ultimoMov->suspension_renta ? 1 : 0,
                                 ]) : '{}';
                             @endphp
                             <x-ui.action-button type="add" title="Añadir Movimiento" class="btn-add-movimiento-main"
@@ -254,6 +256,8 @@
                                         data-mov-moneda-id="{{ $mov->moneda_id ?? '' }}"
                                         data-mov-numero-cuenta="{{ $mov->numero_cuenta ?? '' }}"
                                         data-mov-codigo-interbancario="{{ $mov->codigo_interbancario ?? '' }}"
+                                        data-mov-suspension-renta-raw="{{ $mov->suspension_renta ? 1 : 0 }}"
+                                        data-mov-suspension-renta="{{ $mov->suspension_renta ? 'Sí' : 'No' }}"
                                         data-mov-estado="{{ $estadoMov }}"
                                         data-mov-estado-raw="{{ $mov->estado ? 1 : 0 }}"
                                         data-contrato-estado="{{ $estadoTexto }}"

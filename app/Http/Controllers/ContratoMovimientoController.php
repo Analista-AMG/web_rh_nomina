@@ -22,6 +22,7 @@ class ContratoMovimientoController extends Controller
             'haber_basico'       => 'required|numeric|min:0',
             'movilidad'          => 'nullable|numeric|min:0',
             'asignacion_familiar'=> 'required|boolean',
+            'suspension_renta'   => 'nullable|boolean',
             'fondo_pensiones_id' => "nullable|exists:{$conn}.nomina.dim_fondos_pensiones,id",
             'condicion_id'       => "nullable|exists:{$conn}.nomina.dim_condiciones,id",
             'banco_id'           => "nullable|exists:{$conn}.nomina.dim_bancos,id",
@@ -50,6 +51,7 @@ class ContratoMovimientoController extends Controller
             'haber_basico'       => 'required|numeric|min:0',
             'movilidad'          => 'nullable|numeric|min:0',
             'asignacion_familiar'=> 'required|boolean',
+            'suspension_renta'   => 'nullable|boolean',
             'fondo_pensiones_id' => "nullable|exists:{$conn}.nomina.dim_fondos_pensiones,id",
             'condicion_id'       => "nullable|exists:{$conn}.nomina.dim_condiciones,id",
             'banco_id'            => "nullable|exists:{$conn}.nomina.dim_bancos,id",
@@ -80,6 +82,7 @@ class ContratoMovimientoController extends Controller
                     'familia_id'           => $movimiento->familia_id,
                     'numero_cuenta'        => $movimiento->numero_cuenta,
                     'codigo_interbancario' => $movimiento->codigo_interbancario,
+                    'suspension_renta'     => $movimiento->suspension_renta,
                     'inicio_contrato'      => $movimiento->inicio,
                     'fin_contrato'         => $movimiento->fin,
                 ]);

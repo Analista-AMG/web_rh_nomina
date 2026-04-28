@@ -49,13 +49,15 @@ class ContratoMovimiento extends Model
         'familia_id',
         'estado',
         'tipo_movimiento',
+        'suspension_renta',
     ];
 
     protected $casts = [
-        'inicio' => 'date',
-        'fin' => 'date',
-        'asignacion_familiar' => 'boolean',
-        'estado' => 'boolean',
+        'inicio'             => 'date',
+        'fin'                => 'date',
+        'asignacion_familiar'=> 'boolean',
+        'estado'             => 'boolean',
+        'suspension_renta'   => 'boolean',
     ];
 
     public function contrato()

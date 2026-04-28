@@ -30,7 +30,7 @@
 
             {{-- Sección: Datos del Movimiento --}}
             <x-ui.modal-section label="Datos del Movimiento" icon="fa-file-contract">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
                     <x-forms.field label="Fecha Inicio" for="add-mov-inicio">
                         <x-forms.text-input id="add-mov-inicio" type="date" class="w-full" required />
                     </x-forms.field>
@@ -42,6 +42,13 @@
                     <x-forms.field label="Condición" for="add-mov-condicion-id">
                         <x-forms.select id="add-mov-condicion-id" class="w-full">
                             <option value="">Cargando...</option>
+                        </x-forms.select>
+                    </x-forms.field>
+
+                    <x-forms.field label="Suspensión Renta" for="add-mov-suspension-renta">
+                        <x-forms.select id="add-mov-suspension-renta" class="w-full">
+                            <option value="0">No</option>
+                            <option value="1">Sí</option>
                         </x-forms.select>
                     </x-forms.field>
                 </div>

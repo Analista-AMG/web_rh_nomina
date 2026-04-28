@@ -32,7 +32,7 @@
 
             {{-- Sección: Datos del Contrato --}}
             <x-ui.modal-section label="Datos del Contrato" icon="fa-file-contract">
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
                     <x-forms.field label="Fecha de Inicio" for="crear-inicio-contrato">
                         <x-forms.text-input id="crear-inicio-contrato" name="inicio_contrato" type="date" class="w-full bg-light-bg dark:bg-dark-bg" readonly required />
                     </x-forms.field>
@@ -51,6 +51,13 @@
                         <x-forms.select id="crear-periodo-prueba" name="periodo_prueba" class="w-full">
                             <option value="1">Sí</option>
                             <option value="0">No</option>
+                        </x-forms.select>
+                    </x-forms.field>
+
+                    <x-forms.field label="Suspensión Renta" for="crear-suspension-renta">
+                        <x-forms.select id="crear-suspension-renta" name="suspension_renta" class="w-full">
+                            <option value="0">No</option>
+                            <option value="1">Sí</option>
                         </x-forms.select>
                     </x-forms.field>
                 </div>

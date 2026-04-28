@@ -83,6 +83,10 @@
                     <p class="text-[10px] font-semibold uppercase tracking-wider text-light-muted dark:text-dark-muted mb-0.5">Período de Prueba</p>
                     <p id="view-periodo-prueba" class="text-sm font-semibold text-light-text dark:text-dark-text">—</p>
                 </div>
+                <div>
+                    <p class="text-[10px] font-semibold uppercase tracking-wider text-light-muted dark:text-dark-muted mb-0.5">Suspensión Renta</p>
+                    <p id="view-suspension-renta" class="text-sm font-semibold text-light-text dark:text-dark-text">—</p>
+                </div>
             </div>
 
             <!-- Fechas card -->

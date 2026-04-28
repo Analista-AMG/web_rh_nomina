@@ -209,6 +209,7 @@ class ContratoService
                 'moneda_id'              => $datos['moneda_id'],
                 'familia_id'             => $datos['familia_id'] ?? null,
                 'centro_costo_id'        => $datos['centro_costo_id'],
+                'suspension_renta'       => $datos['suspension_renta'] ?? false,
             ];
 
             // 1. Crear el contrato

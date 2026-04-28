@@ -137,7 +137,8 @@ class ContratoController extends Controller
             'codigo_interbancario' => 'required|string|max:20',
             'numero_cuenta_cts' => 'nullable|string|max:50',
             'codigo_interbancario_cts' => 'nullable|string|max:500',
-            'periodo_prueba' => 'nullable',
+            'periodo_prueba'   => 'nullable',
+            'suspension_renta' => 'nullable|boolean',
         ]);
 
         $resultado = $this->contratoService->crearContrato($validated, $tokenData['tipo_movimiento']);

@@ -81,6 +81,10 @@
                     <p class="text-[10px] font-semibold uppercase tracking-wider text-light-muted dark:text-dark-muted mb-0.5">Asig. Familiar</p>
                     <p id="view-mov-asignacion" class="text-sm font-semibold text-light-text dark:text-dark-text">—</p>
                 </div>
+                <div>
+                    <p class="text-[10px] font-semibold uppercase tracking-wider text-light-muted dark:text-dark-muted mb-0.5">Suspensión Renta</p>
+                    <p id="view-mov-suspension-renta" class="text-sm font-semibold text-light-text dark:text-dark-text">—</p>
+                </div>
             </div>
 
             <!-- Vigencia card -->
