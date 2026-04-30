@@ -110,7 +110,7 @@ class AsignacionController extends Controller
                 ->whereHas('contratos', fn($q) => $q
                     ->withoutGlobalScope(AlcanceUsuarioScope::class)
                     ->whereRaw('inicio_contrato <= CAST(GETDATE() AS DATE)')
-                    ->whereRaw('(' . Contrato::FIN_EFECTIVO . ' IS NULL OR ' . Contrato::FIN_EFECTIVO . ' > CAST(GETDATE() AS DATE))')
+                    ->whereRaw('(' . Contrato::FIN_EFECTIVO . ' IS NULL OR ' . Contrato::FIN_EFECTIVO . ' >= DATEADD(day, -10, CAST(GETDATE() AS DATE)))')
                     ->when($filtroPlanilla, fn($q) => $q->whereIn('planilla_id',     $filtroPlanilla))
                     ->when($filtroCentro,  fn($q) => $q->whereIn('centro_costo_id', $filtroCentro))
                     ->when($filtroFamilia, fn($q) => $q->whereIn('familia_id',      $filtroFamilia))
@@ -132,7 +132,7 @@ class AsignacionController extends Controller
                     ->whereHas('contratos', fn($q) => $q
                         ->withoutGlobalScope(AlcanceUsuarioScope::class)
                         ->whereRaw('inicio_contrato <= CAST(GETDATE() AS DATE)')
-                        ->whereRaw('(' . Contrato::FIN_EFECTIVO . ' IS NULL OR ' . Contrato::FIN_EFECTIVO . ' > CAST(GETDATE() AS DATE))')
+                        ->whereRaw('(' . Contrato::FIN_EFECTIVO . ' IS NULL OR ' . Contrato::FIN_EFECTIVO . ' >= DATEADD(day, -10, CAST(GETDATE() AS DATE)))')
                     )
                     ->pluck('numero_documento')->filter();
 
@@ -143,7 +143,7 @@ class AsignacionController extends Controller
                 // Closure base para dropdowns (evita repetición)
                 $baseDropdown = fn() => Contrato::withoutGlobalScope(AlcanceUsuarioScope::class)
                     ->whereRaw('inicio_contrato <= CAST(GETDATE() AS DATE)')
-                    ->whereRaw('(' . Contrato::FIN_EFECTIVO . ' IS NULL OR ' . Contrato::FIN_EFECTIVO . ' > CAST(GETDATE() AS DATE))')
+                    ->whereRaw('(' . Contrato::FIN_EFECTIVO . ' IS NULL OR ' . Contrato::FIN_EFECTIVO . ' >= CAST(GETDATE() AS DATE))')
                     ->whereHas('persona', fn($q) => $q
                         ->withoutGlobalScope(AlcanceUsuarioScope::class)
                         ->whereIn('numero_documento', $docsBaseElegibles)
