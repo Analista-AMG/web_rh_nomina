@@ -44,7 +44,12 @@ class PersonaController extends Controller
         $paises        = DB::table('nomina.dim_paises')->orderBy('nombre')->get();
         $departamentos = DB::table('nomina.dim_departamentos')->orderBy('nombre')->get();
         $provincias    = DB::table('nomina.dim_provincias')->orderBy('nombre')->get();
-        $distritos     = DB::table('nomina.dim_distritos')->pluck('nombre', 'id');
+
+        // Solo los distritos de las personas paginadas (máx 7), no los ~1,700 del catálogo completo
+        $distritosIds = $personas->pluck('distrito')->filter()->unique()->toArray();
+        $distritos = $distritosIds
+            ? DB::table('nomina.dim_distritos')->whereIn('id', $distritosIds)->pluck('nombre', 'id')
+            : collect();
 
         return view('personas.index', compact('personas', 'kpis', 'paises', 'departamentos', 'provincias', 'distritos'));
     }

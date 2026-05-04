@@ -117,6 +117,22 @@ class AsistenciaController extends Controller
                 ? array_unique(array_merge($personaIds, $prestamosInPersonaIds))
                 : null;
 
+            // Pre-filtro server-side por nombre (evita cargar toda la base cuando el usuario
+            // busca una persona específica y luego cambia de período)
+            $fNombre = trim(request('f_nombre', ''));
+            if (strlen($fNombre) >= 4) {
+                $matchIds = Persona::withoutGlobalScope(AlcanceUsuarioScope::class)
+                    ->where(fn ($q) => $q
+                        ->where('nombres',          'like', "%{$fNombre}%")
+                        ->orWhere('apellido_paterno', 'like', "%{$fNombre}%")
+                        ->orWhere('apellido_materno', 'like', "%{$fNombre}%")
+                    )
+                    ->when($allPersonaIds !== null, fn ($q) => $q->whereIn('id', $allPersonaIds))
+                    ->pluck('id')->map(fn ($id) => (int) $id)->toArray();
+
+                $allPersonaIds = $matchIds;
+            }
+
             if ($allPersonaIds !== null && empty($allPersonaIds)) {
                 return view('asistencia.index', compact(
                     'pagos', 'pagoSeleccionado', 'filas', 'fechas',
@@ -346,7 +362,7 @@ class AsistenciaController extends Controller
         $periodoActual  = $hoy->format('Y-m');
         $inicioEditable = PeriodoCalendario::inicio($periodoActual, 1)->format('Y-m-d');
 
-        if ($hoy->day > 3) {
+        if ($hoy->day > 4) {
             return $inicioEditable;
         }
 
