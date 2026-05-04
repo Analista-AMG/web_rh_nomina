@@ -237,9 +237,9 @@ class AsistenciaController extends Controller
             $periodoMesActual = $hoy->format('Y-m');
             $periodoFecha     = PeriodoCalendario::periodoDeF($fechaStr);
 
-            if ($periodoFecha < $periodoMesActual && $hoy->day > 3) {
+            if ($periodoFecha < $periodoMesActual && $hoy->day > 4) {
                 return response()->json([
-                    'error' => 'El período está cerrado. Solo se puede editar el período anterior los primeros 3 días del mes.',
+                    'error' => 'El período está cerrado. Solo se puede editar el período anterior los primeros 4 días del mes.',
                 ], 403);
             }
         }
@@ -354,8 +354,8 @@ class AsistenciaController extends Controller
     /**
      * Fecha más antigua editable (sin DB).
      * Ambas quincenas del mes actual siempre son editables.
-     * Días 1-3: el mes anterior también es editable (gracia).
-     * Día 4+: solo el mes actual.
+     * Días 1-4: el mes anterior también es editable (gracia).
+     * Día 5+: solo el mes actual.
      */
     private function resolverBloqueo(Carbon $hoy): string
     {
