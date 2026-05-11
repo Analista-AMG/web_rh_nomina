@@ -204,15 +204,17 @@ class AsignacionController extends Controller
         }
 
         // ── Asignaciones normales ─────────────────────────────────────────────
-        $filtroCampana      = request()->input('campana_id');
-        $filtroEstado       = request()->input('estado');
+        $filtroCampana       = request()->input('campana_id');
+        $filtroEstado        = request()->input('estado');
         $filtroEstadoPersona = request()->input('estado_persona');
+        $filtroNombre        = request()->input('search_name');
 
         $query = UserAsignacion::with(['usuario', 'campana', 'superior'])
             ->when(!$mostrarCerradas, fn ($q) => $q->whereNull('fecha_fin'))
             ->when($mostrarCerradas,  fn ($q) => $q->whereNotNull('fecha_fin'))
             ->when($filtroCampana,    fn ($q) => $q->where('campana_id', $filtroCampana))
             ->when($filtroEstado,     fn ($q) => $q->where('estado', $filtroEstado))
+            ->when($filtroNombre,     fn ($q) => $q->whereHas('usuario', fn ($u) => $u->where('name', 'like', "%{$filtroNombre}%")))
             ->when($filtroEstadoPersona, function ($q) use ($filtroEstadoPersona) {
                 $contratoVigenteScope = fn($q) => $q
                     ->withoutGlobalScope(AlcanceUsuarioScope::class)
@@ -289,6 +291,7 @@ class AsignacionController extends Controller
             'filtroCampana'         => $filtroCampana,
             'filtroEstado'          => $filtroEstado,
             'filtroEstadoPersona'   => $filtroEstadoPersona,
+            'filtroNombre'          => $filtroNombre,
         ]);
     }
 

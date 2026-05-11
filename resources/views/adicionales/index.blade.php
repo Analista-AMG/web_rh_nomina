@@ -430,7 +430,7 @@
                     <input type="file" name="archivo" accept=".xlsx,.xls" required
                         class="w-full text-sm text-gray-700 dark:text-gray-300 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-primary/10 file:text-primary file:font-medium hover:file:bg-primary/20 cursor-pointer">
                     <div class="mt-2 p-3 rounded-lg bg-gray-50 dark:bg-gray-800 text-xs text-gray-500 dark:text-gray-400 space-y-1">
-                        <p><strong class="text-gray-700 dark:text-gray-300">Hoja requerida:</strong> <code class="bg-gray-200 dark:bg-gray-700 px-1 rounded">carga_web</code></p>
+                        <p><strong class="text-gray-700 dark:text-gray-300">Hoja requerida:</strong> <code class="bg-gray-200 dark:bg-gray-700 px-1 rounded">BD_Consolidado</code></p>
                         <p><strong class="text-gray-700 dark:text-gray-300">Columnas requeridas:</strong> periodo, contrato_id, tipo_adicional, monto</p>
                         <p><strong class="text-gray-700 dark:text-gray-300">Formato periodo:</strong> YYYY-MM (2026-03)</p>
                         <p class="text-amber-600 dark:text-amber-400"><i class="fa-solid fa-triangle-exclamation mr-1"></i>REINTEGRO_AFECTO y REINTEGRO_INAFECTO no se pueden importar.</p>

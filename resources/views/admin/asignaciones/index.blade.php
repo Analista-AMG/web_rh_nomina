@@ -76,8 +76,16 @@
 
     {{-- Filtros --}}
     @if(!$mostrarCerradas && !$mostrarSinAsignacion)
-    <form method="GET" action="{{ route('admin.asignaciones.index') }}" class="flex gap-3 mb-4">
+    <form id="form-filtros-asignaciones" method="GET" action="{{ route('admin.asignaciones.index') }}" class="flex gap-3 mb-4 flex-wrap">
         <input type="hidden" name="cerradas" value="0">
+        <div class="relative">
+            <i class="fa-solid fa-user absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+            <input type="text" id="search-asignacion-nombre" name="search_name"
+                   value="{{ $filtroNombre }}"
+                   placeholder="Buscar por nombre..."
+                   autocomplete="off"
+                   class="form-input text-sm pl-8" style="width:220px;">
+        </div>
         <select name="campana_id" onchange="this.form.submit()" class="form-input text-sm" style="width:220px;">
             <option value="">Todas las campañas</option>
             @foreach($campanas as $c)
@@ -90,7 +98,7 @@
             <option value="inactivo"  @selected($filtroEstadoPersona === 'inactivo')>Inactivo</option>
             <option value="pendiente" @selected($filtroEstadoPersona === 'pendiente')>Pendiente</option>
         </select>
-        @if($filtroCampana || $filtroEstadoPersona)
+        @if($filtroCampana || $filtroEstadoPersona || $filtroNombre)
         <a href="{{ route('admin.asignaciones.index') }}"
            class="inline-flex items-center px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition"
            title="Limpiar filtros">
@@ -1060,6 +1068,19 @@
         document.getElementById('modal-editar').addEventListener('click', function(e) {
             if (e.target === this) closeEditarModal();
         });
+
+        // Buscador por nombre con debounce
+        (function () {
+            const input = document.getElementById('search-asignacion-nombre');
+            if (!input) return;
+            let timer = null;
+            input.addEventListener('input', function () {
+                clearTimeout(timer);
+                timer = setTimeout(() => {
+                    document.getElementById('form-filtros-asignaciones').submit();
+                }, 800);
+            });
+        })();
     </script>
     @endpush
 </x-app-layout>

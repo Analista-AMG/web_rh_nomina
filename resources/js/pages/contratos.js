@@ -410,7 +410,10 @@ async function abrirEditMovimiento(data) {
 
     openModal('edit-movimiento-modal');
 
-    // Esperar a que los selects estén poblados antes de setear valores
+    // Bloquear guardar hasta que los selects estén listos
+    const saveBtn = document.getElementById('btn-save-movimiento');
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.innerText = 'Cargando datos...'; }
+
     await loadSelects('edit-mov');
     setVal('edit-mov-cargo-id',        data.movCargoId       || '');
     setVal('edit-mov-planilla-id',     data.movPlanillaId    || '');
@@ -420,6 +423,8 @@ async function abrirEditMovimiento(data) {
     setVal('edit-mov-centro-costo-id', data.movCentroCostoId || '');
     setVal('edit-mov-familia-id',      data.movFamiliaId     || '');
     setVal('edit-mov-moneda-id',       data.movMonedaId      || '');
+
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.innerHTML = '<i class="fa-solid fa-save mr-2"></i>Guardar Cambios'; }
 }
 
 document.getElementById('btn-save-movimiento')?.addEventListener('click', async function () {
@@ -459,6 +464,10 @@ async function abrirAddMovimiento(dataset) {
 
     openModal('add-movimiento-modal');
 
+    // Bloquear guardar hasta que los selects estén listos
+    const addSaveBtn = document.getElementById('btn-add-movimiento');
+    if (addSaveBtn) { addSaveBtn.disabled = true; addSaveBtn.innerText = 'Cargando datos...'; }
+
     // Esperar a que los selects estén poblados antes de pre-llenar con último movimiento
     await loadSelects('add-mov');
 
@@ -480,6 +489,8 @@ async function abrirAddMovimiento(dataset) {
     } catch (e) {
         console.error('Error parseando datos del último movimiento:', e);
     }
+
+    if (addSaveBtn) { addSaveBtn.disabled = false; addSaveBtn.innerHTML = '<i class="fa-solid fa-save mr-2"></i>Guardar Movimiento'; }
 }
 
 document.getElementById('btn-add-movimiento')?.addEventListener('click', async function () {
@@ -572,7 +583,7 @@ document.getElementById('btn-confirmar-baja')?.addEventListener('click', async f
     if (!id)     { alert('Error: ID de contrato no encontrado.'); return; }
     if (!fecha)  { alert('Seleccione una fecha de baja.'); return; }
     if (!motivo) { alert('Seleccione un motivo de baja.'); return; }
-    if (!confirm('¿Está seguro de registrar esta baja?')) return;
+    if (!confirm(`¿Está seguro de registrar esta baja?\n\n⚠️ ATENCIÓN: Se eliminarán automáticamente todos los registros de asistencia posteriores al ${fecha} para este contrato.`)) return;
 
     const btn = this;
     const textoOriginal = btn.innerText;
@@ -814,6 +825,10 @@ async function abrirModalCrear() {
 
     openModal('crear-contrato-modal');
 
+    // Bloquear guardar hasta que los selects estén listos
+    const crearSaveBtn = document.getElementById('btn-guardar-contrato');
+    if (crearSaveBtn) { crearSaveBtn.disabled = true; crearSaveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>Cargando datos...'; }
+
     // Esperar que los selects estén poblados antes de precargar
     await loadSelects('crear');
 
@@ -836,6 +851,8 @@ async function abrirModalCrear() {
         setVal('crear-periodo-prueba',           d.periodo_prueba   ? '1' : '0');
         setVal('crear-suspension-renta',         d.suspension_renta ? '1' : '0');
     }
+
+    if (crearSaveBtn) { crearSaveBtn.disabled = false; crearSaveBtn.innerHTML = '<i class="fa-solid fa-save mr-2"></i>Guardar Contrato'; }
 }
 
 // K.5 Validación de fechas en modal crear

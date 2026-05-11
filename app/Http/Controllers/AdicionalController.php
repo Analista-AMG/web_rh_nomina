@@ -196,11 +196,11 @@ class AdicionalController extends Controller
         try {
             $spreadsheet = IOFactory::load($request->file('archivo')->getPathname());
 
-            if (!$spreadsheet->sheetNameExists('carga_web')) {
-                return back()->with('error', 'El archivo no contiene una hoja llamada "carga_web".')->withInput();
+            if (!$spreadsheet->sheetNameExists('BD_Consolidado')) {
+                return back()->with('error', 'El archivo no contiene una hoja llamada "BD_Consolidado".')->withInput();
             }
 
-            $filas = $spreadsheet->getSheetByName('carga_web')->toArray(null, true, true, false);
+            $filas = $spreadsheet->getSheetByName('BD_Consolidado')->toArray(null, true, true, false);
 
             if (count($filas) < 2) {
                 return back()->with('error', 'El archivo no contiene datos.')->withInput();

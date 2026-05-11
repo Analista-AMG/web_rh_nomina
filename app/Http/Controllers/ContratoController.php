@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Asistencia;
 use App\Models\Baja;
 use App\Models\Contrato;
 use App\Models\Persona;
@@ -197,8 +198,9 @@ class ContratoController extends Controller
         }
 
         $isUpdate = $contrato->baja !== null;
+        $asistenciasEliminadas = 0;
 
-        DB::transaction(function () use ($contrato, $validated, $isUpdate) {
+        DB::transaction(function () use ($contrato, $validated, $isUpdate, &$asistenciasEliminadas) {
             // Actualizar fecha_renuncia en el contrato
             $contrato->update(['fecha_renuncia' => $validated['fecha_baja']]);
 
@@ -221,13 +223,21 @@ class ContratoController extends Controller
                     'observacion' => $validated['observacion'],
                 ]);
             }
+
+            // Eliminar asistencias registradas después de la fecha de baja
+            $asistenciasEliminadas = Asistencia::where('contrato_id', $contrato->id)
+                ->where('fecha', '>', $validated['fecha_baja'])
+                ->delete();
         });
+
+        $mensaje = $isUpdate ? 'Baja actualizada correctamente.' : 'Baja registrada correctamente.';
+        if ($asistenciasEliminadas > 0) {
+            $mensaje .= " Se eliminaron {$asistenciasEliminadas} registro(s) de asistencia posteriores a la fecha de baja.";
+        }
 
         return response()->json([
             'success' => true,
-            'message' => $isUpdate
-                ? 'Baja actualizada correctamente.'
-                : 'Baja registrada correctamente.',
+            'message' => $mensaje,
         ]);
     }
 
