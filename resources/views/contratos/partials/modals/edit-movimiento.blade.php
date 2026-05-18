@@ -31,11 +31,19 @@
             {{-- Sección: Datos del Movimiento --}}
             <x-ui.modal-section label="Datos del Movimiento" icon="fa-file-contract">
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-                    <x-forms.field label="Fecha Inicio" for="edit-mov-inicio">
-                        <x-forms.text-input id="edit-mov-inicio" type="date" class="w-full" />
+                    <x-forms.field for="edit-mov-inicio">
+                        <x-slot name="label">
+                            Fecha Inicio
+                            <span class="ml-1 text-xs text-light-muted dark:text-dark-muted font-normal">(no editable)</span>
+                        </x-slot>
+                        <x-forms.text-input id="edit-mov-inicio" type="date" class="w-full opacity-60 cursor-not-allowed" readonly />
                     </x-forms.field>
 
-                    <x-forms.field label="Fecha Fin" for="edit-mov-fin">
+                    <x-forms.field for="edit-mov-fin">
+                        <x-slot name="label">
+                            Fecha Fin
+                            <span id="edit-mov-fin-label-hint" class="ml-1 text-xs text-light-muted dark:text-dark-muted font-normal hidden">(no editable)</span>
+                        </x-slot>
                         <x-forms.text-input id="edit-mov-fin" type="date" class="w-full" />
                     </x-forms.field>
 
@@ -82,9 +90,13 @@
 
             {{-- Sección: Remuneración --}}
             <x-ui.modal-section label="Remuneración" icon="fa-money-bill-wave">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <x-forms.field label="Haber Básico (S/)" for="edit-mov-haber">
                         <x-forms.text-input id="edit-mov-haber" type="number" step="0.01" class="w-full font-mono" placeholder="0.00" />
+                    </x-forms.field>
+
+                    <x-forms.field label="Movilidad (S/)" for="edit-mov-movilidad">
+                        <x-forms.text-input id="edit-mov-movilidad" type="number" step="0.01" class="w-full font-mono" placeholder="0.00" />
                     </x-forms.field>
 
                     <x-forms.field label="Asignación Familiar" for="edit-mov-asignacion">

@@ -189,6 +189,7 @@
                             $dias = $hoy->diffInDays($fechaRef, false);
 
                             $persona         = $contrato->persona;
+                            $mov             = $contrato->movimientoActual ?? $contrato->movimientos->sortByDesc('inicio')->first();
                             $nombreCompleto  = trim(($persona->apellido_paterno ?? '') . ' ' . ($persona->apellido_materno ?? '') . ', ' . ($persona->nombres ?? ''));
                             $iniciales       = mb_substr($persona->apellido_paterno ?? '?', 0, 1, 'UTF-8')
                                              . mb_substr(explode(' ', trim($persona->nombres ?? '?'))[0], 0, 1, 'UTF-8');
@@ -232,17 +233,17 @@
 
                             {{-- Planilla --}}
                             <td class="bg-white dark:bg-[#273142] px-6 py-2.5 text-sm text-gray-600 dark:text-gray-300 border-y border-light-border dark:border-dark-border group-hover:bg-gray-50 dark:group-hover:bg-[#323d4d] transition-all duration-300 shadow-sm">
-                                {{ $contrato->planilla?->nombre_planilla ?? '—' }}
+                                {{ $mov?->planilla?->nombre_planilla ?? '—' }}
                             </td>
 
                             {{-- Centro de Costo --}}
                             <td class="bg-white dark:bg-[#273142] px-6 py-2.5 text-sm text-gray-600 dark:text-gray-300 border-y border-light-border dark:border-dark-border group-hover:bg-gray-50 dark:group-hover:bg-[#323d4d] transition-all duration-300 shadow-sm">
-                                {{ $contrato->centroCosto?->nombre_centro_costo ?? '—' }}
+                                {{ $mov?->centroCosto?->nombre_centro_costo ?? '—' }}
                             </td>
 
                             {{-- Familia --}}
                             <td class="bg-white dark:bg-[#273142] px-6 py-2.5 text-sm text-gray-600 dark:text-gray-300 border-y border-light-border dark:border-dark-border group-hover:bg-gray-50 dark:group-hover:bg-[#323d4d] transition-all duration-300 shadow-sm">
-                                {{ $contrato->familia?->nombre_familia ?? '—' }}
+                                {{ $mov?->familia?->nombre_familia ?? '—' }}
                             </td>
 
                             {{-- Acción --}}

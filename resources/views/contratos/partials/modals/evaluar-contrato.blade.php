@@ -18,6 +18,12 @@
                     <div id="evaluar-persona-nombre" class="text-sm text-light-muted dark:text-dark-muted mt-2 min-h-[1.25rem] transition-all duration-300"></div>
                 </x-forms.field>
 
+                <x-forms.field label="Planilla" for="evaluar-planilla-id">
+                    <x-forms.select id="evaluar-planilla-id" name="planilla_id" class="w-full" required>
+                        <option value="">Cargando...</option>
+                    </x-forms.select>
+                </x-forms.field>
+
                 <x-forms.field label="Inicio del Contrato" for="evaluar-fecha-inicio">
                     <x-forms.text-input
                         id="evaluar-fecha-inicio"

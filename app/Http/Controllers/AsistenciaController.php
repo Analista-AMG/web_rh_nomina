@@ -157,10 +157,10 @@ class AsistenciaController extends Controller
                 $contratos->pluck('persona_id')->map(fn ($id) => (int) $id)->unique()->toArray()
             );
             $asistencias = Asistencia::with('itemAsistencia')
-                ->whereIn('contrato_id', $contratos->pluck('id'))
+                ->whereIn('persona_id', $contratos->pluck('persona_id')->unique())
                 ->whereBetween('fecha', [$inicioStr, $finStr])
                 ->get()
-                ->keyBy(fn ($a) => $a->contrato_id . '_' . $a->fecha->format('Y-m-d'));
+                ->keyBy(fn ($a) => $a->persona_id . '_' . $a->fecha->format('Y-m-d'));
 
             $filas = $this->construirFilas($contratos, $empleadoEnEquipo, $campanaMap, $asistencias, $fechas, $esAdmin, $esRRHH, $personaIds);
 
@@ -310,6 +310,7 @@ class AsistenciaController extends Controller
             }
         }
 
+        $personaId   = (int) $contrato->persona_id;
         $inicioC     = Carbon::parse($contrato->inicio_contrato);
         $finEfectivo = $contrato->fecha_renuncia
             ? Carbon::parse($contrato->fecha_renuncia)
@@ -319,8 +320,9 @@ class AsistenciaController extends Controller
             return response()->json(['error' => 'Fecha fuera del rango del contrato'], 400);
         }
 
-        $asistencia = Asistencia::where('contrato_id', $request->contrato_id)
-            ->where('fecha', $request->fecha)
+        // Buscar por persona_id + fecha (unique real)
+        $asistencia = Asistencia::where('persona_id', $personaId)
+            ->where('fecha', $fechaStr)
             ->first();
 
         if ($request->item_asistencia_id) {
@@ -338,8 +340,8 @@ class AsistenciaController extends Controller
             } else {
                 Asistencia::create(array_merge([
                     'contrato_id' => $request->contrato_id,
-                    'persona_id'  => $contrato->persona_id,
-                    'fecha'       => $request->fecha,
+                    'persona_id'  => $personaId,
+                    'fecha'       => $fechaStr,
                 ], $payload));
             }
         } elseif ($asistencia) {
@@ -398,7 +400,17 @@ class AsistenciaController extends Controller
     {
         $q = Contrato::withoutGlobalScope(AlcanceUsuarioScope::class)
             ->whereHas('persona', fn($q) => $q->withoutGlobalScope(AlcanceUsuarioScope::class))
-            ->with(['persona' => fn ($q) => $q->withoutGlobalScope(AlcanceUsuarioScope::class), 'condicion', 'centroCosto', 'familia'])
+            ->with([
+                'persona'                  => fn ($q) => $q->withoutGlobalScope(AlcanceUsuarioScope::class),
+                'movimientoActual.condicion',
+                'movimientoActual.centroCosto',
+                'movimientoActual.familia',
+                'movimientoActual.planilla',
+                'movimientos.condicion',
+                'movimientos.centroCosto',
+                'movimientos.familia',
+                'movimientos.planilla',
+            ])
             ->where('inicio_contrato', '<=', $fin)
             ->where(function ($q) use ($ini) {
                 $q->whereNull('fin_contrato')->whereNull('fecha_renuncia')
@@ -614,7 +626,7 @@ class AsistenciaController extends Controller
 
                     if ($fecha->gte($inicioC) && (!$finEfectivo || $fecha->lte($finEfectivo))) {
                         $contratoPorFecha[$fStr]   = $c;
-                        $asistenciasPeriodo[$fStr] = $asistencias->get($c->id . '_' . $fStr);
+                        $asistenciasPeriodo[$fStr] = $asistencias->get($c->persona_id . '_' . $fStr);
                         break;
                     }
                 }
@@ -622,9 +634,12 @@ class AsistenciaController extends Controller
 
             $contratoBase   = $sortedContratos->last();  // más reciente para datos de display
             $inicioContrato = Carbon::parse($sortedContratos->first()->inicio_contrato);
+            $movimiento     = $contratoBase->movimientoActual
+                ?? $contratoBase->movimientos->sortByDesc('inicio')->first();
 
             $filas->push([
                 'contrato'            => $contratoBase,
+                'movimiento'          => $movimiento,
                 'contrato_por_fecha'  => $contratoPorFecha,
                 'persona'             => $contratoBase->persona,
                 'inicio_contrato'     => $inicioContrato,

@@ -58,24 +58,44 @@
                 {{-- Fila Principal del Contrato --}}
                 <tr class="group transition-all duration-300 transform hover:scale-[1.01] hover:shadow-xl hover:z-10 cursor-pointer expandable-row">
                     @php
+                        $mov    = $contrato->movimientoActual ?? $contrato->movimientos->sortByDesc('inicio')->first();
                         $inicio = \Carbon\Carbon::parse($contrato->inicio_contrato)->format('d/m/Y');
-                        $fin = $contrato->fin_contrato ? \Carbon\Carbon::parse($contrato->fin_contrato)->format('d/m/Y') : 'Indefinido';
-                        
-                        $estadoCalculado = $contrato->estado; // Obtener la cadena del accessor
+                        $fin    = $contrato->fin_contrato ? \Carbon\Carbon::parse($contrato->fin_contrato)->format('d/m/Y') : 'Indefinido';
 
+                        $estadoCalculado = $contrato->estado;
                         if ($estadoCalculado == 'Activo') {
-                            $badgeClass = 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400';
+                            $badgeClass  = 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400';
                             $estadoTexto = 'Activo';
                         } elseif ($estadoCalculado == 'Pendiente') {
-                            $badgeClass = 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'; // Azul para Pendiente
+                            $badgeClass  = 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400';
                             $estadoTexto = 'Pendiente';
-                        } else { // 'Finalizado'
-                            $badgeClass = 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400';
+                        } else {
+                            $badgeClass  = 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400';
                             $estadoTexto = 'Finalizado';
                         }
+
                         $puedeVerSalario = Auth::user()->can('contratos.edit');
+
+                        // Datos del movimiento actual — con fallback seguro si no existe
+                        $movCargo          = $mov?->cargo?->nombre_cargo          ?? 'Sin Cargo';
+                        $movPlanilla       = $mov?->planilla?->nombre_planilla     ?? 'N/A';
+                        $movFp             = $mov?->fondoPension?->fondo_pension   ?? 'N/A';
+                        $movCondicion      = $mov?->condicion?->nombre_condicion   ?? 'N/A';
+                        $movBanco          = $mov?->banco?->nombre_banco           ?? 'N/A';
+                        $movMoneda         = $mov?->moneda?->nombre_moneda         ?? 'N/A';
+                        $movCentroCosto    = $mov?->centroCosto?->nombre_centro_costo ?? 'N/A';
+                        $movFamilia        = $mov?->familia?->nombre_familia       ?? 'N/A';
+                        $movHaber          = $mov?->haber_basico                   ?? 0;
+                        $movMovilidad      = $mov?->movilidad                      ?? 0;
+                        $movAsignacion     = $mov?->asignacion_familiar            ? 'Sí' : 'No';
+                        $movSuspension     = $mov?->suspension_renta               ? 'Sí' : 'No';
+                        $movNumeroCuenta   = $mov?->numero_cuenta                  ?? 'N/A';
+                        $movCCI            = $mov?->codigo_interbancario           ?? 'N/A';
+                        $movNumeroCuentaCts= $mov?->numero_cuenta_cts              ?? 'N/A';
+                        $movCCICts         = $mov?->codigo_interbancario_cts       ?? 'N/A';
+
                         $salario = $puedeVerSalario
-                            ? 'S/ ' . number_format($contrato->haber_basico, 2)
+                            ? 'S/ ' . number_format($movHaber, 2)
                             : 'S/ ••••••';
                     @endphp
                     
@@ -96,13 +116,13 @@
                         </div>
                     </td>
                     <td class="bg-white dark:bg-[#273142] px-6 py-2.5 text-sm text-gray-700 dark:text-[#ffffff] border-y border-light-border dark:border-dark-border group-hover:bg-gray-50 dark:group-hover:bg-[#323d4d] transition-all duration-300 shadow-sm font-medium">
-                        {{ $contrato->cargo->nombre_cargo ?? 'Sin Cargo' }}
+                        {{ $movCargo }}
                     </td>
                     <td class="bg-white dark:bg-[#273142] px-6 py-2.5 text-sm text-gray-700 dark:text-[#ffffff] border-y border-light-border dark:border-dark-border group-hover:bg-gray-50 dark:group-hover:bg-[#323d4d] transition-all duration-300 shadow-sm font-mono">
                         {{ $salario }}
                     </td>
                     <td class="bg-white dark:bg-[#273142] px-6 py-2.5 text-sm text-gray-700 dark:text-[#ffffff] border-y border-light-border dark:border-dark-border group-hover:bg-gray-50 dark:group-hover:bg-[#323d4d] transition-all duration-300 shadow-sm font-mono">
-                        {{ $contrato->planilla->nombre_planilla }}
+                        {{ $movPlanilla }}
                     </td>
                     <td class="bg-white dark:bg-[#273142] px-6 py-2.5 text-sm text-gray-500 dark:text-[#ffffff] border-y border-light-border dark:border-dark-border group-hover:bg-gray-50 dark:group-hover:bg-[#323d4d] transition-all duration-300 shadow-sm">
                         {{ $inicio }}
@@ -121,26 +141,26 @@
                             <x-ui.action-button type="view" title="Ver Contrato" class="btn-view-contrato"
                                 data-colaborador="{{ $contrato->persona->nombre_corto ?? 'Sin Asignar' }}"
                                 data-documento="{{ ($contrato->persona->tipo_documento ?? 'DOC') . ': ' . ($contrato->persona->numero_documento ?? '---') }}"
-                                data-cargo="{{ $contrato->cargo->nombre_cargo ?? 'Sin Cargo' }}"
-                                data-planilla="{{ $contrato->planilla->nombre_planilla ?? 'N/A' }}"
-                                data-fp="{{ $contrato->fondoPension->fondo_pension ?? 'N/A' }}"
-                                data-condicion="{{ $contrato->condicion->nombre_condicion ?? 'N/A' }}"
-                                data-banco="{{ $contrato->banco->nombre_banco ?? 'N/A' }}"
-                                data-moneda="{{ $contrato->moneda->nombre_moneda ?? 'N/A' }}"
-                                data-centro-costo="{{ $contrato->centroCosto->nombre_centro_costo ?? 'N/A' }}"
-                                data-familia="{{ $contrato->familia->nombre_familia ?? 'N/A' }}" 
+                                data-cargo="{{ $movCargo }}"
+                                data-planilla="{{ $movPlanilla }}"
+                                data-fp="{{ $movFp }}"
+                                data-condicion="{{ $movCondicion }}"
+                                data-banco="{{ $movBanco }}"
+                                data-moneda="{{ $movMoneda }}"
+                                data-centro-costo="{{ $movCentroCosto }}"
+                                data-familia="{{ $movFamilia }}"
                                 data-inicio="{{ $inicio }}"
                                 data-fin="{{ $fin }}"
                                 data-fecha-renuncia="{{ $contrato->fecha_renuncia ? \Carbon\Carbon::parse($contrato->fecha_renuncia)->format('d/m/Y') : 'No registrada' }}"
-                                data-haber="{{ $puedeVerSalario ? number_format($contrato->haber_basico, 2) : '••••••' }}"
-                                data-asignacion="{{ $contrato->asignacion_familiar ? 'Sí' : 'No' }}"
-                                data-movilidad="{{ number_format($contrato->movilidad ?? 0, 2) }}"
-                                data-numero-cuenta="{{ $contrato->numero_cuenta ?? 'N/A' }}"
-                                data-codigo-interbancario="{{ $contrato->codigo_interbancario ?? 'N/A' }}"
-                                data-numero-cuenta-cts="{{ $contrato->numero_cuenta_cts ?? 'N/A' }}"
-                                data-codigo-interbancario-cts="{{ $contrato->codigo_interbancario_cts ?? 'N/A' }}"
+                                data-haber="{{ $puedeVerSalario ? number_format($movHaber, 2) : '••••••' }}"
+                                data-asignacion="{{ $movAsignacion }}"
+                                data-movilidad="{{ number_format($movMovilidad, 2) }}"
+                                data-numero-cuenta="{{ $movNumeroCuenta }}"
+                                data-codigo-interbancario="{{ $movCCI }}"
+                                data-numero-cuenta-cts="{{ $movNumeroCuentaCts }}"
+                                data-codigo-interbancario-cts="{{ $movCCICts }}"
                                 data-periodo-prueba="{{ $contrato->periodo_prueba ? 'Sí' : 'No' }}"
-                                data-suspension-renta="{{ $contrato->suspension_renta ? 'Sí' : 'No' }}"
+                                data-suspension-renta="{{ $movSuspension }}"
                                 data-estado="{{ $estadoTexto }}" />
 
                             {{-- Botón Añadir Movimiento --}}
@@ -148,17 +168,21 @@
                             @php
                                 $ultimoMov = $contrato->movimientos->sortByDesc('inicio')->first();
                                 $lastMovJson = $ultimoMov ? json_encode([
-                                    'cargo_id'           => $ultimoMov->cargo_id,
-                                    'planilla_id'        => $ultimoMov->planilla_id,
-                                    'fondo_pensiones_id' => $ultimoMov->fondo_pensiones_id,
-                                    'condicion_id'       => $ultimoMov->condicion_id,
-                                    'banco_id'           => $ultimoMov->banco_id,
-                                    'centro_costo_id'    => $ultimoMov->centro_costo_id,
-                                    'familia_id'         => $ultimoMov->familia_id,
-                                    'moneda_id'          => $ultimoMov->moneda_id,
-                                    'haber'              => $ultimoMov->haber_basico,
-                                    'asignacion'         => $ultimoMov->asignacion_familiar ? 1 : 0,
-                                    'suspension_renta'   => $ultimoMov->suspension_renta ? 1 : 0,
+                                    'cargo_id'              => $ultimoMov->cargo_id,
+                                    'planilla_id'           => $ultimoMov->planilla_id,
+                                    'fondo_pensiones_id'    => $ultimoMov->fondo_pensiones_id,
+                                    'condicion_id'          => $ultimoMov->condicion_id,
+                                    'banco_id'              => $ultimoMov->banco_id,
+                                    'centro_costo_id'       => $ultimoMov->centro_costo_id,
+                                    'familia_id'            => $ultimoMov->familia_id,
+                                    'moneda_id'             => $ultimoMov->moneda_id,
+                                    'haber'                 => $ultimoMov->haber_basico,
+                                    'movilidad'             => $ultimoMov->movilidad ?? 0,
+                                    'asignacion'            => $ultimoMov->asignacion_familiar ? 1 : 0,
+                                    'suspension_renta'      => $ultimoMov->suspension_renta ? 1 : 0,
+                                    'numero_cuenta'         => $ultimoMov->numero_cuenta,
+                                    'codigo_interbancario'  => $ultimoMov->codigo_interbancario,
+                                    'inicio'                => $ultimoMov->inicio?->format('Y-m-d'),
                                 ]) : '{}';
                             @endphp
                             <x-ui.action-button type="add" title="Añadir Movimiento" class="btn-add-movimiento-main"
@@ -182,11 +206,14 @@
                                     'observacion' => $contrato->baja->observacion ?? '',
                                 ]) : '{}';
                             @endphp
+                            @php
+                                $ultimoMovBaja = $contrato->movimientos->sortByDesc('inicio')->first();
+                            @endphp
                             <x-ui.action-button type="baja" class="btn-baja-contrato"
                                 data-contrato-id="{{ $contrato->id }}"
                                 data-colaborador-nombre="{{ $contrato->persona->nombre_corto ?? '' }}"
                                 data-colaborador-doc="{{ ($contrato->persona->tipo_documento ?? 'DOC') . ': ' . ($contrato->persona->numero_documento ?? '---') }}"
-                                data-contrato-inicio="{{ \Carbon\Carbon::parse($contrato->inicio_contrato)->format('Y-m-d') }}"
+                                data-contrato-inicio="{{ $ultimoMovBaja?->inicio?->format('Y-m-d') ?? \Carbon\Carbon::parse($contrato->inicio_contrato)->format('Y-m-d') }}"
                                 data-contrato-fin="{{ $contrato->fin_contrato ? \Carbon\Carbon::parse($contrato->fin_contrato)->format('Y-m-d') : '' }}"
                                 data-baja="{{ $bajaData }}" />
                             @endcan
@@ -208,12 +235,14 @@
                                 <thead class="text-xs text-gray-500 dark:text-gray-400 uppercase">
                                     <tr>
                                         <th class="py-2 px-3 text-center">Tipo Movimiento</th>
-                                        <th class="py-2 px-3 text-center">Fecha Efectiva</th>
+                                        <th class="py-2 px-3 text-center">Inicio</th>
+                                        <th class="py-2 px-3 text-center">Fin</th>
                                         <th class="py-2 px-3 text-center">Salario</th>
                                         <th class="py-2 px-3 text-center">Cargo</th>
                                         <th class="py-2 px-3 text-center">Planilla</th>
                                         <th class="py-2 px-3 text-center">Fondo Pensiones</th>
-                                        <th class="py-2 px-3 text-center">Registrado</th>
+                                        <th class="py-2 px-3 text-center">Centro de Costo</th>
+                                        <th class="py-2 px-3 text-center">Familia</th>
                                         <th class="py-2 px-3 text-center">Acciones</th>
                                     </tr>
                                 </thead>
@@ -240,6 +269,7 @@
                                         data-mov-fin-raw="{{ $mov->fin ? $mov->fin->format('Y-m-d') : '' }}"
                                         data-mov-haber="{{ $puedeVerSalario ? number_format($mov->haber_basico, 2) : '••••••' }}"
                                         data-mov-haber-raw="{{ $puedeVerSalario ? $mov->haber_basico : '' }}"
+                                        data-mov-movilidad-raw="{{ $puedeVerSalario ? ($mov->movilidad ?? 0) : '' }}"
                                         data-mov-asignacion="{{ $asignacionMov }}"
                                         data-mov-asignacion-raw="{{ $mov->asignacion_familiar ? 1 : 0 }}"
                                         data-mov-fp="{{ $mov->fondoPension->fondo_pension ?? 'N/A' }}"
@@ -265,12 +295,14 @@
                                         data-contrato-inicio="{{ \Carbon\Carbon::parse($contrato->inicio_contrato)->addDay()->format('Y-m-d') }}"
                                         data-contrato-fin="{{ $contrato->fin_contrato ? \Carbon\Carbon::parse($contrato->fin_contrato)->format('Y-m-d') : '' }}">
                                         <td class="py-2 px-3 text-gray-700 dark:text-gray-300">{{ $mov->tipo_movimiento ?? '-' }}</td>
-                                        <td class="py-2 px-3 text-gray-700 dark:text-gray-300">{{ $inicioMov }}</td>
+                                        <td class="py-2 px-3 text-gray-700 dark:text-gray-300 font-mono">{{ $inicioMov }}</td>
+                                        <td class="py-2 px-3 text-gray-700 dark:text-gray-300 font-mono">{{ $finMov }}</td>
                                         <td class="py-2 px-3 text-gray-700 dark:text-gray-300 font-mono">{{ $puedeVerSalario ? 'S/ ' . number_format($mov->haber_basico, 2) : 'S/ ••••••' }}</td>
                                         <td class="py-2 px-3 text-gray-700 dark:text-gray-300">{{ $mov->cargo->nombre_cargo ?? 'N/A' }}</td>
                                         <td class="py-2 px-3 text-gray-700 dark:text-gray-300">{{ $mov->planilla->nombre_planilla ?? 'N/A' }}</td>
                                         <td class="py-2 px-3 text-gray-700 dark:text-gray-300">{{ $mov->fondoPension->fondo_pension ?? 'N/A' }}</td>
-                                        <td class="py-2 px-3 text-gray-700 dark:text-gray-300">{{ $mov->created_at?->format('d/m/Y H:i') ?? '-' }}</td>
+                                        <td class="py-2 px-3 text-gray-700 dark:text-gray-300">{{ $mov->centroCosto->nombre_centro_costo ?? 'N/A' }}</td>
+                                        <td class="py-2 px-3 text-gray-700 dark:text-gray-300">{{ $mov->familia->nombre_familia ?? 'N/A' }}</td>
                                         <td class="py-2 px-3 text-center">
                                             <div class="flex justify-center gap-2">
                                                 <x-ui.action-button type="view" class="btn-view-movimiento" />
@@ -291,7 +323,7 @@
                     </td>
                 </tr>
                 @empty
-                <tr><td colspan="7" class="px-6 py-12 text-center text-gray-500">No se encontraron contratos registrados.</td></tr>
+                <tr><td colspan="8" class="px-6 py-12 text-center text-gray-500">No se encontraron contratos registrados.</td></tr>
                 @endforelse
             </tbody>
         </table>

@@ -54,12 +54,14 @@ window.closeModal = function (id) {
     }
 
     if (id === 'evaluar-contrato-modal') {
-        const docInput   = document.getElementById('evaluar-numero-documento');
-        const fechaInput = document.getElementById('evaluar-fecha-inicio');
-        const nombreDiv  = document.getElementById('evaluar-persona-nombre');
-        if (docInput)   docInput.value = '';
-        if (fechaInput) { fechaInput.value = ''; fechaInput.removeAttribute('min'); fechaInput.disabled = true; }
-        if (nombreDiv)  { nombreDiv.textContent = ''; nombreDiv.classList.remove('text-red-500'); }
+        const docInput      = document.getElementById('evaluar-numero-documento');
+        const fechaInput    = document.getElementById('evaluar-fecha-inicio');
+        const nombreDiv     = document.getElementById('evaluar-persona-nombre');
+        const planillaSelect = document.getElementById('evaluar-planilla-id');
+        if (docInput)      docInput.value = '';
+        if (fechaInput)    { fechaInput.value = ''; fechaInput.removeAttribute('min'); fechaInput.disabled = true; }
+        if (nombreDiv)     { nombreDiv.textContent = ''; nombreDiv.classList.remove('text-red-500'); }
+        if (planillaSelect) planillaSelect.value = '';
     }
 };
 
@@ -300,7 +302,9 @@ async function loadSelects(prefijo) {
 }
 
 // Pre-cargar dimensionales al iniciar (warm-up, usan el mismo cache)
-loadDimensionales();
+loadDimensionales().then(({ planillas }) => {
+    populateSelect('evaluar-planilla-id', planillas, 'id_planilla', 'nombre_planilla');
+});
 
 // =============================================================
 // F. VER MOVIMIENTO
@@ -346,8 +350,8 @@ function abrirVerMovimiento(data) {
     setTxt('view-mov-fecha-registro', data.movFechaRegistro || '—');
 
     // Columna derecha
-    setTxt('view-mov-haber',          data.movHaber     ? 'S/ ' + data.movHaber     : '—');
-    setTxt('view-mov-movilidad',      data.movMovilidad ? 'S/ ' + data.movMovilidad : '—');
+    setTxt('view-mov-haber',          data.movHaber         ? 'S/ ' + data.movHaber         : '—');
+    setTxt('view-mov-movilidad',      data.movMovilidadRaw  ? 'S/ ' + parseFloat(data.movMovilidadRaw).toFixed(2) : '—');
     setTxt('view-mov-moneda',         data.movMoneda    || 'N/A');
     setTxt('view-mov-fp',                     data.movFp                  || 'N/A');
     setTxt('view-mov-banco',                  data.movBanco               || 'N/A');
@@ -395,7 +399,13 @@ async function abrirEditMovimiento(data) {
     const editFin    = document.getElementById('edit-mov-fin');
     editInicio.min   = data.contratoInicio || '';
     editInicio.max   = data.contratoFin    || '';
-    editFin.min      = data.contratoInicio || '';
+    if (data.movInicioRaw) {
+        const d = new Date(data.movInicioRaw + 'T00:00:00');
+        d.setDate(d.getDate() + 1);
+        editFin.min = d.toISOString().split('T')[0];
+    } else {
+        editFin.min = data.contratoInicio || '';
+    }
     editFin.max      = data.contratoFin    || '';
     editInicio.value = data.movInicioRaw   || '';
     editFin.value    = data.movFinRaw      || '';
@@ -403,6 +413,7 @@ async function abrirEditMovimiento(data) {
     // Campos simples
     setVal('edit-mov-id',                   data.movId                   || '');
     setVal('edit-mov-haber',                parseFloat(data.movHaberRaw || 0).toFixed(2));
+    setVal('edit-mov-movilidad',            parseFloat(data.movMovilidadRaw || 0).toFixed(2));
     setVal('edit-mov-asignacion',           data.movAsignacionRaw        || '0');
     setVal('edit-mov-numero-cuenta',        data.movNumeroCuenta         || '');
     setVal('edit-mov-codigo-interbancario', data.movCodigoInterbancario  || '');
@@ -455,12 +466,21 @@ async function abrirAddMovimiento(dataset) {
     if (avatarEl) avatarEl.innerText = ((words[0]?.[0] ?? '') + (words[words.length - 1]?.[0] ?? '')).toUpperCase() || '?';
 
     const inputInicio = document.getElementById('add-mov-inicio');
-    const inputFin    = document.getElementById('add-mov-fin');
-    const minFecha    = dataset.contratoInicio || '';
-    const maxFecha    = dataset.contratoFin    || '';
+    const maxFecha    = dataset.contratoFin || '';
 
-    if (inputInicio) { inputInicio.min = minFecha; inputInicio.max = maxFecha; }
-    if (inputFin)    { inputFin.min    = minFecha; inputFin.max    = maxFecha; }
+    // El min es el día siguiente al inicio del último movimiento (evita fechas duplicadas)
+    // Si no hay movimientos previos, cae al día siguiente al inicio del contrato
+    let minFecha = dataset.contratoInicio || '';
+    try {
+        const lastMov = JSON.parse(dataset.lastMov || '{}');
+        if (lastMov.inicio) {
+            const d = new Date(lastMov.inicio + 'T00:00:00');
+            d.setDate(d.getDate() + 1);
+            minFecha = d.toISOString().split('T')[0];
+        }
+    } catch (e) {}
+
+    if (inputInicio) { inputInicio.min = minFecha; inputInicio.max = maxFecha; inputInicio.value = ''; }
 
     openModal('add-movimiento-modal');
 
@@ -474,17 +494,20 @@ async function abrirAddMovimiento(dataset) {
     try {
         const lastMov = JSON.parse(dataset.lastMov || '{}');
         if (lastMov.haber !== undefined) {
-            setVal('add-mov-haber',           parseFloat(lastMov.haber || 0).toFixed(2));
-            setVal('add-mov-asignacion',      lastMov.asignacion         || '0');
-            setVal('add-mov-cargo-id',        lastMov.cargo_id           || '');
-            setVal('add-mov-planilla-id',     lastMov.planilla_id        || '');
-            setVal('add-mov-fp-id',           lastMov.fondo_pensiones_id || '');
-            setVal('add-mov-condicion-id',    lastMov.condicion_id       || '');
-            setVal('add-mov-banco-id',        lastMov.banco_id           || '');
-            setVal('add-mov-centro-costo-id', lastMov.centro_costo_id    || '');
-            setVal('add-mov-familia-id',      lastMov.familia_id         || '');
-            setVal('add-mov-moneda-id',         lastMov.moneda_id          || '');
-            setVal('add-mov-suspension-renta',  lastMov.suspension_renta ? '1' : '0');
+            setVal('add-mov-haber',                parseFloat(lastMov.haber     || 0).toFixed(2));
+            setVal('add-mov-movilidad',            parseFloat(lastMov.movilidad || 0).toFixed(2));
+            setVal('add-mov-asignacion',           lastMov.asignacion            || '0');
+            setVal('add-mov-cargo-id',             lastMov.cargo_id              || '');
+            setVal('add-mov-planilla-id',          lastMov.planilla_id           || '');
+            setVal('add-mov-fp-id',                lastMov.fondo_pensiones_id    || '');
+            setVal('add-mov-condicion-id',         lastMov.condicion_id          || '');
+            setVal('add-mov-banco-id',             lastMov.banco_id              || '');
+            setVal('add-mov-centro-costo-id',      lastMov.centro_costo_id       || '');
+            setVal('add-mov-familia-id',           lastMov.familia_id            || '');
+            setVal('add-mov-moneda-id',            lastMov.moneda_id             || '');
+            setVal('add-mov-suspension-renta',     lastMov.suspension_renta ? '1' : '0');
+            setVal('add-mov-numero-cuenta',        lastMov.numero_cuenta         || '');
+            setVal('add-mov-codigo-interbancario', lastMov.codigo_interbancario  || '');
         }
     } catch (e) {
         console.error('Error parseando datos del último movimiento:', e);
@@ -687,9 +710,12 @@ document.getElementById('form-evaluar-contrato')?.addEventListener('submit', asy
 
     try {
         btn.disabled = true; btn.innerText = 'Evaluando...';
+        const planillaId = document.getElementById('evaluar-planilla-id')?.value;
+        if (!planillaId) { alert('Seleccione una planilla.'); btn.disabled = false; btn.innerText = 'Evaluar'; return; }
+
         const res = await apiFetch('/api/contratos/evaluar', {
             method: 'POST',
-            body: JSON.stringify({ numero_documento: doc, fecha_inicio: fechaInicio }),
+            body: JSON.stringify({ numero_documento: doc, fecha_inicio: fechaInicio, planilla_id: planillaId }),
         });
         const resultado = await res.json();
 
@@ -737,6 +763,9 @@ async function cargarHistorial(personaId) {
             const inicialA = (_w[0]?.[0] ?? '?').toUpperCase();
             const inicialN = (_w[_w.length - 1]?.[0] ?? '').toUpperCase();
 
+            const movDisplay = contrato.movimiento_actual
+                || (contrato.movimientos?.slice().sort((a, b) => new Date(b.inicio) - new Date(a.inicio))[0]);
+
             const row = document.createElement('tr');
             row.className = 'group transition-all duration-300 hover:scale-[1.01] hover:shadow-lg cursor-pointer';
             row.innerHTML = `
@@ -749,8 +778,8 @@ async function cargarHistorial(personaId) {
                         </div>
                     </div>
                 </td>
-                <td class="bg-white dark:bg-[#273142] px-6 py-2.5 text-sm border-y">${contrato.cargo?.nombre_cargo || 'N/A'}</td>
-                <td class="bg-white dark:bg-[#273142] px-6 py-2.5 text-sm font-mono border-y">S/ ${parseFloat(contrato.haber_basico || 0).toFixed(2)}</td>
+                <td class="bg-white dark:bg-[#273142] px-6 py-2.5 text-sm border-y">${movDisplay?.cargo?.nombre_cargo || 'N/A'}</td>
+                <td class="bg-white dark:bg-[#273142] px-6 py-2.5 text-sm font-mono border-y">S/ ${parseFloat(movDisplay?.haber_basico || 0).toFixed(2)}</td>
                 <td class="bg-white dark:bg-[#273142] px-6 py-2.5 text-sm border-y">${inicio}</td>
                 <td class="bg-white dark:bg-[#273142] px-6 py-2.5 text-sm border-y">${fin}</td>
                 <td class="bg-white dark:bg-[#273142] px-6 py-2.5 border-y border-r rounded-r-xl">

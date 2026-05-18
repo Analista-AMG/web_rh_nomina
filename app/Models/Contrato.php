@@ -33,24 +33,18 @@ class Contrato extends Model
     protected $table = 'nomina.fact_contratos';
 
     protected $fillable = [
-        'persona_id', 'cargo_id', 'planilla_id', 'fondo_pensiones_id', 'condicion_id',
-        'asignacion_familiar', 'haber_basico', 'movilidad', 'banco_id',
-        'numero_cuenta', 'codigo_interbancario',
-        'numero_cuenta_cts', 'codigo_interbancario_cts',
-        'moneda_id', 'familia_id',
-        'inicio_contrato', 'fin_contrato', 'fecha_renuncia',
-        'periodo_prueba', 'suspension_renta', 'centro_costo_id'
+        'persona_id',
+        'inicio_contrato',
+        'fin_contrato',
+        'fecha_renuncia',
+        'periodo_prueba',
     ];
 
     protected $casts = [
-        'inicio_contrato'    => 'date',
-        'fin_contrato'       => 'date',
-        'fecha_renuncia'     => 'date',
-        'asignacion_familiar'=> 'boolean',
-        'periodo_prueba'     => 'boolean',
-        'suspension_renta'   => 'boolean',
-        'haber_basico'       => 'decimal:2',
-        'movilidad'          => 'decimal:2',
+        'inicio_contrato' => 'date',
+        'fin_contrato'    => 'date',
+        'fecha_renuncia'  => 'date',
+        'periodo_prueba'  => 'boolean',
     ];
 
     // Relaciones
@@ -59,49 +53,18 @@ class Contrato extends Model
         return $this->belongsTo(Persona::class, 'persona_id');
     }
 
-    public function cargo()
-    {
-        return $this->belongsTo(Cargo::class, 'cargo_id');
-    }
-
-    public function planilla()
-    {
-        return $this->belongsTo(Planilla::class, 'planilla_id');
-    }
-
-    public function fondoPension()
-    {
-        return $this->belongsTo(FondoPension::class, 'fondo_pensiones_id');
-    }
-
-    public function banco()
-    {
-        return $this->belongsTo(Banco::class, 'banco_id');
-    }
-
-    public function condicion()
-    {
-        return $this->belongsTo(Condicion::class, 'condicion_id');
-    }
-
-    public function moneda()
-    {
-        return $this->belongsTo(Moneda::class, 'moneda_id');
-    }
-
-    public function centroCosto()
-    {
-        return $this->belongsTo(CentroCosto::class, 'centro_costo_id');
-    }
-
-    public function familia()
-    {
-        return $this->belongsTo(Familia::class, 'familia_id');
-    }
-
     public function movimientos()
     {
         return $this->hasMany(ContratoMovimiento::class, 'contrato_id');
+    }
+
+    public function movimientoActual()
+    {
+        $hoy = now()->toDateString();
+
+        return $this->hasOne(ContratoMovimiento::class, 'contrato_id')
+            ->where('inicio', '<=', $hoy)
+            ->where(fn ($q) => $q->whereNull('fin')->orWhere('fin', '>=', $hoy));
     }
 
     public function baja()

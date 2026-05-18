@@ -91,9 +91,13 @@
 
             {{-- Sección: Remuneración --}}
             <x-ui.modal-section label="Remuneración" icon="fa-money-bill-wave">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <x-forms.field label="Haber Básico (S/)" for="crear-haber-basico">
                         <x-forms.text-input id="crear-haber-basico" name="haber_basico" type="number" step="0.01" class="w-full font-mono" placeholder="0.00" required />
+                    </x-forms.field>
+
+                    <x-forms.field label="Movilidad (S/)" for="crear-movilidad">
+                        <x-forms.text-input id="crear-movilidad" name="movilidad" type="number" step="0.01" class="w-full font-mono" placeholder="0.00" />
                     </x-forms.field>
 
                     <x-forms.field label="Asignación Familiar" for="crear-asignacion-familiar">

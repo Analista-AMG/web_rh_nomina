@@ -13,25 +13,87 @@ class ContratoMovimientoController extends Controller
         $conn = config('database.default');
 
         $validated = $request->validate([
-            'contrato_id'        => "required|exists:{$conn}.nomina.fact_contratos,id",
-            'tipo_movimiento'    => 'required|string|max:50',
-            'cargo_id'           => "nullable|exists:{$conn}.nomina.dim_cargos,id",
-            'planilla_id'        => "nullable|exists:{$conn}.nomina.dim_planillas,id",
-            'inicio'             => 'required|date',
-            'fin'                => 'nullable|date|after_or_equal:inicio',
-            'haber_basico'       => 'required|numeric|min:0',
-            'movilidad'          => 'nullable|numeric|min:0',
-            'asignacion_familiar'=> 'required|boolean',
-            'suspension_renta'   => 'nullable|boolean',
-            'fondo_pensiones_id' => "nullable|exists:{$conn}.nomina.dim_fondos_pensiones,id",
-            'condicion_id'       => "nullable|exists:{$conn}.nomina.dim_condiciones,id",
-            'banco_id'           => "nullable|exists:{$conn}.nomina.dim_bancos,id",
-            'centro_costo_id'    => "nullable|exists:{$conn}.nomina.dim_centro_costos,id",
-            'familia_id'         => "nullable|exists:{$conn}.nomina.dim_familias,id",
-            'moneda_id'          => "nullable|exists:{$conn}.nomina.dim_monedas,id",
+            'contrato_id'          => "required|exists:{$conn}.nomina.fact_contratos,id",
+            'tipo_movimiento'      => 'required|string|max:50',
+            'cargo_id'             => "nullable|exists:{$conn}.nomina.dim_cargos,id",
+            'planilla_id'          => "nullable|exists:{$conn}.nomina.dim_planillas,id",
+            'inicio'               => 'required|date',
+            'fin'                  => 'nullable|date|after_or_equal:inicio',
+            'haber_basico'         => 'required|numeric|min:0',
+            'movilidad'            => 'nullable|numeric|min:0',
+            'asignacion_familiar'  => 'required|boolean',
+            'suspension_renta'     => 'nullable|boolean',
+            'fondo_pensiones_id'   => "nullable|exists:{$conn}.nomina.dim_fondos_pensiones,id",
+            'condicion_id'         => "nullable|exists:{$conn}.nomina.dim_condiciones,id",
+            'banco_id'             => "nullable|exists:{$conn}.nomina.dim_bancos,id",
+            'centro_costo_id'      => "nullable|exists:{$conn}.nomina.dim_centro_costos,id",
+            'familia_id'           => "nullable|exists:{$conn}.nomina.dim_familias,id",
+            'moneda_id'            => "nullable|exists:{$conn}.nomina.dim_monedas,id",
+            'numero_cuenta'        => 'nullable|string|max:100',
+            'codigo_interbancario' => 'nullable|string|max:20',
         ]);
 
-        ContratoMovimiento::create($validated);
+        $contrato     = \App\Models\Contrato::findOrFail($validated['contrato_id']);
+        $nuevoInicio  = \Carbon\Carbon::parse($validated['inicio']);
+
+        // Validar que el inicio no sea anterior al inicio del contrato
+        if ($nuevoInicio->lt($contrato->inicio_contrato)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'La fecha de inicio no puede ser anterior al inicio del contrato (' . $contrato->inicio_contrato->format('d/m/Y') . ').',
+            ], 422);
+        }
+
+        // Validar que no exista otro movimiento con la misma fecha de inicio
+        $duplicado = ContratoMovimiento::where('contrato_id', $contrato->id)
+            ->where('inicio', $nuevoInicio->toDateString())
+            ->exists();
+
+        if ($duplicado) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Ya existe un movimiento con la fecha de inicio ' . $nuevoInicio->format('d/m/Y') . '. Elija una fecha diferente.',
+            ], 422);
+        }
+
+        DB::transaction(function () use ($validated, $contrato, $nuevoInicio) {
+            // 1. Buscar el movimiento vigente y cerrar su fecha fin
+            $movimientoVigente = ContratoMovimiento::where('contrato_id', $contrato->id)
+                ->where('inicio', '<=', $nuevoInicio->toDateString())
+                ->where(fn ($q) => $q->whereNull('fin')->orWhere('fin', '>=', $nuevoInicio->toDateString()))
+                ->first();
+
+            if ($movimientoVigente) {
+                $movimientoVigente->update([
+                    'fin' => $nuevoInicio->copy()->subDay()->toDateString(),
+                ]);
+            }
+
+            // 2. Crear el nuevo movimiento heredando el fin del ancla
+            ContratoMovimiento::create([
+                'contrato_id'              => $contrato->id,
+                'tipo_movimiento'          => $validated['tipo_movimiento'],
+                'cargo_id'                 => $validated['cargo_id'],
+                'planilla_id'              => $validated['planilla_id'],
+                'fondo_pensiones_id'       => $validated['fondo_pensiones_id'],
+                'condicion_id'             => $validated['condicion_id'],
+                'asignacion_familiar'      => $validated['asignacion_familiar'],
+                'haber_basico'             => $validated['haber_basico'],
+                'movilidad'                => $validated['movilidad'] ?? 0,
+                'banco_id'                 => $validated['banco_id'],
+                'numero_cuenta'            => $validated['numero_cuenta'] ?? null,
+                'codigo_interbancario'     => $validated['codigo_interbancario'] ?? null,
+                'numero_cuenta_cts'        => $validated['numero_cuenta_cts'] ?? null,
+                'codigo_interbancario_cts' => $validated['codigo_interbancario_cts'] ?? null,
+                'moneda_id'                => $validated['moneda_id'],
+                'familia_id'               => $validated['familia_id'] ?? null,
+                'centro_costo_id'          => $validated['centro_costo_id'],
+                'suspension_renta'         => $validated['suspension_renta'] ?? false,
+                'inicio'                   => $nuevoInicio->toDateString(),
+                'fin'                      => $contrato->fin_contrato?->toDateString(),
+                'estado'                   => true,
+            ]);
+        });
 
         return response()->json([
             'success' => true,
@@ -41,50 +103,46 @@ class ContratoMovimientoController extends Controller
 
     public function update(Request $request, $id)
     {
-        $conn = config('database.default');
+        $conn       = config('database.default');
+        $movimiento = ContratoMovimiento::with('contrato')->findOrFail($id);
+        $hoy        = now()->toDateString();
 
-        $validated = $request->validate([
-            'cargo_id'           => "nullable|exists:{$conn}.nomina.dim_cargos,id",
-            'planilla_id'        => "nullable|exists:{$conn}.nomina.dim_planillas,id",
-            'inicio'             => 'nullable|date',
-            'fin'                => 'nullable|date|after_or_equal:inicio',
-            'haber_basico'       => 'required|numeric|min:0',
-            'movilidad'          => 'nullable|numeric|min:0',
-            'asignacion_familiar'=> 'required|boolean',
-            'suspension_renta'   => 'nullable|boolean',
-            'fondo_pensiones_id' => "nullable|exists:{$conn}.nomina.dim_fondos_pensiones,id",
-            'condicion_id'       => "nullable|exists:{$conn}.nomina.dim_condiciones,id",
-            'banco_id'            => "nullable|exists:{$conn}.nomina.dim_bancos,id",
-            'centro_costo_id'    => "nullable|exists:{$conn}.nomina.dim_centro_costos,id",
-            'familia_id'         => "nullable|exists:{$conn}.nomina.dim_familias,id",
-            'moneda_id'          => "nullable|exists:{$conn}.nomina.dim_monedas,id",
-            'numero_cuenta'      => 'nullable|string|max:100',
+        $esVigente = $movimiento->inicio->toDateString() <= $hoy
+            && ($movimiento->fin === null || $movimiento->fin->toDateString() >= $hoy);
+
+        // Campos económicos editables en cualquier movimiento (corrección de errores)
+        $reglas = [
+            'cargo_id'             => "nullable|exists:{$conn}.nomina.dim_cargos,id",
+            'planilla_id'          => "nullable|exists:{$conn}.nomina.dim_planillas,id",
+            'haber_basico'         => 'required|numeric|min:0',
+            'movilidad'            => 'nullable|numeric|min:0',
+            'asignacion_familiar'  => 'required|boolean',
+            'suspension_renta'     => 'nullable|boolean',
+            'fondo_pensiones_id'   => "nullable|exists:{$conn}.nomina.dim_fondos_pensiones,id",
+            'condicion_id'         => "nullable|exists:{$conn}.nomina.dim_condiciones,id",
+            'banco_id'             => "nullable|exists:{$conn}.nomina.dim_bancos,id",
+            'centro_costo_id'      => "nullable|exists:{$conn}.nomina.dim_centro_costos,id",
+            'familia_id'           => "nullable|exists:{$conn}.nomina.dim_familias,id",
+            'moneda_id'            => "nullable|exists:{$conn}.nomina.dim_monedas,id",
+            'numero_cuenta'        => 'nullable|string|max:100',
             'codigo_interbancario' => 'nullable|string|max:20',
-        ]);
+        ];
 
-        $movimiento = ContratoMovimiento::findOrFail($id);
+        // Solo el movimiento vigente puede cambiar su fecha fin
+        // (y arrastra el cambio al ancla)
+        if ($esVigente) {
+            $reglas['fin'] = 'nullable|date|after:' . $movimiento->inicio->toDateString();
+        }
 
-        DB::transaction(function () use ($movimiento, $validated) {
+        $validated = $request->validate($reglas);
+
+        DB::transaction(function () use ($movimiento, $validated, $esVigente) {
             $movimiento->update($validated);
 
-            if (in_array($movimiento->tipo_movimiento, ContratoMovimiento::TIPOS_SISTEMA)) {
+            // Si es el vigente y cambió el fin → sincronizar con el ancla
+            if ($esVigente && array_key_exists('fin', $validated)) {
                 $movimiento->contrato->update([
-                    'cargo_id'            => $movimiento->cargo_id,
-                    'planilla_id'         => $movimiento->planilla_id,
-                    'fondo_pensiones_id'  => $movimiento->fondo_pensiones_id,
-                    'condicion_id'        => $movimiento->condicion_id,
-                    'asignacion_familiar' => $movimiento->asignacion_familiar,
-                    'haber_basico'        => $movimiento->haber_basico,
-                    'movilidad'           => $movimiento->movilidad,
-                    'banco_id'             => $movimiento->banco_id,
-                    'moneda_id'            => $movimiento->moneda_id,
-                    'centro_costo_id'      => $movimiento->centro_costo_id,
-                    'familia_id'           => $movimiento->familia_id,
-                    'numero_cuenta'        => $movimiento->numero_cuenta,
-                    'codigo_interbancario' => $movimiento->codigo_interbancario,
-                    'suspension_renta'     => $movimiento->suspension_renta,
-                    'inicio_contrato'      => $movimiento->inicio,
-                    'fin_contrato'         => $movimiento->fin,
+                    'fin_contrato' => $validated['fin'],
                 ]);
             }
         });
@@ -100,7 +158,32 @@ class ContratoMovimientoController extends Controller
         $movimiento = ContratoMovimiento::findOrFail($id);
 
         if ($movimiento->tipo_movimiento === 'Movimiento Regular') {
-            $movimiento->delete();
+            $contrato = $movimiento->contrato;
+
+            DB::transaction(function () use ($movimiento, $contrato) {
+                // Movimiento inmediatamente anterior al que se elimina
+                $anterior = ContratoMovimiento::where('contrato_id', $contrato->id)
+                    ->where('inicio', '<', $movimiento->inicio)
+                    ->orderBy('inicio', 'desc')
+                    ->first();
+
+                // Movimiento inmediatamente posterior al que se elimina
+                $siguiente = ContratoMovimiento::where('contrato_id', $contrato->id)
+                    ->where('inicio', '>', $movimiento->inicio)
+                    ->orderBy('inicio', 'asc')
+                    ->first();
+
+                $movimiento->delete();
+
+                // Restaurar continuidad del timeline SCD2
+                if ($anterior) {
+                    $nuevoFin = $siguiente
+                        ? $siguiente->inicio->copy()->subDay()->toDateString()
+                        : $contrato->fin_contrato?->toDateString();
+
+                    $anterior->update(['fin' => $nuevoFin]);
+                }
+            });
 
             return response()->json([
                 'success' => true,

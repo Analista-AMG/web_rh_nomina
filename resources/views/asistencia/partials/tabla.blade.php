@@ -79,12 +79,13 @@
                 @php
                     $persona = $fila['persona'];
                     $contrato = $fila['contrato'];
+                    $movimiento = $fila['movimiento'] ?? null;
                     $iniciales = mb_substr($persona->apellido_paterno ?? '?', 0, 1) .
                                  mb_substr(explode(' ', trim($persona->nombres ?? '?'))[0], 0, 1);
                     $filaNombre   = mb_strtolower(trim(($persona->apellido_paterno ?? '') . ' ' . ($persona->apellido_materno ?? '') . ' ' . ($persona->nombres ?? '')));
                     $filaCampana  = mb_strtolower($fila['campana'] ?? '');
-                    $filaCentro   = mb_strtolower($contrato->centroCosto?->nombre_centro_costo ?? '');
-                    $filaFamilia  = mb_strtolower($contrato->familia?->nombre_familia ?? '');
+                    $filaCentro   = mb_strtolower($movimiento?->centroCosto?->nombre_centro_costo ?? '');
+                    $filaFamilia  = mb_strtolower($movimiento?->familia?->nombre_familia ?? '');
                     $filaDirecto  = in_array((int)$contrato->persona_id, $directosPersonaIds ?? []) ? '1' : '0';
                 @endphp
                 <tr class="group" style="display:none" data-nombre="{{ $filaNombre }}" data-campana="{{ $filaCampana }}" data-centro="{{ $filaCentro }}" data-familia="{{ $filaFamilia }}" data-es-directo="{{ $filaDirecto }}">
@@ -111,7 +112,7 @@
                     </td>
                     {{-- Planilla --}}
                     <td class="px-3 py-2 text-center text-xs text-gray-600 dark:text-gray-400 border-r border-gray-200 dark:border-gray-700 whitespace-nowrap">
-                        {{ $contrato->planilla->nombre_planilla ?? '-' }}
+                        {{ $movimiento?->planilla?->nombre_planilla ?? '-' }}
                     </td>
                     {{-- Inicio contrato --}}
                     <td class="px-3 py-2 text-center text-xs text-gray-600 dark:text-gray-400 border-r border-gray-200 dark:border-gray-700 whitespace-nowrap">

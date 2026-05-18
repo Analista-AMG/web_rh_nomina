@@ -30,22 +30,23 @@ class ContratoController extends Controller
         // Iniciamos la consulta con relaciones para evitar N+1
         $query = Contrato::with([
             'persona',
-            'cargo',
-            'planilla',
-            'fondoPension',
-            'banco',
-            'condicion',
-            'moneda',
-            'centroCosto',
-            'familia',
             'baja',
+            'movimientoActual.cargo',
+            'movimientoActual.planilla',
+            'movimientoActual.fondoPension',
+            'movimientoActual.banco',
+            'movimientoActual.condicion',
+            'movimientoActual.moneda',
+            'movimientoActual.centroCosto',
+            'movimientoActual.familia',
             'movimientos.planilla',
             'movimientos.fondoPension',
             'movimientos.cargo',
             'movimientos.banco',
             'movimientos.condicion',
             'movimientos.moneda',
-            'movimientos.familia'
+            'movimientos.centroCosto',
+            'movimientos.familia',
         ]);
 
         $this->jerarquia->aplicarFiltroPersonas($query, $personaIds, 'persona_id');
@@ -151,19 +152,16 @@ class ContratoController extends Controller
     }
 
     /**
-     * Update the specified resource in storage.
+     * Las fechas del contrato son inmutables desde la creación.
+     * inicio_contrato nunca cambia.
+     * fin_contrato solo cambia mediante baja o edición del movimiento vigente.
      */
     public function update(Request $request, $id)
     {
-        $contrato = Contrato::findOrFail($id);
-
-        $contrato->update([
-            'inicio_contrato' => $request->inicio_contrato,
-            'fin_contrato'    => $request->fin_contrato,
-            'haber_basico'    => $request->haber_basico,
-        ]);
-
-        return response()->json(['success' => true, 'message' => 'Contrato actualizado correctamente']);
+        return response()->json([
+            'success' => false,
+            'message' => 'Las fechas del contrato no son editables directamente. Use el movimiento vigente o registre una baja.',
+        ], 403);
     }
 
     /**
@@ -190,6 +188,14 @@ class ContratoController extends Controller
             ], 422);
         }
 
+        $ultimoMovimiento = $contrato->movimientos()->orderBy('inicio', 'desc')->first();
+        if ($ultimoMovimiento && $fechaBaja->lt($ultimoMovimiento->inicio)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'La fecha de baja no puede ser anterior al inicio del último movimiento (' . $ultimoMovimiento->inicio->format('d/m/Y') . ').',
+            ], 422);
+        }
+
         if ($contrato->fin_contrato && $fechaBaja->gt($contrato->fin_contrato)) {
             return response()->json([
                 'success' => false,
@@ -201,32 +207,44 @@ class ContratoController extends Controller
         $asistenciasEliminadas = 0;
 
         DB::transaction(function () use ($contrato, $validated, $isUpdate, &$asistenciasEliminadas) {
-            // Actualizar fecha_renuncia en el contrato
-            $contrato->update(['fecha_renuncia' => $validated['fecha_baja']]);
+            $fechaBajaStr = $validated['fecha_baja'];
 
-            // Crear o actualizar registro en la tabla de bajas
+            // 1. Cerrar el movimiento vigente en la fecha de baja
+            $movimientoVigente = $contrato->movimientos()
+                ->where('inicio', '<=', $fechaBajaStr)
+                ->where(fn ($q) => $q->whereNull('fin')->orWhere('fin', '>=', $fechaBajaStr))
+                ->first();
+
+            if ($movimientoVigente) {
+                $movimientoVigente->update(['fin' => $fechaBajaStr]);
+            }
+
+            // 2. Registrar fecha_renuncia en el ancla
+            $contrato->update(['fecha_renuncia' => $fechaBajaStr]);
+
+            // 3. Crear o actualizar registro en la tabla de bajas
             if ($isUpdate) {
                 $contrato->baja->update([
-                    'fecha_baja' => $validated['fecha_baja'],
-                    'motivo_baja' => $validated['motivo_baja'],
-                    'aviso_con_15_dias' => $validated['aviso_con_15_dias'],
+                    'fecha_baja'           => $fechaBajaStr,
+                    'motivo_baja'          => $validated['motivo_baja'],
+                    'aviso_con_15_dias'    => $validated['aviso_con_15_dias'],
                     'recomienda_reingreso' => $validated['recomienda_reingreso'],
-                    'observacion' => $validated['observacion'],
+                    'observacion'          => $validated['observacion'],
                 ]);
             } else {
                 Baja::create([
-                    'contrato_id' => $contrato->id,
-                    'fecha_baja' => $validated['fecha_baja'],
-                    'motivo_baja' => $validated['motivo_baja'],
-                    'aviso_con_15_dias' => $validated['aviso_con_15_dias'],
+                    'contrato_id'          => $contrato->id,
+                    'fecha_baja'           => $fechaBajaStr,
+                    'motivo_baja'          => $validated['motivo_baja'],
+                    'aviso_con_15_dias'    => $validated['aviso_con_15_dias'],
                     'recomienda_reingreso' => $validated['recomienda_reingreso'],
-                    'observacion' => $validated['observacion'],
+                    'observacion'          => $validated['observacion'],
                 ]);
             }
 
-            // Eliminar asistencias registradas después de la fecha de baja
+            // 4. Eliminar asistencias posteriores a la fecha de baja (solo de este contrato)
             $asistenciasEliminadas = Asistencia::where('contrato_id', $contrato->id)
-                ->where('fecha', '>', $validated['fecha_baja'])
+                ->where('fecha', '>', $fechaBajaStr)
                 ->delete();
         });
 
@@ -256,10 +274,23 @@ class ContratoController extends Controller
         }
 
         DB::transaction(function () use ($contrato) {
-            // Eliminar registro de baja
+            $fechaBaja = $contrato->baja->fecha_baja;
+
+            // 1. Reabrir el movimiento que fue cerrado en la baja
+            // (el que tiene fin = fecha_baja), restaurando el fin del ancla
+            $movimientoCerrado = $contrato->movimientos()
+                ->where('fin', $fechaBaja)
+                ->orderBy('inicio', 'desc')
+                ->first();
+
+            if ($movimientoCerrado) {
+                $movimientoCerrado->update(['fin' => $contrato->fin_contrato]);
+            }
+
+            // 2. Eliminar registro de baja
             $contrato->baja->delete();
 
-            // Limpiar fecha_renuncia del contrato
+            // 3. Limpiar fecha_renuncia del ancla
             $contrato->update(['fecha_renuncia' => null]);
         });
 
@@ -274,14 +305,20 @@ class ContratoController extends Controller
      */
     public function evaluarContrato(Request $request)
     {
+        $conn = config('database.default');
+
         $validated = $request->validate([
             'numero_documento' => 'required|string',
-            'fecha_inicio' => 'required|date',
+            'fecha_inicio'     => 'required|date',
+            'planilla_id'      => "required|exists:{$conn}.nomina.dim_planillas,id",
         ]);
+
+        $planilla = \App\Models\Planilla::find($validated['planilla_id']);
 
         $resultado = $this->contratoService->evaluarContrato(
             $validated['numero_documento'],
-            $validated['fecha_inicio']
+            $validated['fecha_inicio'],
+            $planilla->regimen
         );
 
         return response()->json($resultado);

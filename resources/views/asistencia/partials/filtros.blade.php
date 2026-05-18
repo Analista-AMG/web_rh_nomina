@@ -71,7 +71,7 @@
             @endif
 
             {{-- Centro de Costo (client-side) --}}
-            @php $centros = $filas->map(fn($f) => $f['contrato']->centroCosto?->nombre_centro_costo)->filter()->unique()->sort()->values(); @endphp
+            @php $centros = $filas->map(fn($f) => ($f['movimiento'] ?? null)?->centroCosto?->nombre_centro_costo)->filter()->unique()->sort()->values(); @endphp
             @if($centros->isNotEmpty())
             <div class="min-w-[160px]">
                 <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">
@@ -88,7 +88,7 @@
             @endif
 
             {{-- Familia (client-side) --}}
-            @php $familias = $filas->map(fn($f) => $f['contrato']->familia?->nombre_familia)->filter()->unique()->sort()->values(); @endphp
+            @php $familias = $filas->map(fn($f) => ($f['movimiento'] ?? null)?->familia?->nombre_familia)->filter()->unique()->sort()->values(); @endphp
             @if($familias->isNotEmpty())
             <div class="min-w-[160px]">
                 <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">

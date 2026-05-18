@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Campana;
 use App\Models\CentroCosto;
 use App\Models\Contrato;
+use App\Models\ContratoMovimiento;
 use App\Models\EquipoPrestamo;
 use App\Models\Familia;
 use App\Models\Planilla;
@@ -111,9 +112,9 @@ class AsignacionController extends Controller
                     ->withoutGlobalScope(AlcanceUsuarioScope::class)
                     ->whereRaw('inicio_contrato <= CAST(GETDATE() AS DATE)')
                     ->whereRaw('(' . Contrato::FIN_EFECTIVO . ' IS NULL OR ' . Contrato::FIN_EFECTIVO . ' >= DATEADD(day, -10, CAST(GETDATE() AS DATE)))')
-                    ->when($filtroPlanilla, fn($q) => $q->whereIn('planilla_id',     $filtroPlanilla))
-                    ->when($filtroCentro,  fn($q) => $q->whereIn('centro_costo_id', $filtroCentro))
-                    ->when($filtroFamilia, fn($q) => $q->whereIn('familia_id',      $filtroFamilia))
+                    ->when($filtroPlanilla, fn($q) => $q->whereHas('movimientos', fn($m) => $m->whereIn('planilla_id',     $filtroPlanilla)))
+                    ->when($filtroCentro,  fn($q) => $q->whereHas('movimientos', fn($m) => $m->whereIn('centro_costo_id', $filtroCentro)))
+                    ->when($filtroFamilia, fn($q) => $q->whereHas('movimientos', fn($m) => $m->whereIn('familia_id',      $filtroFamilia)))
                 )
                 ->pluck('numero_documento')
                 ->filter();
@@ -149,20 +150,22 @@ class AsignacionController extends Controller
                         ->whereIn('numero_documento', $docsBaseElegibles)
                     );
 
+                $contratoIds = $baseDropdown()->pluck('id');
+
                 // Dropdown planillas: aplica centro + familia (no planilla)
-                $planillaIds = $baseDropdown()
+                $planillaIds = ContratoMovimiento::whereIn('contrato_id', $contratoIds)
                     ->when($filtroCentro,  fn($q) => $q->whereIn('centro_costo_id', $filtroCentro))
                     ->when($filtroFamilia, fn($q) => $q->whereIn('familia_id',      $filtroFamilia))
                     ->pluck('planilla_id')->filter()->unique();
 
                 // Dropdown centros: aplica planilla + familia (no centro)
-                $centroIds = $baseDropdown()
+                $centroIds = ContratoMovimiento::whereIn('contrato_id', $contratoIds)
                     ->when($filtroPlanilla, fn($q) => $q->whereIn('planilla_id', $filtroPlanilla))
                     ->when($filtroFamilia,  fn($q) => $q->whereIn('familia_id',  $filtroFamilia))
                     ->pluck('centro_costo_id')->filter()->unique();
 
                 // Dropdown familias: aplica planilla + centro (no familia)
-                $familiaIds = $baseDropdown()
+                $familiaIds = ContratoMovimiento::whereIn('contrato_id', $contratoIds)
                     ->when($filtroPlanilla, fn($q) => $q->whereIn('planilla_id',     $filtroPlanilla))
                     ->when($filtroCentro,   fn($q) => $q->whereIn('centro_costo_id', $filtroCentro))
                     ->pluck('familia_id')->filter()->unique();
@@ -186,20 +189,30 @@ class AsignacionController extends Controller
                         ->withoutGlobalScope(AlcanceUsuarioScope::class)
                         ->activos()
                         ->whereNull('fecha_renuncia')
-                        ->when($filtroPlanilla, fn($q) => $q->whereIn('planilla_id',     $filtroPlanilla))
-                        ->when($filtroCentro,   fn($q) => $q->whereIn('centro_costo_id', $filtroCentro))
-                        ->when($filtroFamilia,  fn($q) => $q->whereIn('familia_id',      $filtroFamilia))
-                        ->with(['planilla', 'centroCosto', 'familia'])
+                        ->when($filtroPlanilla, fn($q) => $q->whereHas('movimientos', fn($m) => $m->whereIn('planilla_id',     $filtroPlanilla)))
+                        ->when($filtroCentro,   fn($q) => $q->whereHas('movimientos', fn($m) => $m->whereIn('centro_costo_id', $filtroCentro)))
+                        ->when($filtroFamilia,  fn($q) => $q->whereHas('movimientos', fn($m) => $m->whereIn('familia_id',      $filtroFamilia)))
+                        ->with([
+                            'movimientoActual.planilla', 'movimientoActual.centroCosto', 'movimientoActual.familia',
+                            'movimientos.planilla', 'movimientos.centroCosto', 'movimientos.familia',
+                        ])
                         ->orderByDesc('inicio_contrato')
                     ])
                     ->get()
                     ->keyBy('numero_documento');
 
-                $sinAsignacion = $usersSinAsignacion->map(fn($user) => (object)[
-                    'user'     => $user,
-                    'persona'  => $personasSinAsig[$user->numero_documento] ?? null,
-                    'contrato' => $personasSinAsig[$user->numero_documento]?->contratos->first(),
-                ])->filter(fn($row) => $row->persona !== null && $row->contrato !== null)->values();
+                $sinAsignacion = $usersSinAsignacion->map(function ($user) use ($personasSinAsig) {
+                    $persona    = $personasSinAsig[$user->numero_documento] ?? null;
+                    $contrato   = $persona?->contratos->first();
+                    $movimiento = $contrato?->movimientoActual
+                        ?? $contrato?->movimientos->sortByDesc('inicio')->first();
+                    return (object)[
+                        'user'       => $user,
+                        'persona'    => $persona,
+                        'contrato'   => $contrato,
+                        'movimiento' => $movimiento,
+                    ];
+                })->filter(fn($row) => $row->persona !== null && $row->contrato !== null)->values();
             }
         }
 

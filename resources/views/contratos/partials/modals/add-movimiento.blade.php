@@ -35,9 +35,7 @@
                         <x-forms.text-input id="add-mov-inicio" type="date" class="w-full" required />
                     </x-forms.field>
 
-                    <x-forms.field label="Fecha Fin" for="add-mov-fin">
-                        <x-forms.text-input id="add-mov-fin" type="date" class="w-full" />
-                    </x-forms.field>
+                    {{-- Fin se hereda automáticamente del fin_contrato del ancla --}}
 
                     <x-forms.field label="Condición" for="add-mov-condicion-id">
                         <x-forms.select id="add-mov-condicion-id" class="w-full">
@@ -82,9 +80,13 @@
 
             {{-- Sección: Remuneración --}}
             <x-ui.modal-section label="Remuneración" icon="fa-money-bill-wave">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <x-forms.field label="Haber Básico (S/)" for="add-mov-haber">
                         <x-forms.text-input id="add-mov-haber" type="number" step="0.01" class="w-full font-mono" placeholder="0.00" required />
+                    </x-forms.field>
+
+                    <x-forms.field label="Movilidad (S/)" for="add-mov-movilidad">
+                        <x-forms.text-input id="add-mov-movilidad" type="number" step="0.01" class="w-full font-mono" placeholder="0.00" />
                     </x-forms.field>
 
                     <x-forms.field label="Asignación Familiar" for="add-mov-asignacion">
@@ -104,7 +106,7 @@
 
             {{-- Sección: Previsional --}}
             <x-ui.modal-section label="Previsional" icon="fa-building-columns">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <x-forms.field label="Fondo de Pensiones" for="add-mov-fp-id">
                         <x-forms.select id="add-mov-fp-id" class="w-full">
                             <option value="">Cargando...</option>
@@ -115,6 +117,16 @@
                         <x-forms.select id="add-mov-banco-id" class="w-full">
                             <option value="">Cargando...</option>
                         </x-forms.select>
+                    </x-forms.field>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <x-forms.field label="Nº Cuenta" for="add-mov-numero-cuenta">
+                        <x-forms.text-input id="add-mov-numero-cuenta" type="text" class="w-full font-mono" placeholder="Número de cuenta" />
+                    </x-forms.field>
+
+                    <x-forms.field label="CCI" for="add-mov-codigo-interbancario">
+                        <x-forms.text-input id="add-mov-codigo-interbancario" type="text" class="w-full font-mono" placeholder="Código interbancario" />
                     </x-forms.field>
                 </div>
             </x-ui.modal-section>

@@ -293,13 +293,13 @@
                             @endif
                         </td>
                         <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
-                            {{ $row->contrato?->planilla?->nombre_planilla ?? '—' }}
+                            {{ $row->movimiento?->planilla?->nombre_planilla ?? '—' }}
                         </td>
                         <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
-                            {{ $row->contrato?->centroCosto?->nombre_centro_costo ?? '—' }}
+                            {{ $row->movimiento?->centroCosto?->nombre_centro_costo ?? '—' }}
                         </td>
                         <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
-                            {{ $row->contrato?->familia?->nombre_familia ?? '—' }}
+                            {{ $row->movimiento?->familia?->nombre_familia ?? '—' }}
                         </td>
                         <td class="px-4 py-3 text-center">
                             <button onclick="openCreateModalPreFilled({{ $row->user->id }}, '{{ addslashes($row->user->name) }}', '{{ $row->user->numero_documento }}')"
