@@ -121,7 +121,7 @@ Route::middleware(['auth', 'asignacion'])->group(function () {
     // 7. Rutas de Cálculos - Restringidas a Admin y Jefe Operaciones
     Route::middleware(['role:Administrador|Jefe Operaciones', 'permission:calculos.view'])->group(function () {
         Route::get('/calculos', [App\Http\Controllers\CalculoController::class, 'index'])->name('calculos.index');
-        Route::get('/calculos/resultados', [App\Http\Controllers\CalculoController::class, 'obtenerResultados'])->name('calculos.resultados');
+        Route::get('/calculos/stats', [App\Http\Controllers\CalculoController::class, 'stats'])->name('calculos.stats');
         Route::get('/calculos/exportar', [App\Http\Controllers\CalculoController::class, 'exportar'])->name('calculos.exportar');
     });
 

@@ -3,10 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Helpers\PeriodoCalendario;
-use App\Models\Planilla;
 use App\Services\CalculoService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class CalculoController extends Controller
 {
@@ -21,9 +21,14 @@ class CalculoController extends Controller
     {
         $periodos = PeriodoCalendario::listarDesc(24)->pluck('periodo')->unique()->values();
 
-        $planillas = Planilla::orderBy('nombre_planilla')->get();
+        $base = DB::table('nomina.tabla_maestra_validacion');
 
-        return view('calculos.index', compact('periodos', 'planillas'));
+        $empresas     = (clone $base)->distinct()->orderBy('empresa')->pluck('empresa')->filter()->values();
+        $regimenes    = (clone $base)->distinct()->orderBy('regimen')->pluck('regimen')->filter()->values();
+        $centrosCosto = (clone $base)->distinct()->orderBy('centro_costo')->pluck('centro_costo')->filter()->values();
+        $familias     = (clone $base)->distinct()->orderBy('familia')->pluck('familia')->filter()->values();
+
+        return view('calculos.index', compact('periodos', 'empresas', 'regimenes', 'centrosCosto', 'familias'));
     }
 
     public function ejecutar(Request $request): JsonResponse
@@ -41,17 +46,24 @@ class CalculoController extends Controller
         return response()->json($resultado, $resultado['status'] ?? 500);
     }
 
-    public function obtenerResultados(Request $request): JsonResponse
+    public function stats(Request $request): JsonResponse
     {
         $request->validate([
-            'periodo'     => 'required|string|max:10',
-            'planilla_id' => 'nullable|integer',
+            'periodo'      => 'required|string|max:10',
+            'empresa'      => 'nullable|string|max:100',
+            'regimen'      => 'nullable|string|max:50',
+            'centro_costo' => 'nullable|string|max:100',
+            'familia'      => 'nullable|string|max:150',
         ]);
 
-        $resultado = $this->calculoService->obtenerResultados(
-            $request->periodo,
-            $request->planilla_id
-        );
+        $filtros = array_filter([
+            'empresa'      => $request->empresa,
+            'regimen'      => $request->regimen,
+            'centro_costo' => $request->centro_costo,
+            'familia'      => $request->familia,
+        ]);
+
+        $resultado = $this->calculoService->obtenerStats($request->periodo, $filtros);
 
         if ($resultado['success']) {
             return response()->json($resultado);
@@ -63,13 +75,20 @@ class CalculoController extends Controller
     public function exportar(Request $request)
     {
         $request->validate([
-            'periodo'     => 'required|string|max:10',
-            'planilla_id' => 'nullable|integer',
+            'periodo'      => 'required|string|max:10',
+            'empresa'      => 'nullable|string|max:100',
+            'regimen'      => 'nullable|string|max:50',
+            'centro_costo' => 'nullable|string|max:100',
+            'familia'      => 'nullable|string|max:150',
         ]);
 
-        return $this->calculoService->exportarExcel(
-            $request->periodo,
-            $request->planilla_id ? (int)$request->planilla_id : null
-        );
+        $filtros = array_filter([
+            'empresa'      => $request->empresa,
+            'regimen'      => $request->regimen,
+            'centro_costo' => $request->centro_costo,
+            'familia'      => $request->familia,
+        ]);
+
+        return $this->calculoService->exportarExcel($request->periodo, $filtros);
     }
 }

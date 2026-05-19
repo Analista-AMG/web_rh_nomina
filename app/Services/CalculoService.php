@@ -21,9 +21,6 @@ class CalculoService
         $this->baseUrl = rtrim(config('services.fastapi.url', 'http://localhost:8000'), '/');
     }
 
-    /**
-     * Ejecutar cálculo de nómina via FastAPI.
-     */
     public function ejecutarCalculo(string $periodo): array
     {
         try {
@@ -43,57 +40,168 @@ class CalculoService
             Log::error('CalculoService::ejecutarCalculo - ' . $e->getMessage());
             return [
                 'success' => false,
-                'error'   => 'No se pudo conectar con el servicio de cálculos. Verifique que el servicio esté disponible.',
+                'error'   => 'No se pudo conectar con el servicio de cálculos.',
             ];
         }
     }
 
-    /**
-     * Obtener resultados desde nomina.fact_resultados_nomina.
-     */
-    public function obtenerResultados(string $periodo, ?int $idPlanilla = null): array
+    public function obtenerStats(string $periodo, array $filtros = []): array
     {
         try {
-            $resultados = $this->queryResultados($periodo, $idPlanilla)->get();
+            $rows = $this->queryBase($periodo, $filtros)->get();
 
-            return ['success' => true, 'data' => $resultados];
+            if ($rows->isEmpty()) {
+                return ['success' => true, 'data' => null];
+            }
+
+            $sum  = fn(string $col) => $rows->sum(fn($r) => (float)($r->$col ?? 0));
+            $cnt  = fn(string $col, $val) => $rows->where($col, $val)->count();
+
+            // ── KPIs resumen ────────────────────────────────────────────────
+            $kpis = [
+                'contratos'        => $rows->count(),
+                'total_haberes'    => $sum('total_haberes'),
+                'total_descuentos' => $sum('total_descuentos'),
+                'neto_soles'       => $sum('neto_soles'),
+                'costo_total'      => $sum('costo_total_empleado'),
+            ];
+
+            // ── Asignación familiar ─────────────────────────────────────────
+            $asigFam = $rows->filter(fn($r) => ($r->asignacion_familiar ?? 0) > 0);
+            $bloqueAsigFam = [
+                'total'         => $sum('asignacion_familiar'),
+                'beneficiarios' => $asigFam->count(),
+            ];
+
+            // ── Feriados ────────────────────────────────────────────────────
+            $bloqueFeriados = [
+                'dias_total'  => (int)$rows->sum(fn($r) => (int)($r->dias_feriado ?? 0)),
+                'monto_total' => $sum('remun_feriado'),
+            ];
+
+            // ── Fondo de pensiones ──────────────────────────────────────────
+            $afp = $rows->filter(fn($r) => !empty($r->fondo_pensiones) && strtoupper($r->fondo_pensiones) !== 'ONP' && strtoupper($r->fondo_pensiones) !== 'SIN FP');
+            $onp = $rows->filter(fn($r) => strtoupper($r->fondo_pensiones ?? '') === 'ONP');
+            $sinFp = $rows->filter(fn($r) => empty($r->fondo_pensiones) || strtoupper($r->fondo_pensiones) === 'SIN FP');
+
+            $bloqueFP = [
+                'afp' => [
+                    'contratos' => $afp->count(),
+                    'aporte'    => $afp->sum(fn($r) => (float)($r->aporte_fp ?? 0)),
+                    'prima'     => $afp->sum(fn($r) => (float)($r->prima_fp  ?? 0)),
+                    'comision'  => $afp->sum(fn($r) => (float)($r->comision_fp ?? 0)),
+                ],
+                'onp' => [
+                    'contratos' => $onp->count(),
+                    'aporte'    => $onp->sum(fn($r) => (float)($r->aporte_fp ?? 0)),
+                ],
+                'sin_fp' => [
+                    'contratos' => $sinFp->count(),
+                ],
+                'detalle' => $rows->groupBy('fondo_pensiones')
+                    ->map(fn($g, $fp) => [
+                        'fondo_pensiones' => $fp ?: '—',
+                        'contratos'       => $g->count(),
+                        'aporte'          => $g->sum(fn($r) => (float)($r->aporte_fp  ?? 0)),
+                        'prima'           => $g->sum(fn($r) => (float)($r->prima_fp   ?? 0)),
+                        'comision'        => $g->sum(fn($r) => (float)($r->comision_fp ?? 0)),
+                    ])->values(),
+            ];
+
+            // ── Adelantos ───────────────────────────────────────────────────
+            $bloqueAdelantos = [
+                'comision'      => $sum('adelanto_comision'),
+                'movilidad'     => $sum('adelanto_movilidad'),
+                'gratificacion' => $sum('adelanto_gratificacion'),
+                'quincena'      => $sum('adelanto_quincena'),
+                'total'         => $sum('adelanto_comision') + $sum('adelanto_movilidad') + $sum('adelanto_gratificacion') + $sum('adelanto_quincena'),
+            ];
+
+            // ── Movilidad ───────────────────────────────────────────────────
+            $bloqueMovilidad = [
+                'total' => $sum('movilidad'),
+            ];
+
+            // ── Bonos ───────────────────────────────────────────────────────
+            $bloqueBonos = [
+                'rendimiento'  => $sum('bono_rendimiento'),
+                'nocturnidad'  => $sum('bono_nocturnidad'),
+                'mensual'      => $sum('bono_mensual'),
+                'reintegro'    => $sum('bono_reintegro'),
+                'extra_9pct'   => $sum('bono_extra_9pct'),
+            ];
+
+            // ── Maqueta inafecto ────────────────────────────────────────────
+            $bloqueMaqueta = [
+                'total' => $sum('maqueta_inafecto'),
+            ];
+
+            // ── Distribución por empresa ────────────────────────────────────
+            $distribucion = $rows->groupBy(fn($r) => ($r->empresa ?? '—') . '||' . ($r->regimen ?? '—'))
+                ->map(fn($g) => [
+                    'empresa'          => $g->first()->empresa ?? '—',
+                    'regimen'          => $g->first()->regimen ?? '—',
+                    'contratos'        => $g->count(),
+                    'total_haberes'    => $g->sum(fn($r) => (float)($r->total_haberes    ?? 0)),
+                    'total_descuentos' => $g->sum(fn($r) => (float)($r->total_descuentos ?? 0)),
+                    'neto_soles'       => $g->sum(fn($r) => (float)($r->neto_soles       ?? 0)),
+                    'costo_total'      => $g->sum(fn($r) => (float)($r->costo_total_empleado ?? 0)),
+                ])
+                ->sortBy('empresa')
+                ->values();
+
+            return [
+                'success' => true,
+                'data'    => [
+                    'kpis'          => $kpis,
+                    'asig_familiar' => $bloqueAsigFam,
+                    'feriados'      => $bloqueFeriados,
+                    'fp'            => $bloqueFP,
+                    'adelantos'     => $bloqueAdelantos,
+                    'movilidad'     => $bloqueMovilidad,
+                    'bonos'         => $bloqueBonos,
+                    'maqueta'       => $bloqueMaqueta,
+                    'distribucion'  => $distribucion,
+                ],
+            ];
         } catch (\Exception $e) {
-            Log::error('CalculoService::obtenerResultados - ' . $e->getMessage());
+            Log::error('CalculoService::obtenerStats - ' . $e->getMessage());
             return ['success' => false, 'error' => 'Error al consultar resultados: ' . $e->getMessage()];
         }
     }
 
-    /**
-     * Exportar resultados a Excel (.xlsx).
-     */
-    public function exportarExcel(string $periodo, ?int $idPlanilla = null): StreamedResponse
+    public function exportarExcel(string $periodo, array $filtros = []): StreamedResponse
     {
-        $rows = $this->queryResultados($periodo, $idPlanilla)->get();
+        $rows = $this->queryBase($periodo, $filtros)->get();
 
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Nómina ' . $periodo);
 
         $headers = [
-            'Contrato', 'Colaborador', 'Documento', 'Planilla', 'Tipo',
-            'D. Cálculo', 'D. Trabajados',
-            'Haber Básico', 'Asig. Familiar', 'Movilidad', 'Comisión', 'Bono',
-            'RV', 'Pago DM', 'Pago Feriado', 'Reintegro Afecto', 'Tardanza',
-            'Total Haberes', 'Base Imponible',
-            'Aporte AFP', 'Prima', 'Com. AFP', 'EsSalud', 'Adelanto Sueldo',
-            'Total Descuentos', 'Neto',
-            'Básico Comp.', 'Prov. Gratif.', 'Bono Extra 9%', 'Prov. CTS', 'Prov. Vacac.', 'Costo Total',
+            'Empresa', 'Régimen', 'Familia', 'Centro Costo',
+            'Documento', 'Nombre Completo', 'Cargo', 'Fondo Pensiones',
+            'Estado', 'Tipo Cálculo', 'Fecha Ingreso', 'Fecha Cese',
+            'D.LSG', 'D.Feriado', 'D.Faltas', 'D.DM', 'D.Vacac.', 'Tardanza', 'D.Trabajados',
+            'Haber Básico', 'Asig. Familiar', 'Movilidad', 'Comisión',
+            'Remun. Feriado', 'Reintegro Afecto', 'Maqueta Inafecto',
+            'Bono Rendimiento', 'Bono Nocturnidad', 'Bono Mensual', 'Bono Reintegro', 'Bono Extra 9%',
+            'Total Haberes',
+            'Aporte FP', 'Prima FP', 'Comisión FP',
+            'EsSalud', 'Retención 5ta', 'Adel. Comisión', 'Adel. Movilidad',
+            'Adel. Gratif.', 'Adel. Quincena', 'Tard. Desc.', 'Otros Desc.', 'IR 8%',
+            'Total Descuentos', 'Neto S/', 'Neto USD',
+            'B.Comp.', 'Prov. Grat.', 'Prov. 9%', 'Prov. CTS', 'Prov. Vac.', 'Costo Total',
         ];
 
-        // Header row
-        $col = 'A';
-        foreach ($headers as $header) {
-            $sheet->setCellValue($col . '1', $header);
-            $col++;
+        $colCount = count($headers);
+        $coord    = fn(int $col) => \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col);
+        $lastCol  = $coord($colCount);
+
+        foreach ($headers as $i => $header) {
+            $sheet->setCellValue($coord($i + 1) . '1', $header);
         }
 
-        // Header style
-        $lastCol = chr(ord('A') + count($headers) - 1);
         $sheet->getStyle("A1:{$lastCol}1")->applyFromArray([
             'font'      => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
             'fill'      => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'E67E22']],
@@ -101,27 +209,32 @@ class CalculoService
             'borders'   => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => 'CCCCCC']]],
         ]);
 
-        // Data rows
         $rowNum = 2;
         foreach ($rows as $row) {
             $values = [
-                $row->contrato_id, $row->colaborador, $row->numero_documento, $row->planilla, $row->tipo_calculo,
-                $row->dias_calculo, $row->dias_trabajados,
-                $row->haber_basico, $row->asig_familiar, $row->movilidad, $row->comision, $row->bono,
-                $row->rv, $row->pago_descanso_medico, $row->pago_feriado, $row->reintegro_afecto, $row->tardanza,
-                $row->total_haberes, $row->base_imponible,
-                $row->aporte, $row->prima, $row->comision_afp, $row->essalud, $row->adelanto_sueldo,
-                $row->total_descuentos, $row->neto,
-                $row->basico_compensatorio, $row->prov_gratificacion, $row->bono_extra_9, $row->prov_cts, $row->prov_vacaciones, $row->costo_total,
+                $row->empresa, $row->regimen, $row->familia, $row->centro_costo,
+                $row->numero_documento, $row->nombre_completo, $row->cargo, $row->fondo_pensiones,
+                $row->status, $row->tipo_calculo, $row->fecha_ingreso, $row->fecha_de_cese,
+                $row->dias_lsg, $row->dias_feriado, $row->dias_con_faltas, $row->dias_dm,
+                $row->dias_vacaciones, $row->tardanza, $row->dias_trabajados,
+                $row->haber_basico, $row->asignacion_familiar, $row->movilidad, $row->comision,
+                $row->remun_feriado, $row->reintegro_afecto, $row->maqueta_inafecto,
+                $row->bono_rendimiento, $row->bono_nocturnidad, $row->bono_mensual,
+                $row->bono_reintegro, $row->bono_extra_9pct,
+                $row->total_haberes,
+                $row->aporte_fp, $row->prima_fp, $row->comision_fp,
+                $row->essalud, $row->retencion_5ta, $row->adelanto_comision,
+                $row->adelanto_movilidad, $row->adelanto_gratificacion, $row->adelanto_quincena,
+                $row->tardanzas_descuentos, $row->otros_descuentos, $row->ir_8pct,
+                $row->total_descuentos, $row->neto_soles, $row->neto_usd,
+                $row->basico_compensatorio, $row->prov_grat, $row->prov_9pct,
+                $row->prov_cts, $row->prov_vac, $row->costo_total_empleado,
             ];
 
-            $col = 'A';
-            foreach ($values as $value) {
-                $sheet->setCellValue($col . $rowNum, $value);
-                $col++;
+            foreach ($values as $i => $value) {
+                $sheet->setCellValue($coord($i + 1) . $rowNum, $value);
             }
 
-            // Zebra rows
             if ($rowNum % 2 === 0) {
                 $sheet->getStyle("A{$rowNum}:{$lastCol}{$rowNum}")->applyFromArray([
                     'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'FEF9F5']],
@@ -130,15 +243,13 @@ class CalculoService
             $rowNum++;
         }
 
-        // Auto-width columns
-        foreach (range('A', $lastCol) as $colLetter) {
-            $sheet->getColumnDimension($colLetter)->setAutoSize(true);
+        for ($i = 1; $i <= $colCount; $i++) {
+            $sheet->getColumnDimension($coord($i))->setAutoSize(true);
         }
-
-        // Freeze header
         $sheet->freezePane('A2');
 
-        $filename = "nomina_{$periodo}" . ($idPlanilla ? "_planilla{$idPlanilla}" : '') . '.xlsx';
+        $suffix   = collect($filtros)->map(fn($v, $k) => $k[0] . $v)->implode('_');
+        $filename = 'nomina_' . $periodo . ($suffix ? "_{$suffix}" : '') . '.xlsx';
 
         $writer = new Xlsx($spreadsheet);
         return new StreamedResponse(function () use ($writer) {
@@ -150,55 +261,18 @@ class CalculoService
         ]);
     }
 
-    /**
-     * Query base reutilizable para resultados.
-     */
-    private function queryResultados(string $periodo, ?int $idPlanilla = null)
+    private function queryBase(string $periodo, array $filtros = [])
     {
-        $query = DB::table('nomina.fact_resultados_nomina as r')
-            ->join('nomina.fact_contratos as c', 'r.contrato_id', '=', 'c.id')
-            ->join('nomina.dim_personas as p', 'c.persona_id', '=', 'p.id')
-            ->join('nomina.dim_planillas as pl', 'c.planilla_id', '=', 'pl.id')
-            ->where('r.periodo', $periodo)
-            ->select(
-                'r.contrato_id',
-                DB::raw("p.apellido_paterno + ' ' + p.apellido_materno + ' ' + LEFT(p.nombres, CHARINDEX(' ', p.nombres + ' ') - 1) as colaborador"),
-                'p.numero_documento',
-                'pl.nombre_planilla as planilla',
-                'r.tipo_calculo',
-                'r.dias_calculo',
-                'r.dias_trabajados',
-                DB::raw('r.HBR as haber_basico'),
-                DB::raw('r.AFR as asig_familiar'),
-                'r.movilidad',
-                'r.comision',
-                'r.bono',
-                DB::raw('r.RV as rv'),
-                'r.pago_descanso_medico',
-                'r.pago_feriado',
-                'r.reintegro_afecto',
-                'r.tardanza',
-                'r.total_haberes',
-                'r.base_imponible',
-                'r.aporte',
-                'r.prima',
-                'r.comision_afp',
-                'r.essalud',
-                'r.adelanto_sueldo',
-                'r.total_descuentos',
-                'r.neto',
-                'r.basico_compensatorio',
-                'r.prov_gratificacion',
-                'r.bono_extra_9',
-                'r.prov_cts',
-                'r.prov_vacaciones',
-                'r.costo_total',
-            );
+        $query = DB::table('nomina.tabla_maestra_validacion')
+            ->where('periodo', $periodo)
+            ->where('persona_id', '!=', 192);
 
-        if ($idPlanilla) {
-            $query->where('c.planilla_id', $idPlanilla);
+        foreach (['empresa', 'regimen', 'centro_costo', 'familia'] as $col) {
+            if (!empty($filtros[$col])) {
+                $query->where($col, $filtros[$col]);
+            }
         }
 
-        return $query->orderBy('p.apellido_paterno')->orderBy('p.apellido_materno');
+        return $query->orderBy('empresa')->orderBy('nombre_completo');
     }
 }
