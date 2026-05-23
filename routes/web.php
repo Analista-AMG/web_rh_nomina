@@ -177,9 +177,11 @@ Route::middleware(['auth', 'asignacion'])->group(function () {
 
         // Asignaciones
         Route::middleware(['permission:asignaciones.view'])->group(function () {
-            Route::get('/asignaciones/usuarios-disponibles', [AsignacionController::class, 'usuariosDisponibles'])->name('asignaciones.usuarios-disponibles');
-            Route::get('/asignaciones/superiores-disponibles', [AsignacionController::class, 'superioresDisponibles'])->name('asignaciones.superiores-disponibles');
-            Route::get('/asignaciones', [AsignacionController::class, 'index'])->name('asignaciones.index');
+            Route::get('/asignaciones/usuarios-disponibles',  [AsignacionController::class, 'usuariosDisponibles'])->name('asignaciones.usuarios-disponibles');
+            Route::get('/asignaciones/superiores-disponibles',[AsignacionController::class, 'superioresDisponibles'])->name('asignaciones.superiores-disponibles');
+            Route::get('/asignaciones',                       [AsignacionController::class, 'index'])->name('asignaciones.index');
+            Route::get('/asignaciones/cerradas',              [AsignacionController::class, 'cerradas'])->name('asignaciones.cerradas');
+            Route::get('/asignaciones/sin-asignacion',        [AsignacionController::class, 'sinAsignacion'])->name('asignaciones.sin-asignacion');
         });
         Route::middleware(['permission:asignaciones.manage'])->group(function () {
             Route::post('/asignaciones', [AsignacionController::class, 'store'])->name('asignaciones.store');

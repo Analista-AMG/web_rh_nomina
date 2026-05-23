@@ -54,98 +54,126 @@ class CalculoService
                 return ['success' => true, 'data' => null];
             }
 
-            $sum  = fn(string $col) => $rows->sum(fn($r) => (float)($r->$col ?? 0));
-            $cnt  = fn(string $col, $val) => $rows->where($col, $val)->count();
+            $sum = fn(string $col) => $rows->sum(fn($r) => (float)($r->$col ?? 0));
+            $isFT  = fn($r) => stripos($r->regimen ?? '', 'RHE') === false;
+            $isRHE = fn($r) => stripos($r->regimen ?? '', 'RHE') !== false;
 
-            // ── KPIs resumen ────────────────────────────────────────────────
+            $rowsFT  = $rows->filter($isFT);
+            $rowsRHE = $rows->filter($isRHE);
+            $sumFT   = fn(string $col) => $rowsFT->sum(fn($r) => (float)($r->$col ?? 0));
+
+            // ── KPIs resumen ─────────────────────────────────────────────────
             $kpis = [
                 'contratos'        => $rows->count(),
+                'contratos_ft'     => $rowsFT->count(),
+                'contratos_rhe'    => $rowsRHE->count(),
                 'total_haberes'    => $sum('total_haberes'),
                 'total_descuentos' => $sum('total_descuentos'),
+                'adelanto_quincena' => $sum('adelanto_quincena'),
                 'neto_soles'       => $sum('neto_soles'),
                 'costo_total'      => $sum('costo_total_empleado'),
             ];
 
-            // ── Asignación familiar ─────────────────────────────────────────
+            // ── Asignación familiar ──────────────────────────────────────────
             $asigFam = $rows->filter(fn($r) => ($r->asignacion_familiar ?? 0) > 0);
             $bloqueAsigFam = [
                 'total'         => $sum('asignacion_familiar'),
                 'beneficiarios' => $asigFam->count(),
             ];
 
-            // ── Feriados ────────────────────────────────────────────────────
+            // ── Feriados ─────────────────────────────────────────────────────
             $bloqueFeriados = [
                 'dias_total'  => (int)$rows->sum(fn($r) => (int)($r->dias_feriado ?? 0)),
                 'monto_total' => $sum('remun_feriado'),
             ];
 
-            // ── Fondo de pensiones ──────────────────────────────────────────
-            $afp = $rows->filter(fn($r) => !empty($r->fondo_pensiones) && strtoupper($r->fondo_pensiones) !== 'ONP' && strtoupper($r->fondo_pensiones) !== 'SIN FP');
-            $onp = $rows->filter(fn($r) => strtoupper($r->fondo_pensiones ?? '') === 'ONP');
-            $sinFp = $rows->filter(fn($r) => empty($r->fondo_pensiones) || strtoupper($r->fondo_pensiones) === 'SIN FP');
+            // ── Movilidad (desglosada) ───────────────────────────────────────
+            $movBruto   = $sum('movilidad');
+            $movAdelanto = $sum('adelanto_movilidad');
+            $bloqueMovilidad = [
+                'bruto'   => $movBruto,
+                'adelanto' => $movAdelanto,
+                'real'    => $movBruto - $movAdelanto,
+            ];
 
+            // ── Fondo de pensiones ───────────────────────────────────────────
             $bloqueFP = [
-                'afp' => [
-                    'contratos' => $afp->count(),
-                    'aporte'    => $afp->sum(fn($r) => (float)($r->aporte_fp ?? 0)),
-                    'prima'     => $afp->sum(fn($r) => (float)($r->prima_fp  ?? 0)),
-                    'comision'  => $afp->sum(fn($r) => (float)($r->comision_fp ?? 0)),
-                ],
-                'onp' => [
-                    'contratos' => $onp->count(),
-                    'aporte'    => $onp->sum(fn($r) => (float)($r->aporte_fp ?? 0)),
-                ],
-                'sin_fp' => [
-                    'contratos' => $sinFp->count(),
-                ],
                 'detalle' => $rows->groupBy('fondo_pensiones')
                     ->map(fn($g, $fp) => [
                         'fondo_pensiones' => $fp ?: '—',
                         'contratos'       => $g->count(),
-                        'aporte'          => $g->sum(fn($r) => (float)($r->aporte_fp  ?? 0)),
-                        'prima'           => $g->sum(fn($r) => (float)($r->prima_fp   ?? 0)),
+                        'aporte'          => $g->sum(fn($r) => (float)($r->aporte_fp   ?? 0)),
+                        'prima'           => $g->sum(fn($r) => (float)($r->prima_fp    ?? 0)),
                         'comision'        => $g->sum(fn($r) => (float)($r->comision_fp ?? 0)),
-                    ])->values(),
+                    ])
+                    ->sortBy('fondo_pensiones')
+                    ->values(),
             ];
 
-            // ── Adelantos ───────────────────────────────────────────────────
+            // ── Adelantos ────────────────────────────────────────────────────
             $bloqueAdelantos = [
                 'comision'      => $sum('adelanto_comision'),
-                'movilidad'     => $sum('adelanto_movilidad'),
+                'movilidad'     => $movAdelanto,
                 'gratificacion' => $sum('adelanto_gratificacion'),
                 'quincena'      => $sum('adelanto_quincena'),
-                'total'         => $sum('adelanto_comision') + $sum('adelanto_movilidad') + $sum('adelanto_gratificacion') + $sum('adelanto_quincena'),
+                'total'         => $sum('adelanto_comision') + $movAdelanto + $sum('adelanto_gratificacion') + $sum('adelanto_quincena'),
             ];
 
-            // ── Movilidad ───────────────────────────────────────────────────
-            $bloqueMovilidad = [
-                'total' => $sum('movilidad'),
-            ];
-
-            // ── Bonos ───────────────────────────────────────────────────────
+            // ── Bonos (afectos + inafectos unificados) ───────────────────────
             $bloqueBonos = [
-                'rendimiento'  => $sum('bono_rendimiento'),
-                'nocturnidad'  => $sum('bono_nocturnidad'),
-                'mensual'      => $sum('bono_mensual'),
-                'reintegro'    => $sum('bono_reintegro'),
-                'extra_9pct'   => $sum('bono_extra_9pct'),
+                // Afectos AFP/EsSalud
+                'rendimiento' => $sum('bono_rendimiento'),
+                'nocturnidad' => $sum('bono_nocturnidad'),
+                'mensual'     => $sum('bono_mensual'),
+                'reintegro'   => $sum('bono_reintegro'),
+                'extra_9pct'  => $sum('bono_extra_9pct'),
+                // Inafecto
+                'maqueta_inafecto' => $sum('maqueta_inafecto'),
+                // Subtotales
+                'total_afectos'    => $sum('bono_rendimiento') + $sum('bono_nocturnidad') + $sum('bono_mensual') + $sum('bono_reintegro') + $sum('bono_extra_9pct'),
+                'total_inafectos'  => $sum('maqueta_inafecto'),
             ];
 
-            // ── Maqueta inafecto ────────────────────────────────────────────
-            $bloqueMaqueta = [
-                'total' => $sum('maqueta_inafecto'),
+            // ── Provisiones empleador (solo FT) ─────────────────────────────
+            $provGrat  = $sumFT('prov_grat');
+            $prov9pct  = $sumFT('prov_9pct');
+            $provCts   = $sumFT('prov_cts');
+            $provVac   = $sumFT('prov_vac');
+            $essalud   = $sumFT('essalud');
+            $movilidadFT = $sumFT('movilidad');
+            $bloqueProvisiones = [
+                'contratos_ft'       => $rowsFT->count(),
+                'basico_comp'        => $sumFT('basico_compensatorio'),
+                'movilidad'          => $movilidadFT,
+                'essalud'            => $essalud,
+                'prov_grat'          => $provGrat,
+                'prov_9pct'          => $prov9pct,
+                'prov_cts'           => $provCts,
+                'prov_vac'           => $provVac,
+                'total_provisiones'  => $movilidadFT + $essalud + $provGrat + $prov9pct + $provCts + $provVac,
+                'costo_empleador_ft' => $sumFT('costo_total_empleado'),
             ];
 
-            // ── Distribución por empresa ────────────────────────────────────
+            // ── IR 4ta categoría (RHE) ───────────────────────────────────────
+            $bloqueIR4ta = [
+                'total'          => $sum('ir_8pct'),
+                'personas_afectas' => $rows->filter(fn($r) => ($r->ir_8pct ?? 0) > 0)->count(),
+            ];
+
+            // ── Distribución por empresa ─────────────────────────────────────
             $distribucion = $rows->groupBy(fn($r) => ($r->empresa ?? '—') . '||' . ($r->regimen ?? '—'))
                 ->map(fn($g) => [
                     'empresa'          => $g->first()->empresa ?? '—',
                     'regimen'          => $g->first()->regimen ?? '—',
                     'contratos'        => $g->count(),
-                    'total_haberes'    => $g->sum(fn($r) => (float)($r->total_haberes    ?? 0)),
-                    'total_descuentos' => $g->sum(fn($r) => (float)($r->total_descuentos ?? 0)),
-                    'neto_soles'       => $g->sum(fn($r) => (float)($r->neto_soles       ?? 0)),
+                    'total_haberes'    => $g->sum(fn($r) => (float)($r->total_haberes       ?? 0)),
+                    'total_descuentos' => $g->sum(fn($r) => (float)($r->total_descuentos    ?? 0)),
+                    'neto_soles'       => $g->sum(fn($r) => (float)($r->neto_soles          ?? 0)),
+                    'essalud'          => $g->sum(fn($r) => (float)($r->essalud             ?? 0)),
+                    'prov_total'       => $g->sum(fn($r) => (float)(($r->prov_grat ?? 0) + ($r->prov_9pct ?? 0) + ($r->prov_cts ?? 0) + ($r->prov_vac ?? 0))),
+                    'ir_8pct'          => $g->sum(fn($r) => (float)($r->ir_8pct             ?? 0)),
                     'costo_total'      => $g->sum(fn($r) => (float)($r->costo_total_empleado ?? 0)),
+                    'es_rhe'           => stripos($g->first()->regimen ?? '', 'RHE') !== false,
                 ])
                 ->sortBy('empresa')
                 ->values();
@@ -156,11 +184,12 @@ class CalculoService
                     'kpis'          => $kpis,
                     'asig_familiar' => $bloqueAsigFam,
                     'feriados'      => $bloqueFeriados,
+                    'movilidad'     => $bloqueMovilidad,
                     'fp'            => $bloqueFP,
                     'adelantos'     => $bloqueAdelantos,
-                    'movilidad'     => $bloqueMovilidad,
                     'bonos'         => $bloqueBonos,
-                    'maqueta'       => $bloqueMaqueta,
+                    'provisiones'   => $bloqueProvisiones,
+                    'ir_4ta'        => $bloqueIR4ta,
                     'distribucion'  => $distribucion,
                 ],
             ];
@@ -270,6 +299,14 @@ class CalculoService
         foreach (['empresa', 'regimen', 'centro_costo', 'familia'] as $col) {
             if (!empty($filtros[$col])) {
                 $query->where($col, $filtros[$col]);
+            }
+        }
+
+        if (!empty($filtros['regime_tipo'])) {
+            if ($filtros['regime_tipo'] === 'planilla') {
+                $query->where('regimen', 'not like', '%RHE%');
+            } elseif ($filtros['regime_tipo'] === 'RHE') {
+                $query->where('regimen', 'like', '%RHE%');
             }
         }
 

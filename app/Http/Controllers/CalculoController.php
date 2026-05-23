@@ -54,6 +54,7 @@ class CalculoController extends Controller
             'regimen'      => 'nullable|string|max:50',
             'centro_costo' => 'nullable|string|max:100',
             'familia'      => 'nullable|string|max:150',
+            'regime_tipo'  => 'nullable|string|in:planilla,RHE',
         ]);
 
         $filtros = array_filter([
@@ -61,6 +62,7 @@ class CalculoController extends Controller
             'regimen'      => $request->regimen,
             'centro_costo' => $request->centro_costo,
             'familia'      => $request->familia,
+            'regime_tipo'  => $request->regime_tipo,
         ]);
 
         $resultado = $this->calculoService->obtenerStats($request->periodo, $filtros);

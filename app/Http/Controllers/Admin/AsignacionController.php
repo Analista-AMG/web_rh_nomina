@@ -14,7 +14,6 @@ use App\Models\Persona;
 use App\Models\Scopes\AlcanceUsuarioScope;
 use App\Models\User;
 use App\Models\UserAsignacion;
-use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -22,21 +21,26 @@ class AsignacionController extends Controller
 {
     // ── Helpers ───────────────────────────────────────────────────────────────
 
+    private ?bool $esAdminCache = null;
+    private ?int  $nivelMaxCache = null;
+
     private function esAdmin(): bool
     {
-        return auth()->user()->hasRole('Administrador');
+        return $this->esAdminCache ??= auth()->user()->hasRole('Administrador');
     }
 
     private function miNivelMax(): int
     {
-        if ($this->esAdmin()) return 99;
+        if ($this->nivelMaxCache !== null) return $this->nivelMaxCache;
+
+        if ($this->esAdmin()) return $this->nivelMaxCache = 99;
 
         $max = UserAsignacion::where('user_id', (int) auth()->id())
             ->vigentes()
             ->get()
             ->max(fn($a) => UserAsignacion::NIVEL_ROL[$a->rol] ?? 0);
 
-        return (int) $max;
+        return $this->nivelMaxCache = (int) $max;
     }
 
     private function campanaIdsPermitidos(): ?array
@@ -66,168 +70,71 @@ class AsignacionController extends Controller
         return $this->miNivelMax() > (UserAsignacion::NIVEL_ROL[$rol] ?? 99);
     }
 
+    private function puedeVerSinAsignacion(): bool
+    {
+        return $this->esAdmin() || auth()->user()->hasRole('Recursos Humanos');
+    }
+
+    private function countSinAsignacion(): int
+    {
+        if (!$this->puedeVerSinAsignacion()) return 0;
+
+        $userIdsAsignados = UserAsignacion::vigentes()->pluck('user_id')->toArray();
+
+        $docsActivos = Persona::withoutGlobalScope(AlcanceUsuarioScope::class)
+            ->whereHas('contratos', fn($q) => $q
+                ->withoutGlobalScope(AlcanceUsuarioScope::class)
+                ->whereRaw('inicio_contrato <= CAST(GETDATE() AS DATE)')
+                ->whereRaw('(' . Contrato::FIN_EFECTIVO . ' IS NULL OR ' . Contrato::FIN_EFECTIVO . ' >= DATEADD(day, -10, CAST(GETDATE() AS DATE)))')
+            )
+            ->pluck('numero_documento')
+            ->filter();
+
+        return User::whereIn('numero_documento', $docsActivos)
+            ->whereNotIn('id', $userIdsAsignados)
+            ->count();
+    }
+
+    private function obtenerCampanas(?array $permitidos)
+    {
+        $query = Campana::withCount('subcampanas')->orderBy('nombre');
+        if ($permitidos !== null) {
+            $query->whereIn('id', $permitidos);
+        }
+        return $query->get(['id', 'nombre']);
+    }
+
+    private function obtenerPersonasPorDoc($asignaciones)
+    {
+        $docs = $asignaciones->map(fn($a) => $a->usuario?->numero_documento)->filter()->unique()->values();
+        return Persona::withoutGlobalScope(AlcanceUsuarioScope::class)
+            ->with(['contratos' => fn($q) => $q->orderByDesc('inicio_contrato')])
+            ->whereIn('numero_documento', $docs)
+            ->get()
+            ->keyBy('numero_documento');
+    }
+
     // ── Actions ───────────────────────────────────────────────────────────────
 
     public function index()
     {
-        $permitidos            = $this->campanaIdsPermitidos();
-        $mostrarCerradas       = request()->boolean('cerradas');
-        $mostrarSinAsignacion  = request()->boolean('sin_asignacion');
-        $puedeVerSinAsignacion = $this->esAdmin() || auth()->user()->hasRole('Recursos Humanos');
-
+        $permitidos = $this->campanaIdsPermitidos();
         if ($permitidos !== null && empty($permitidos)) {
             abort(403, 'No tienes campañas asignadas para gestionar asignaciones.');
         }
 
-        // Solo Admin/RRHH pueden ver la vista "sin asignación"
-        if ($mostrarSinAsignacion && !$puedeVerSinAsignacion) {
-            abort(403);
-        }
+        $esAdmin    = $this->esAdmin();
+        $nivelMax   = $this->miNivelMax();
+        $userId     = (int) auth()->id();
 
-        $campanasQuery = Campana::withCount('subcampanas')->orderBy('nombre');
-        if ($permitidos !== null) {
-            $campanasQuery->whereIn('id', $permitidos);
-        }
-        $campanas = $campanasQuery->get(['id', 'nombre']);
-
-        $userId = (int) auth()->id();
-
-        // ── Sin Asignación ────────────────────────────────────────────────────
-        $sinAsignacion      = collect();
-        $countSinAsignacion = 0;
-        $planillas          = collect();
-        $centrosCosto       = collect();
-        $familias           = collect();
-        $filtroPlanilla     = array_filter((array) request()->input('planilla_id', []));
-        $filtroCentro       = array_filter((array) request()->input('centro_costo_id', []));
-        $filtroFamilia      = array_filter((array) request()->input('familia_id', []));
-
-        if ($puedeVerSinAsignacion) {
-            $userIdsAsignados = UserAsignacion::vigentes()->pluck('user_id')->toArray();
-
-            // Personas con contrato activo hoy (sin baja), respetando filtros
-            $docsActivos = Persona::withoutGlobalScope(AlcanceUsuarioScope::class)
-    
-                ->whereHas('contratos', fn($q) => $q
-                    ->withoutGlobalScope(AlcanceUsuarioScope::class)
-                    ->whereRaw('inicio_contrato <= CAST(GETDATE() AS DATE)')
-                    ->whereRaw('(' . Contrato::FIN_EFECTIVO . ' IS NULL OR ' . Contrato::FIN_EFECTIVO . ' >= DATEADD(day, -10, CAST(GETDATE() AS DATE)))')
-                    ->when($filtroPlanilla, fn($q) => $q->whereHas('movimientos', fn($m) => $m->whereIn('planilla_id',     $filtroPlanilla)))
-                    ->when($filtroCentro,  fn($q) => $q->whereHas('movimientos', fn($m) => $m->whereIn('centro_costo_id', $filtroCentro)))
-                    ->when($filtroFamilia, fn($q) => $q->whereHas('movimientos', fn($m) => $m->whereIn('familia_id',      $filtroFamilia)))
-                )
-                ->pluck('numero_documento')
-                ->filter();
-
-            // Usuarios de esas personas sin asignación vigente
-            $usersSinAsignacion = User::whereIn('numero_documento', $docsActivos)
-                ->whereNotIn('id', $userIdsAsignados)
-                ->orderBy('name')
-                ->get();
-
-            $countSinAsignacion = $usersSinAsignacion->count();
-
-            if ($mostrarSinAsignacion) {
-                $docsBase = Persona::withoutGlobalScope(AlcanceUsuarioScope::class)
-        
-                    ->whereHas('contratos', fn($q) => $q
-                        ->withoutGlobalScope(AlcanceUsuarioScope::class)
-                        ->whereRaw('inicio_contrato <= CAST(GETDATE() AS DATE)')
-                        ->whereRaw('(' . Contrato::FIN_EFECTIVO . ' IS NULL OR ' . Contrato::FIN_EFECTIVO . ' >= DATEADD(day, -10, CAST(GETDATE() AS DATE)))')
-                    )
-                    ->pluck('numero_documento')->filter();
-
-                $docsBaseElegibles = User::whereIn('numero_documento', $docsBase)
-                    ->whereNotIn('id', $userIdsAsignados)
-                    ->pluck('numero_documento');
-
-                // Closure base para dropdowns (evita repetición)
-                $baseDropdown = fn() => Contrato::withoutGlobalScope(AlcanceUsuarioScope::class)
-                    ->whereRaw('inicio_contrato <= CAST(GETDATE() AS DATE)')
-                    ->whereRaw('(' . Contrato::FIN_EFECTIVO . ' IS NULL OR ' . Contrato::FIN_EFECTIVO . ' >= CAST(GETDATE() AS DATE))')
-                    ->whereHas('persona', fn($q) => $q
-                        ->withoutGlobalScope(AlcanceUsuarioScope::class)
-                        ->whereIn('numero_documento', $docsBaseElegibles)
-                    );
-
-                $contratoIds = $baseDropdown()->pluck('id');
-
-                // Dropdown planillas: aplica centro + familia (no planilla)
-                $planillaIds = ContratoMovimiento::whereIn('contrato_id', $contratoIds)
-                    ->when($filtroCentro,  fn($q) => $q->whereIn('centro_costo_id', $filtroCentro))
-                    ->when($filtroFamilia, fn($q) => $q->whereIn('familia_id',      $filtroFamilia))
-                    ->pluck('planilla_id')->filter()->unique();
-
-                // Dropdown centros: aplica planilla + familia (no centro)
-                $centroIds = ContratoMovimiento::whereIn('contrato_id', $contratoIds)
-                    ->when($filtroPlanilla, fn($q) => $q->whereIn('planilla_id', $filtroPlanilla))
-                    ->when($filtroFamilia,  fn($q) => $q->whereIn('familia_id',  $filtroFamilia))
-                    ->pluck('centro_costo_id')->filter()->unique();
-
-                // Dropdown familias: aplica planilla + centro (no familia)
-                $familiaIds = ContratoMovimiento::whereIn('contrato_id', $contratoIds)
-                    ->when($filtroPlanilla, fn($q) => $q->whereIn('planilla_id',     $filtroPlanilla))
-                    ->when($filtroCentro,   fn($q) => $q->whereIn('centro_costo_id', $filtroCentro))
-                    ->pluck('familia_id')->filter()->unique();
-
-                $planillas    = Planilla::whereIn('id', $planillaIds)
-                    ->orderBy('nombre_planilla')->get(['id', 'nombre_planilla']);
-
-                $centrosCosto = CentroCosto::whereIn('id', $centroIds)
-                    ->orderBy('nombre_centro_costo')->get(['id', 'nombre_centro_costo']);
-
-                $familias = Familia::whereIn('id', $familiaIds)
-                    ->orderBy('nombre_familia')->get(['id', 'nombre_familia']);
-
-                // Datos completos para la tabla
-                $docsNecesarios = $usersSinAsignacion->pluck('numero_documento');
-
-                $personasSinAsig = Persona::withoutGlobalScope(AlcanceUsuarioScope::class)
-        
-                    ->whereIn('numero_documento', $docsNecesarios)
-                    ->with(['contratos' => fn($q) => $q
-                        ->withoutGlobalScope(AlcanceUsuarioScope::class)
-                        ->activos()
-                        ->whereNull('fecha_renuncia')
-                        ->when($filtroPlanilla, fn($q) => $q->whereHas('movimientos', fn($m) => $m->whereIn('planilla_id',     $filtroPlanilla)))
-                        ->when($filtroCentro,   fn($q) => $q->whereHas('movimientos', fn($m) => $m->whereIn('centro_costo_id', $filtroCentro)))
-                        ->when($filtroFamilia,  fn($q) => $q->whereHas('movimientos', fn($m) => $m->whereIn('familia_id',      $filtroFamilia)))
-                        ->with([
-                            'movimientoActual.planilla', 'movimientoActual.centroCosto', 'movimientoActual.familia',
-                            'movimientos.planilla', 'movimientos.centroCosto', 'movimientos.familia',
-                        ])
-                        ->orderByDesc('inicio_contrato')
-                    ])
-                    ->get()
-                    ->keyBy('numero_documento');
-
-                $sinAsignacion = $usersSinAsignacion->map(function ($user) use ($personasSinAsig) {
-                    $persona    = $personasSinAsig[$user->numero_documento] ?? null;
-                    $contrato   = $persona?->contratos->first();
-                    $movimiento = $contrato?->movimientoActual
-                        ?? $contrato?->movimientos->sortByDesc('inicio')->first();
-                    return (object)[
-                        'user'       => $user,
-                        'persona'    => $persona,
-                        'contrato'   => $contrato,
-                        'movimiento' => $movimiento,
-                    ];
-                })->filter(fn($row) => $row->persona !== null && $row->contrato !== null)->values();
-            }
-        }
-
-        // ── Asignaciones normales ─────────────────────────────────────────────
         $filtroCampana       = request()->input('campana_id');
-        $filtroEstado        = request()->input('estado');
         $filtroEstadoPersona = request()->input('estado_persona');
         $filtroNombre        = request()->input('search_name');
 
         $query = UserAsignacion::with(['usuario', 'campana', 'superior'])
-            ->when(!$mostrarCerradas, fn ($q) => $q->whereNull('fecha_fin'))
-            ->when($mostrarCerradas,  fn ($q) => $q->whereNotNull('fecha_fin'))
-            ->when($filtroCampana,    fn ($q) => $q->where('campana_id', $filtroCampana))
-            ->when($filtroEstado,     fn ($q) => $q->where('estado', $filtroEstado))
-            ->when($filtroNombre,     fn ($q) => $q->whereHas('usuario', fn ($u) => $u->where('name', 'like', "%{$filtroNombre}%")))
+            ->whereNull('fecha_fin')
+            ->when($filtroCampana,       fn($q) => $q->where('campana_id', $filtroCampana))
+            ->when($filtroNombre,        fn($q) => $q->whereHas('usuario', fn($u) => $u->where('name', 'like', "%{$filtroNombre}%")))
             ->when($filtroEstadoPersona, function ($q) use ($filtroEstadoPersona) {
                 $contratoVigenteScope = fn($q) => $q
                     ->withoutGlobalScope(AlcanceUsuarioScope::class)
@@ -256,55 +163,182 @@ class AsignacionController extends Controller
 
         if ($permitidos !== null) {
             $query->whereIn('campana_id', $permitidos);
-
-            if ($this->miNivelMax() <= UserAsignacion::NIVEL_ROL[UserAsignacion::ROL_SUPERVISOR]) {
-                $query->where(fn ($q) => $q
-                    ->where('user_id', $userId)
-                    ->orWhere('superior_id', $userId)
-                );
+            if ($nivelMax <= UserAsignacion::NIVEL_ROL[UserAsignacion::ROL_SUPERVISOR]) {
+                $query->where(fn($q) => $q->where('user_id', $userId)->orWhere('superior_id', $userId));
             }
         }
 
-        $statsQuery   = clone $query;
+        $statsQuery      = clone $query;
         $statsPendientes = (clone $statsQuery)->where('estado', 'pendiente')->count();
         $statsAprobadas  = (clone $statsQuery)->where('estado', 'aprobado')->count();
         $statsRechazadas = (clone $statsQuery)->where('estado', 'rechazado')->count();
 
         $asignaciones = $query->paginate(15)->appends(request()->except('page'));
 
-        $docs = $asignaciones->map(fn ($a) => $a->usuario?->numero_documento)
-            ->filter()->unique()->values();
+        return view('admin.asignaciones.index', [
+            'asignaciones'          => $asignaciones,
+            'campanas'              => $this->obtenerCampanas($permitidos),
+            'esAdmin'               => $esAdmin,
+            'miNivelMax'            => $nivelMax,
+            'puedeVerSinAsignacion' => $this->puedeVerSinAsignacion(),
+            'countSinAsignacion'    => $this->countSinAsignacion(),
+            'statsPendientes'       => $statsPendientes,
+            'statsAprobadas'        => $statsAprobadas,
+            'statsRechazadas'       => $statsRechazadas,
+            'personasPorDoc'        => $this->obtenerPersonasPorDoc($asignaciones),
+            'filtroCampana'         => $filtroCampana,
+            'filtroEstadoPersona'   => $filtroEstadoPersona,
+            'filtroNombre'          => $filtroNombre,
+        ]);
+    }
 
-        $personasPorDoc = Persona::withoutGlobalScope(AlcanceUsuarioScope::class)
-            ->with(['contratos' => fn($q) => $q->orderByDesc('inicio_contrato')])
-            ->whereIn('numero_documento', $docs)
+    public function cerradas()
+    {
+        $permitidos = $this->campanaIdsPermitidos();
+        if ($permitidos !== null && empty($permitidos)) {
+            abort(403, 'No tienes campañas asignadas para gestionar asignaciones.');
+        }
+
+        $userId = (int) auth()->id();
+
+        $query = UserAsignacion::with(['usuario', 'campana', 'superior'])
+            ->whereNotNull('fecha_fin')
+            ->orderBy('fecha_fin', 'desc');
+
+        if ($permitidos !== null) {
+            $query->whereIn('campana_id', $permitidos);
+            if ($this->miNivelMax() <= UserAsignacion::NIVEL_ROL[UserAsignacion::ROL_SUPERVISOR]) {
+                $query->where(fn($q) => $q->where('user_id', $userId)->orWhere('superior_id', $userId));
+            }
+        }
+
+        $asignaciones = $query->paginate(15)->appends(request()->except('page'));
+
+        return view('admin.asignaciones.cerradas', [
+            'asignaciones'          => $asignaciones,
+            'puedeVerSinAsignacion' => $this->puedeVerSinAsignacion(),
+            'countSinAsignacion'    => $this->countSinAsignacion(),
+            'personasPorDoc'        => $this->obtenerPersonasPorDoc($asignaciones),
+        ]);
+    }
+
+    public function sinAsignacion()
+    {
+        abort_unless($this->puedeVerSinAsignacion(), 403);
+
+        $permitidos = $this->campanaIdsPermitidos();
+        if ($permitidos !== null && empty($permitidos)) {
+            abort(403, 'No tienes campañas asignadas para gestionar asignaciones.');
+        }
+
+        $filtroPlanilla = array_filter((array) request()->input('planilla_id', []));
+        $filtroCentro   = array_filter((array) request()->input('centro_costo_id', []));
+        $filtroFamilia  = array_filter((array) request()->input('familia_id', []));
+
+        $userIdsAsignados = UserAsignacion::vigentes()->pluck('user_id')->toArray();
+
+        $docsActivos = Persona::withoutGlobalScope(AlcanceUsuarioScope::class)
+            ->whereHas('contratos', fn($q) => $q
+                ->withoutGlobalScope(AlcanceUsuarioScope::class)
+                ->whereRaw('inicio_contrato <= CAST(GETDATE() AS DATE)')
+                ->whereRaw('(' . Contrato::FIN_EFECTIVO . ' IS NULL OR ' . Contrato::FIN_EFECTIVO . ' >= DATEADD(day, -10, CAST(GETDATE() AS DATE)))')
+                ->when($filtroPlanilla, fn($q) => $q->whereHas('movimientos', fn($m) => $m->whereIn('planilla_id',     $filtroPlanilla)))
+                ->when($filtroCentro,  fn($q) => $q->whereHas('movimientos', fn($m) => $m->whereIn('centro_costo_id', $filtroCentro)))
+                ->when($filtroFamilia, fn($q) => $q->whereHas('movimientos', fn($m) => $m->whereIn('familia_id',      $filtroFamilia)))
+            )
+            ->pluck('numero_documento')
+            ->filter();
+
+        $usersSinAsignacion = User::whereIn('numero_documento', $docsActivos)
+            ->whereNotIn('id', $userIdsAsignados)
+            ->orderBy('name')
+            ->get();
+
+        // Base elegible sin filtros (para los dropdowns)
+        $docsBase = Persona::withoutGlobalScope(AlcanceUsuarioScope::class)
+            ->whereHas('contratos', fn($q) => $q
+                ->withoutGlobalScope(AlcanceUsuarioScope::class)
+                ->whereRaw('inicio_contrato <= CAST(GETDATE() AS DATE)')
+                ->whereRaw('(' . Contrato::FIN_EFECTIVO . ' IS NULL OR ' . Contrato::FIN_EFECTIVO . ' >= DATEADD(day, -10, CAST(GETDATE() AS DATE)))')
+            )
+            ->pluck('numero_documento')->filter();
+
+        $docsBaseElegibles = User::whereIn('numero_documento', $docsBase)
+            ->whereNotIn('id', $userIdsAsignados)
+            ->pluck('numero_documento');
+
+        $baseDropdown = fn() => Contrato::withoutGlobalScope(AlcanceUsuarioScope::class)
+            ->whereRaw('inicio_contrato <= CAST(GETDATE() AS DATE)')
+            ->whereRaw('(' . Contrato::FIN_EFECTIVO . ' IS NULL OR ' . Contrato::FIN_EFECTIVO . ' >= CAST(GETDATE() AS DATE))')
+            ->whereHas('persona', fn($q) => $q
+                ->withoutGlobalScope(AlcanceUsuarioScope::class)
+                ->whereIn('numero_documento', $docsBaseElegibles)
+            );
+
+        $contratoIds = $baseDropdown()->pluck('id');
+
+        $planillaIds = ContratoMovimiento::whereIn('contrato_id', $contratoIds)
+            ->when($filtroCentro,  fn($q) => $q->whereIn('centro_costo_id', $filtroCentro))
+            ->when($filtroFamilia, fn($q) => $q->whereIn('familia_id',      $filtroFamilia))
+            ->pluck('planilla_id')->filter()->unique();
+
+        $centroIds = ContratoMovimiento::whereIn('contrato_id', $contratoIds)
+            ->when($filtroPlanilla, fn($q) => $q->whereIn('planilla_id', $filtroPlanilla))
+            ->when($filtroFamilia,  fn($q) => $q->whereIn('familia_id',  $filtroFamilia))
+            ->pluck('centro_costo_id')->filter()->unique();
+
+        $familiaIds = ContratoMovimiento::whereIn('contrato_id', $contratoIds)
+            ->when($filtroPlanilla, fn($q) => $q->whereIn('planilla_id',     $filtroPlanilla))
+            ->when($filtroCentro,   fn($q) => $q->whereIn('centro_costo_id', $filtroCentro))
+            ->pluck('familia_id')->filter()->unique();
+
+        $planillas    = Planilla::whereIn('id', $planillaIds)->orderBy('nombre_planilla')->get(['id', 'nombre_planilla']);
+        $centrosCosto = CentroCosto::whereIn('id', $centroIds)->orderBy('nombre_centro_costo')->get(['id', 'nombre_centro_costo']);
+        $familias     = Familia::whereIn('id', $familiaIds)->orderBy('nombre_familia')->get(['id', 'nombre_familia']);
+
+        $personasSinAsig = Persona::withoutGlobalScope(AlcanceUsuarioScope::class)
+            ->whereIn('numero_documento', $usersSinAsignacion->pluck('numero_documento'))
+            ->with(['contratos' => fn($q) => $q
+                ->withoutGlobalScope(AlcanceUsuarioScope::class)
+                ->whereRaw('inicio_contrato <= CAST(GETDATE() AS DATE)')
+                ->whereRaw('(' . Contrato::FIN_EFECTIVO . ' IS NULL OR ' . Contrato::FIN_EFECTIVO . ' >= DATEADD(day, -10, CAST(GETDATE() AS DATE)))')
+                ->when($filtroPlanilla, fn($q) => $q->whereHas('movimientos', fn($m) => $m->whereIn('planilla_id',     $filtroPlanilla)))
+                ->when($filtroCentro,   fn($q) => $q->whereHas('movimientos', fn($m) => $m->whereIn('centro_costo_id', $filtroCentro)))
+                ->when($filtroFamilia,  fn($q) => $q->whereHas('movimientos', fn($m) => $m->whereIn('familia_id',      $filtroFamilia)))
+                ->with([
+                    'movimientoActual.planilla', 'movimientoActual.centroCosto', 'movimientoActual.familia',
+                    'movimientos.planilla', 'movimientos.centroCosto', 'movimientos.familia',
+                ])
+                ->orderByDesc('inicio_contrato')
+            ])
             ->get()
             ->keyBy('numero_documento');
 
-        return view('admin.asignaciones.index', [
-            'asignaciones'         => $asignaciones,
-            'campanas'             => $campanas,
-            'esAdmin'              => $this->esAdmin(),
-            'miNivelMax'           => $this->miNivelMax(),
-            'mostrarCerradas'      => $mostrarCerradas,
-            'mostrarSinAsignacion' => $mostrarSinAsignacion,
-            'puedeVerSinAsignacion'=> $puedeVerSinAsignacion,
-            'sinAsignacion'        => $sinAsignacion,
-            'countSinAsignacion'   => $countSinAsignacion,
-            'planillas'            => $planillas,
-            'centrosCosto'         => $centrosCosto,
-            'familias'             => $familias,
-            'filtroPlanilla'       => $filtroPlanilla,
-            'filtroCentro'         => $filtroCentro,
-            'filtroFamilia'        => $filtroFamilia,
-            'personasPorDoc'       => $personasPorDoc,
-            'statsPendientes'      => $statsPendientes,
-            'statsAprobadas'       => $statsAprobadas,
-            'statsRechazadas'      => $statsRechazadas,
-            'filtroCampana'         => $filtroCampana,
-            'filtroEstado'          => $filtroEstado,
-            'filtroEstadoPersona'   => $filtroEstadoPersona,
-            'filtroNombre'          => $filtroNombre,
+        $sinAsignacion = $usersSinAsignacion->map(function ($user) use ($personasSinAsig) {
+            $persona    = $personasSinAsig[$user->numero_documento] ?? null;
+            $contrato   = $persona?->contratos->first();
+            $movimiento = $contrato?->movimientoActual ?? $contrato?->movimientos->sortByDesc('inicio')->first();
+            return (object)[
+                'user'       => $user,
+                'persona'    => $persona,
+                'contrato'   => $contrato,
+                'movimiento' => $movimiento,
+            ];
+        })->filter(fn($row) => $row->persona !== null && $row->contrato !== null)->values();
+
+        return view('admin.asignaciones.sin-asignacion', [
+            'sinAsignacion'         => $sinAsignacion,
+            'countSinAsignacion'    => $this->countSinAsignacion(),
+            'puedeVerSinAsignacion' => true,
+            'campanas'              => $this->obtenerCampanas($permitidos),
+            'esAdmin'               => $this->esAdmin(),
+            'miNivelMax'            => $this->miNivelMax(),
+            'planillas'             => $planillas,
+            'centrosCosto'          => $centrosCosto,
+            'familias'              => $familias,
+            'filtroPlanilla'        => $filtroPlanilla,
+            'filtroCentro'          => $filtroCentro,
+            'filtroFamilia'         => $filtroFamilia,
         ]);
     }
 
@@ -459,7 +493,7 @@ class AsignacionController extends Controller
         return response()->json(['success' => true, 'message' => "Asignación {$estado}.", 'activo' => $a->activo]);
     }
 
-    public function cerrar($id)
+    public function cerrar(Request $request, $id)
     {
         $a = UserAsignacion::findOrFail($id);
 
@@ -471,7 +505,13 @@ class AsignacionController extends Controller
             abort_unless(in_array((int) $a->campana_id, $permitidos), 403);
         }
 
-        $a->update(['fecha_fin' => now()->toDateString(), 'activo' => false]);
+        $request->validate([
+            'fecha_fin' => 'required|date|after_or_equal:' . $a->fecha_inicio->toDateString(),
+        ], [
+            'fecha_fin.after_or_equal' => 'La fecha de cierre no puede ser anterior a la fecha de inicio (' . $a->fecha_inicio->format('d/m/Y') . ').',
+        ]);
+
+        $a->update(['fecha_fin' => $request->fecha_fin, 'activo' => false]);
 
         return response()->json(['success' => true, 'message' => 'Asignación cerrada definitivamente.']);
     }
@@ -493,6 +533,8 @@ class AsignacionController extends Controller
             'puede_editar_propia_asistencia' => 'nullable|boolean',
             'fecha_inicio'                   => 'nullable|date',
         ]);
+
+        $asignacionesSuperior = collect();
 
         if ($request->superior_id) {
             $superiorQuery = UserAsignacion::where('user_id', (int) $request->superior_id)->vigentes();
@@ -530,7 +572,6 @@ class AsignacionController extends Controller
                 $user = $a->usuario;
                 if ($user?->numero_documento) {
                     $empleadoId = Persona::withoutGlobalScope(AlcanceUsuarioScope::class)
-            
                         ->where('numero_documento', $user->numero_documento)
                         ->value('id');
 
@@ -552,42 +593,6 @@ class AsignacionController extends Controller
         });
 
         return response()->json(['success' => true, 'message' => 'Asignación actualizada.']);
-    }
-
-    // ── Helpers ───────────────────────────────────────────────────────────────
-
-    /**
-     * Retorna el campana_id dado más todos sus ancestros.
-     * Usado para validar que un superior pertenece a la cadena de la asignación.
-     */
-    private function campanaYAncestros(int $campanaId): array
-    {
-        $ids = [];
-        $id  = $campanaId;
-
-        while ($id) {
-            $ids[] = $id;
-            $id    = Campana::where('id', $id)->value('parent_id');
-        }
-
-        return $ids;
-    }
-
-    /**
-     * Retorna solo los ancestros (padre, abuelo, …) de una campaña, sin incluirla a ella.
-     * Los superiores siempre viven en una campaña de nivel superior, no en la misma.
-     */
-    private function soloAncestros(int $campanaId): array
-    {
-        $ids = [];
-        $id  = Campana::where('id', $campanaId)->value('parent_id');
-
-        while ($id) {
-            $ids[] = $id;
-            $id    = Campana::where('id', $id)->value('parent_id');
-        }
-
-        return $ids;
     }
 
     public function destroy(int $id)
