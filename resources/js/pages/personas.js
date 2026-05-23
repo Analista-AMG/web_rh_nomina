@@ -135,6 +135,7 @@ window.closeModal = function (id) {
             setVal('new-apellido_paterno',  data.apellido_paterno);
             setVal('new-apellido_materno',  data.apellido_materno);
             setVal('new-fecha_nacimiento',  data.fecha_nacimiento);
+            if (data.genero) setVal('new-genero', data.genero);
         } catch (e) { if (e.name !== 'AbortError') console.error(e); }
     }
 
@@ -245,7 +246,7 @@ window.closeModal = function (id) {
             setVal('edit-paterno',     d.paterno);
             setVal('edit-materno',     d.materno);
             setVal('edit-nac',         d.nac);
-            setVal('edit-genero',         d.genero || '1');
+            setVal('edit-genero',         d.genero || '');
             setVal('edit-nacionalidad',   d.nacionalidad);
             setVal('edit-telefono',       normalizeTelefono(d.telefono));
             setVal('edit-correo-pers',    d.correoPers);

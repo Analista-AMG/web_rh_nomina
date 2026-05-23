@@ -30,6 +30,7 @@
 
                     <x-forms.field label="Género" for="new-genero">
                         <x-forms.select id="new-genero" name="genero">
+                            <option value="">Seleccione</option>
                             <option value="1">Masculino</option>
                             <option value="2">Femenino</option>
                         </x-forms.select>

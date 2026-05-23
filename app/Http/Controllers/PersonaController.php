@@ -121,12 +121,14 @@ class PersonaController extends Controller
         }
 
         $row = Reniec::where('nro_documento', $doc)
-            ->select('ap_pat', 'ap_mat', 'nombres', 'fecha_nac')
+            ->select('ap_pat', 'ap_mat', 'nombres', 'fecha_nac', 'sexo')
             ->first();
 
         if (!$row) {
             return response()->json(['found' => false], 404);
         }
+
+        $genero = in_array((string) $row->sexo, ['1', '2']) ? (int) $row->sexo : null;
 
         return response()->json([
             'found' => true,
@@ -135,6 +137,7 @@ class PersonaController extends Controller
                 'apellido_materno' => $row->ap_mat,
                 'nombres'          => $row->nombres,
                 'fecha_nacimiento' => $row->fecha_nac->format('Y-m-d'),
+                'genero'           => $genero,
             ],
         ]);
     }
