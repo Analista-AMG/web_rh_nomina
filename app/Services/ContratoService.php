@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Models\Persona;
 use App\Models\Contrato;
 use App\Models\ContratoMovimiento;
-use App\Models\Planilla;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Str;
@@ -35,7 +34,7 @@ class ContratoService
 
         // 2. Obtener todos los contratos de la persona con su último movimiento
         $contratos = Contrato::where('persona_id', $persona->id)
-            ->with(['movimientos' => fn ($q) => $q->orderBy('inicio', 'desc')->limit(1)])
+            ->with(['movimientos' => fn ($q) => $q->with('planilla')->orderBy('inicio', 'desc')])
             ->orderBy('inicio_contrato', 'desc')
             ->get();
 
@@ -53,8 +52,7 @@ class ContratoService
             // --- Verificación de Solapamiento (solo contra contratos del mismo régimen) ---
             foreach ($contratos as $contrato) {
                 $ultimoMov      = $contrato->movimientos->first();
-                $planillaExist  = $ultimoMov ? Planilla::find($ultimoMov->planilla_id) : null;
-                $esRheExistente = $planillaExist?->tipo_pago === 'RXH';
+                $esRheExistente = $ultimoMov?->planilla?->tipo_pago === 'RXH';
 
                 // Planilla y RHE pueden coexistir — no validar entre tipos distintos
                 if ($esRheExistente !== $esRheNuevo) {
@@ -80,20 +78,18 @@ class ContratoService
 
             // --- Clasificación del tipo de movimiento (si no hay solapamiento) ---
             if ($puedeCrear) {
-                // Buscar el contrato más reciente del mismo régimen para clasificar
-                $ultimoDelMismoTipo = $contratos->first(function ($contrato) use ($esRheNuevo) {
-                    $ultimoMov     = $contrato->movimientos->first();
-                    $planilla      = $ultimoMov ? Planilla::find($ultimoMov->planilla_id) : null;
-                    return ($planilla?->tipo_pago === 'RXH') === $esRheNuevo;
-                });
+                // Para clasificar renovación/baja, usar el contrato más reciente sin importar el régimen.
+                // El filtro de tipo solo aplica al solapamiento (RHE y General pueden coexistir),
+                // pero la continuidad del empleo aplica aunque cambie el régimen.
+                $ultimoParaClasificar = $contratos->first();
 
-                if ($ultimoDelMismoTipo) {
-                    $finContratoOriginal = $ultimoDelMismoTipo->fin_contrato;
-                    $fechaRenuncia       = $ultimoDelMismoTipo->fecha_renuncia;
+                if ($ultimoParaClasificar) {
+                    $finContratoOriginal = $ultimoParaClasificar->fin_contrato;
+                    $fechaRenuncia       = $ultimoParaClasificar->fecha_renuncia;
 
                     if ($fechaRenuncia && $finContratoOriginal && $fechaInicioCarbon->between($fechaRenuncia->copy()->addDay(), $finContratoOriginal)) {
                         $tipoMovimiento = 'Contrato por baja';
-                    } elseif (!$fechaRenuncia && $finContratoOriginal && $fechaInicioCarbon->eq($finContratoOriginal->copy()->addDay())) {
+                    } elseif (!$fechaRenuncia && $finContratoOriginal && $fechaInicioCarbon->isSameDay($finContratoOriginal->copy()->addDay())) {
                         $tipoMovimiento = 'Contrato por renovación';
                     }
                 }
@@ -128,11 +124,9 @@ class ContratoService
         // 4. Pre-cargar datos del último movimiento del mismo régimen para el formulario
         $datosUltimoContrato = null;
         if ($tieneHistorial) {
-            $ultimoDelMismoTipo = $contratos->first(function ($contrato) use ($esRheNuevo) {
-                $ultimoMov = $contrato->movimientos->first();
-                $planilla  = $ultimoMov ? Planilla::find($ultimoMov->planilla_id) : null;
-                return ($planilla?->tipo_pago === 'RXH') === $esRheNuevo;
-            });
+            $ultimoDelMismoTipo = $contratos->first(
+                fn ($contrato) => ($contrato->movimientos->first()?->planilla?->tipo_pago === 'RXH') === $esRheNuevo
+            );
 
             if ($ultimoDelMismoTipo) {
                 $ultimoMovimiento = $ultimoDelMismoTipo->movimientos->first();

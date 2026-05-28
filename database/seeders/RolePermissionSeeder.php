@@ -33,6 +33,7 @@ class RolePermissionSeeder extends Seeder
             'contratos.edit',
             'contratos.delete',
             'contratos.baja',
+            'contratos.confirmar.tablero',
 
             // Módulo Asistencia
             'asistencia.view',
@@ -91,6 +92,13 @@ class RolePermissionSeeder extends Seeder
         if ($firstUser && !$firstUser->hasRole('Administrador')) {
             $firstUser->assignRole('Administrador');
             $this->command->info("✓ Usuario '{$firstUser->email}' asignado como Administrador");
+        }
+
+        // Recursos Humanos recibe acceso al tablero de confirmaciones por defecto
+        $rrhh = Role::where('name', 'Recursos Humanos')->first();
+        if ($rrhh) {
+            $rrhh->givePermissionTo('contratos.confirmar.tablero');
+            $this->command->info('✓ Permiso contratos.confirmar.tablero asignado a Recursos Humanos');
         }
 
         $this->command->info('✓ Permisos creados/actualizados exitosamente');

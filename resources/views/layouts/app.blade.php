@@ -96,6 +96,9 @@
 
         <!-- Main Content (Ocupa el resto) -->
         <main class="flex-1 overflow-y-auto bg-light-bg dark:bg-dark-bg p-4 sm:p-8 relative z-10 {{ request()->routeIs('home') ? 'flex flex-col justify-center' : '' }}">
+            @auth
+                <x-ui.banner-confirmaciones :data="$bannerConfirmaciones ?? null" />
+            @endauth
             {{ $slot }}
         </main>
     </div>

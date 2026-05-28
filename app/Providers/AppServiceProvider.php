@@ -2,7 +2,9 @@
 
 namespace App\Providers;
 
+use App\Services\BannerConfirmacionesService;
 use App\Services\JerarquiaService;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Pagination\Paginator;
 
@@ -23,5 +25,10 @@ class AppServiceProvider extends ServiceProvider
     {
         ini_set('memory_limit', '512M');
         Paginator::useTailwind();
+
+        View::composer('layouts.app', function ($view) {
+            if (!auth()->check()) return;
+            $view->with('bannerConfirmaciones', app(BannerConfirmacionesService::class)->calcular());
+        });
     }
 }

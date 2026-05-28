@@ -105,6 +105,15 @@
                                 <button onclick="resetPassword({{ $user->id }}, '{{ addslashes($user->name) }}')" class="px-3 py-1 bg-amber-500 text-white rounded text-sm hover:bg-amber-600 transition ml-2" title="Resetear contraseña a password123">
                                     <i class="fa-solid fa-rotate-left mr-1"></i> Reset Pass
                                 </button>
+                                @php $tieneTablero = $user->can('contratos.confirmar.tablero'); @endphp
+                                <button
+                                    onclick="toggleTablero({{ $user->id }}, {{ $tieneTablero ? 'true' : 'false' }})"
+                                    data-tablero-btn="{{ $user->id }}"
+                                    class="px-3 py-1 rounded text-sm transition ml-2 {{ $tieneTablero ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700 dark:bg-gray-600 dark:hover:bg-gray-500 dark:text-gray-200' }}"
+                                    title="Acceso al tablero de confirmaciones">
+                                    <i class="fa-solid fa-table-columns mr-1"></i>
+                                    {{ $tieneTablero ? 'Tablero ✓' : 'Tablero' }}
+                                </button>
                                 @endrole
                                 @endif
                             </td>
@@ -272,6 +281,34 @@
 
         function closePermissionsModal() {
             document.getElementById('permissions-modal').classList.add('hidden');
+        }
+
+        async function toggleTablero(userId, tieneAcceso) {
+            const accion = tieneAcceso ? 'revocar' : 'habilitar';
+            if (!confirm(`¿${accion.charAt(0).toUpperCase() + accion.slice(1)} el acceso al tablero de confirmaciones?`)) return;
+
+            try {
+                const response = await fetch(`/admin/users/${userId}/toggle-permission`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                        'Accept': 'application/json'
+                    }
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    alert(result.message);
+                    location.reload();
+                } else {
+                    alert(result.error || 'Error al modificar permiso');
+                }
+            } catch (error) {
+                console.error(error);
+                alert('Error de conexión');
+            }
         }
 
         async function resetPassword(userId, userName) {

@@ -29,8 +29,10 @@ class ContratoMovimientoController extends Controller
             'centro_costo_id'      => "nullable|exists:{$conn}.nomina.dim_centro_costos,id",
             'familia_id'           => "nullable|exists:{$conn}.nomina.dim_familias,id",
             'moneda_id'            => "nullable|exists:{$conn}.nomina.dim_monedas,id",
-            'numero_cuenta'        => 'nullable|string|max:100',
-            'codigo_interbancario' => 'nullable|string|max:20',
+            'numero_cuenta'            => 'nullable|string|max:100',
+            'codigo_interbancario'     => 'nullable|string|max:20',
+            'numero_cuenta_cts'        => 'nullable|string|max:50',
+            'codigo_interbancario_cts' => 'nullable|string|max:30',
         ]);
 
         $contrato     = \App\Models\Contrato::findOrFail($validated['contrato_id']);

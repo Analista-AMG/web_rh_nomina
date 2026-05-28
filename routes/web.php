@@ -58,6 +58,22 @@ Route::middleware(['auth', 'asignacion'])->group(function () {
         ->get('/contratos/alertas/exportar', [App\Http\Controllers\ContratoAlertasController::class, 'exportar'])
         ->name('contratos.alertas.exportar');
 
+    // Confirmaciones de contratos por supervisor
+    Route::middleware(['permission:contratos.view'])->group(function () {
+        Route::get('/contratos/confirmaciones',         [App\Http\Controllers\ControlConfirmacionController::class, 'index'])
+            ->name('contratos.confirmaciones');
+        Route::post('/contratos/confirmaciones',        [App\Http\Controllers\ControlConfirmacionController::class, 'confirmar'])
+            ->name('contratos.confirmaciones.confirmar');
+    });
+
+    // Tablero RRHH — requiere permiso dedicado (asignable por usuario desde admin/usuarios)
+    Route::middleware(['permission:contratos.confirmar.tablero'])->group(function () {
+        Route::get('/contratos/confirmaciones/tablero', [App\Http\Controllers\ControlConfirmacionController::class, 'tablero'])
+            ->name('contratos.confirmaciones.tablero');
+        Route::post('/contratos/confirmaciones/tablero',[App\Http\Controllers\ControlConfirmacionController::class, 'intervenirRrhh'])
+            ->name('contratos.confirmaciones.intervenir');
+    });
+
     Route::middleware(['permission:contratos.create'])
         ->post('/contratos', [App\Http\Controllers\ContratoController::class, 'store'])
         ->name('contratos.store');
@@ -157,6 +173,7 @@ Route::middleware(['auth', 'asignacion'])->group(function () {
             Route::post('/users/{user}/assign-role', [App\Http\Controllers\Admin\UserManagementController::class, 'assignRole'])->name('users.assign-role');
             Route::post('/users/{user}/remove-role', [App\Http\Controllers\Admin\UserManagementController::class, 'removeRole'])->name('users.remove-role');
             Route::post('/users/{user}/sync-roles', [App\Http\Controllers\Admin\UserManagementController::class, 'syncRoles'])->name('users.sync-roles');
+            Route::post('/users/{user}/toggle-permission', [App\Http\Controllers\Admin\UserManagementController::class, 'togglePermission'])->name('users.toggle-permission');
         });
         Route::middleware(['role:Administrador'])
             ->post('/users/{user}/reset-password', [App\Http\Controllers\Admin\UserManagementController::class, 'resetPassword'])

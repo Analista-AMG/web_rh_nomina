@@ -230,6 +230,39 @@ class UserManagementController extends Controller
     }
 
     /**
+     * Toggle permiso contratos.confirmar.tablero para un usuario individual (AJAX)
+     */
+    public function togglePermission(Request $request, User $user)
+    {
+        abort_unless(auth()->user()->hasRole('Administrador'), 403);
+
+        if ($user->id === auth()->id()) {
+            return response()->json(['error' => 'No puedes modificar tus propios permisos'], 403);
+        }
+
+        $permission = 'contratos.confirmar.tablero';
+
+        if ($user->hasDirectPermission($permission)) {
+            $user->revokePermissionTo($permission);
+            $active  = false;
+            $message = 'Acceso al tablero de confirmaciones revocado';
+        } else {
+            $user->givePermissionTo($permission);
+            $active  = true;
+            $message = 'Acceso al tablero de confirmaciones habilitado';
+        }
+
+        activity('usuarios')
+            ->performedOn($user)
+            ->causedBy(auth()->user())
+            ->withProperties(['permission' => $permission, 'active' => $active])
+            ->event('updated')
+            ->log($message);
+
+        return response()->json(['success' => true, 'message' => $message, 'active' => $active]);
+    }
+
+    /**
      * Get user permissions (AJAX)
      */
     public function permissions($userId)

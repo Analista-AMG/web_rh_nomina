@@ -1,0 +1,151 @@
+<x-app-layout>
+    @section('title', 'Tablero de Confirmaciones - AMG')
+
+    <header class="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800 dark:text-white">Tablero de Confirmaciones</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Estado de confirmación por supervisor</p>
+        </div>
+        <div class="flex items-center gap-2">
+            <a href="{{ route('contratos.confirmaciones', ['periodo' => $periodo]) }}"
+               class="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium border border-light-border dark:border-dark-border text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1b2431] transition-colors">
+                <i class="fa-solid fa-arrow-left text-xs"></i>
+                <span>Mi equipo</span>
+            </a>
+            <form method="GET" action="{{ route('contratos.confirmaciones.tablero') }}" id="form-periodo">
+                <div class="relative">
+                    <i class="fa-solid fa-calendar-alt absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+                    <select name="periodo" onchange="document.getElementById('form-periodo').submit()"
+                            class="pl-8 pr-8 py-2 text-sm rounded-lg border border-light-border dark:border-dark-border bg-white dark:bg-[#273142] text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all appearance-none cursor-pointer">
+                        @foreach($periodos as $p)
+                            <option value="{{ $p['value'] }}" @selected($p['value'] === $periodo)>{{ $p['label'] }}</option>
+                        @endforeach
+                    </select>
+                </div>
+            </form>
+        </div>
+    </header>
+
+    {{-- Flash --}}
+    @if(session('success'))
+    <div class="mb-4 px-4 py-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 text-sm flex items-center gap-2">
+        <i class="fa-solid fa-circle-check"></i> {{ session('success') }}
+    </div>
+    @endif
+
+    @if($errors->any())
+    <div class="mb-4 px-4 py-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-sm">
+        <i class="fa-solid fa-circle-xmark"></i> {{ $errors->first() }}
+    </div>
+    @endif
+
+    @if($tablero->isEmpty())
+        <div class="bg-white dark:bg-[#273142] rounded-xl border border-light-border dark:border-dark-border shadow-sm p-12 text-center text-gray-400 dark:text-gray-500">
+            <i class="fa-solid fa-users text-3xl mb-3 block"></i>
+            <p class="text-sm">No hay supervisores con colaboradores asignados.</p>
+        </div>
+    @else
+
+    {{-- KPI resumen global --}}
+    @php
+        $totalGlobal      = $tablero->sum('total');
+        $confirmGlobal    = $tablero->sum('confirmados');
+        $requierenGlobal  = $tablero->sum('requieren');
+        $pendientesGlobal = $tablero->sum('pendientes');
+        $pctGlobal        = $totalGlobal > 0 ? round(($confirmGlobal / $totalGlobal) * 100) : 0;
+    @endphp
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+        <div class="bg-white dark:bg-[#273142] rounded-xl border border-light-border dark:border-dark-border p-4 shadow-sm text-center">
+            <p class="text-xs text-gray-500 uppercase tracking-wide font-semibold mb-1">Total contratos</p>
+            <p class="text-2xl font-bold text-gray-700 dark:text-gray-200">{{ $totalGlobal }}</p>
+        </div>
+        <div class="bg-white dark:bg-[#273142] rounded-xl border border-light-border dark:border-dark-border p-4 shadow-sm text-center">
+            <p class="text-xs text-gray-500 uppercase tracking-wide font-semibold mb-1">Confirmados</p>
+            <p class="text-2xl font-bold text-green-600 dark:text-green-400">{{ $confirmGlobal }}</p>
+        </div>
+        <div class="bg-white dark:bg-[#273142] rounded-xl border border-light-border dark:border-dark-border p-4 shadow-sm text-center">
+            <p class="text-xs text-gray-500 uppercase tracking-wide font-semibold mb-1">Requieren actualiz.</p>
+            <p class="text-2xl font-bold text-amber-600 dark:text-amber-400">{{ $requierenGlobal }}</p>
+        </div>
+        <div class="bg-white dark:bg-[#273142] rounded-xl border border-light-border dark:border-dark-border p-4 shadow-sm text-center">
+            <p class="text-xs text-gray-500 uppercase tracking-wide font-semibold mb-1">% completado</p>
+            <p class="text-2xl font-bold {{ $pctGlobal === 100 ? 'text-green-600 dark:text-green-400' : 'text-primary' }}">{{ $pctGlobal }}%</p>
+        </div>
+    </div>
+
+    {{-- Tarjetas por supervisor --}}
+    <div class="space-y-3">
+        @foreach($tablero as $row)
+        <div class="bg-white dark:bg-[#273142] rounded-xl border border-light-border dark:border-dark-border shadow-sm overflow-hidden">
+
+            {{-- Header del supervisor --}}
+            <button type="button"
+                    onclick="toggleDetalle('sup-{{ $loop->index }}')"
+                    class="w-full flex items-center gap-4 px-5 py-4 hover:bg-gray-50 dark:hover:bg-[#1e2a38]/40 transition-colors text-left">
+
+                <div class="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 text-sm font-bold text-primary">
+                    {{ strtoupper(substr($row->supervisor->name, 0, 1)) }}
+                </div>
+
+                <div class="flex-1 min-w-0">
+                    <p class="font-semibold text-gray-800 dark:text-gray-100 text-sm truncate">{{ $row->supervisor->name }}</p>
+                    <p class="text-xs text-gray-400">{{ $row->total }} colaborador{{ $row->total !== 1 ? 'es' : '' }}</p>
+                </div>
+
+                {{-- Barra de progreso --}}
+                <div class="flex-1 max-w-xs hidden sm:block">
+                    <div class="flex items-center gap-2">
+                        <div class="flex-1 h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                            <div class="h-full bg-green-500 rounded-full transition-all duration-500"
+                                 style="width: {{ $row->pct }}%"></div>
+                        </div>
+                        <span class="text-xs font-semibold text-gray-600 dark:text-gray-300 w-10 text-right">{{ $row->pct }}%</span>
+                    </div>
+                </div>
+
+                {{-- Badges --}}
+                <div class="flex items-center gap-2 flex-shrink-0">
+                    @if($row->confirmados > 0)
+                    <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
+                        ✓ {{ $row->confirmados }}
+                    </span>
+                    @endif
+                    @if($row->requieren > 0)
+                    <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">
+                        ⚠ {{ $row->requieren }}
+                    </span>
+                    @endif
+                    @if($row->pendientes > 0)
+                    <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
+                        {{ $row->pendientes }} pend.
+                    </span>
+                    @endif
+                    <i class="fa-solid fa-chevron-down text-xs text-gray-400 transition-transform duration-200" id="chev-sup-{{ $loop->index }}"></i>
+                </div>
+            </button>
+
+            {{-- Detalle expandible --}}
+            <div id="sup-{{ $loop->index }}" class="hidden border-t border-light-border dark:border-dark-border px-5 py-4">
+                @include('contratos.confirmaciones.partials._tabla', [
+                    'filas'       => $row->filas,
+                    'periodo'     => $periodo,
+                    'esRrhh'      => $esRrhh,
+                    'puedeActuar' => $puedeActuar,
+                ])
+            </div>
+        </div>
+        @endforeach
+    </div>
+    @endif
+
+    <script>
+    function toggleDetalle(id) {
+        const el   = document.getElementById(id);
+        const chev = document.getElementById('chev-' + id);
+        if (!el) return;
+        el.classList.toggle('hidden');
+        if (chev) chev.classList.toggle('rotate-180');
+    }
+    </script>
+
+</x-app-layout>
