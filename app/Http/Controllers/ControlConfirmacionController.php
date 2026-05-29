@@ -56,23 +56,28 @@ class ControlConfirmacionController extends Controller
      * Mismo criterio que contratosEnPeriodo — cubre bajas a mitad de mes.
      */
     /**
-     * Devuelve todos los user_id del subárbol jerárquico del usuario dado (recursivo).
-     * Usa solo asignaciones vigentes hoy para determinar la estructura.
+     * Devuelve todos los user_id del subárbol jerárquico del usuario dado.
+     * Una sola query trae todas las asignaciones vigentes; el recorrido BFS es en PHP.
      */
     private function subtreeUserIds(int $userId): \Illuminate\Support\Collection
     {
-        $directos = UserAsignacion::vigentes()
-            ->where('superior_id', $userId)
-            ->pluck('user_id')
-            ->unique();
+        $mapa = UserAsignacion::vigentes()
+            ->whereNotNull('superior_id')
+            ->get(['superior_id', 'user_id'])
+            ->groupBy('superior_id')
+            ->map(fn($g) => $g->pluck('user_id'));
 
-        if ($directos->isEmpty()) return collect();
+        $resultado = collect();
+        $cola      = collect([$userId]);
 
-        $todos = collect($directos);
-        foreach ($directos as $subId) {
-            $todos = $todos->merge($this->subtreeUserIds($subId));
+        while ($cola->isNotEmpty()) {
+            $actual    = $cola->shift();
+            $hijos     = $mapa->get($actual, collect());
+            $resultado = $resultado->merge($hijos);
+            $cola      = $cola->merge($hijos);
         }
-        return $todos->unique();
+
+        return $resultado->unique()->values();
     }
 
     private function subordinadosEnPeriodo(int $superiorId, Carbon $inicio, Carbon $fin)
@@ -735,8 +740,37 @@ class ControlConfirmacionController extends Controller
             ];
         })->sortBy('supervisor.name')->values();
 
+        // Stats globales antes de filtrar — los KPIs siempre muestran el total real
+        $stats = [
+            'total'      => $tablero->sum('total'),
+            'confirmados'=> $tablero->sum('confirmados'),
+            'requieren'  => $tablero->sum('requieren'),
+            'pendientes' => $tablero->sum('pendientes'),
+            'pct'        => $tablero->sum('total') > 0
+                                ? round(($tablero->sum('confirmados') / $tablero->sum('total')) * 100)
+                                : 0,
+        ];
+
+        $filtro = in_array($request->input('filtro'), ['pendiente', 'confirmado', 'requiere_actualizacion'])
+            ? $request->input('filtro')
+            : null;
+
+        if ($filtro) {
+            $tablero = $tablero->map(function ($row) use ($filtro) {
+                $row->filas = match($filtro) {
+                    'pendiente'              => $row->filas->filter(fn($f) => !$f->confirmacion || $f->confirmacion->estado === 'pendiente' || $f->movCambio),
+                    'confirmado'             => $row->filas->filter(fn($f) => $f->confirmacion?->estado === 'confirmado' && !$f->movCambio),
+                    'requiere_actualizacion' => $row->filas->filter(fn($f) => $f->confirmacion?->estado === 'requiere_actualizacion'),
+                };
+                $row->filas = $row->filas->values();
+                return $row;
+            })->filter(fn($row) => $row->filas->isNotEmpty())->values();
+        }
+
         return view('contratos.confirmaciones.tablero', [
             'tablero'     => $tablero,
+            'stats'       => $stats,
+            'filtro'      => $filtro,
             'periodo'     => $periodo,
             'periodos'    => $this->periodosDisponibles(),
             'esRrhh'      => $this->esAdminORrhh(),
