@@ -225,18 +225,23 @@ class ControlConfirmacionController extends Controller
         // Subordinados activos en cualquier punto del periodo (no solo hoy)
         $subordinados = $this->subordinadosEnPeriodo($user->id, $inicio, $fin);
 
-        // Si la persona ya tiene asignación bajo otro supervisor en el periodo, va con el más
-        // reciente. El supervisor anterior solo la ve si no hay sucesor (renunció, contrato fin).
+        // Cada persona va con su supervisor más reciente en el periodo.
+        // Si alguien tuvo dos supervisores en el mes, el anterior no lo ve.
         if ($subordinados->isNotEmpty()) {
-            $conNuevoSup = UserAsignacion::where('estado', UserAsignacion::ESTADO_APROBADO)
+            $todasAsigsPeriodo = UserAsignacion::where('estado', UserAsignacion::ESTADO_APROBADO)
                 ->whereIn('user_id', $subordinados->pluck('user_id')->unique())
-                ->where('superior_id', '!=', $user->id)
                 ->where('fecha_inicio', '<=', $fin->toDateString())
                 ->where(fn($q) => $q->whereNull('fecha_fin')
                                     ->orWhere('fecha_fin', '>=', $inicio->toDateString()))
-                ->pluck('user_id')
-                ->unique();
-            $subordinados = $subordinados->reject(fn($a) => $conNuevoSup->contains($a->user_id));
+                ->get(['user_id', 'superior_id', 'fecha_inicio']);
+
+            $supMasReciente = $todasAsigsPeriodo
+                ->groupBy('user_id')
+                ->map(fn($asigs) => $asigs->sortByDesc('fecha_inicio')->first()->superior_id);
+
+            $subordinados = $subordinados->reject(
+                fn($a) => $supMasReciente->get($a->user_id) != $user->id
+            );
         }
 
         $docs = $subordinados
@@ -251,6 +256,27 @@ class ControlConfirmacionController extends Controller
             ->keyBy('numero_documento');
 
         $contratos = $this->contratosEnPeriodo($personas, $inicio, $fin);
+
+        // Admin/RRHH: reemplazar con contratos huérfanos (sin supervisor asignado en el periodo)
+        if ($this->esAdminORrhh()) {
+            $docsConSup = UserAsignacion::where('estado', UserAsignacion::ESTADO_APROBADO)
+                ->where('fecha_inicio', '<=', $fin->toDateString())
+                ->where(fn($q) => $q->whereNull('fecha_fin')
+                                    ->orWhere('fecha_fin', '>=', $inicio->toDateString()))
+                ->with('usuario')
+                ->get()
+                ->map(fn($a) => $a->usuario?->numero_documento)
+                ->filter()->unique()->values();
+
+            $personasHuerfanas = Persona::withoutGlobalScope(AlcanceUsuarioScope::class)
+                ->whereNotIn('numero_documento', $docsConSup->isEmpty() ? ['__none__'] : $docsConSup)
+                ->get()
+                ->keyBy('numero_documento');
+
+            $contratos  = $this->contratosEnPeriodo($personasHuerfanas, $inicio, $fin);
+            $personas   = $personasHuerfanas;
+            $subordinados = collect();
+        }
 
         // Confirmaciones ya existentes para el periodo
         $confirmaciones = ControlConfirmacion::where('periodo', $periodo)
@@ -420,17 +446,22 @@ class ControlConfirmacionController extends Controller
         // Security: subordinados en cualquier punto del periodo (mismo criterio que index)
         $subordinados = $this->subordinadosEnPeriodo(auth()->id(), $inicio, $fin);
 
-        // Excluir personas que ya pasaron a otro supervisor en el periodo
+        // Cada persona va con su supervisor más reciente — misma lógica que index()
         if ($subordinados->isNotEmpty()) {
-            $conNuevoSup = UserAsignacion::where('estado', UserAsignacion::ESTADO_APROBADO)
+            $todasAsigsPeriodo = UserAsignacion::where('estado', UserAsignacion::ESTADO_APROBADO)
                 ->whereIn('user_id', $subordinados->pluck('user_id')->unique())
-                ->where('superior_id', '!=', auth()->id())
                 ->where('fecha_inicio', '<=', $fin->toDateString())
                 ->where(fn($q) => $q->whereNull('fecha_fin')
                                     ->orWhere('fecha_fin', '>=', $inicio->toDateString()))
-                ->pluck('user_id')
-                ->unique();
-            $subordinados = $subordinados->reject(fn($a) => $conNuevoSup->contains($a->user_id));
+                ->get(['user_id', 'superior_id', 'fecha_inicio']);
+
+            $supMasReciente = $todasAsigsPeriodo
+                ->groupBy('user_id')
+                ->map(fn($asigs) => $asigs->sortByDesc('fecha_inicio')->first()->superior_id);
+
+            $subordinados = $subordinados->reject(
+                fn($a) => $supMasReciente->get($a->user_id) != auth()->id()
+            );
         }
 
         $docs       = $subordinados
@@ -782,7 +813,7 @@ class ControlConfirmacionController extends Controller
 
     public function intervenirRrhh(Request $request)
     {
-        abort_unless(auth()->user()->hasRole('Administrador'), 403);
+        abort_unless($this->esAdminORrhh(), 403);
 
         $data = $request->validate([
             'periodo'       => ['required', 'regex:/^\d{4}-\d{2}$/'],

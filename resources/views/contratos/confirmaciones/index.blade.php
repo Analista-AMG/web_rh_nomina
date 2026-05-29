@@ -4,7 +4,13 @@
     <header class="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
             <h1 class="text-2xl font-bold text-gray-800 dark:text-white">Confirmación de Contratos</h1>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Verifica los datos de tu equipo para el periodo seleccionado</p>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                @if($esAdminORrhh)
+                    Contratos sin supervisor asignado — sin confirmación pendiente
+                @else
+                    Verifica los datos de tu equipo para el periodo seleccionado
+                @endif
+            </p>
         </div>
         <div class="flex items-center gap-2">
             @can('contratos.confirmar.tablero')
