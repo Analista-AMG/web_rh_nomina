@@ -237,9 +237,9 @@ class AsistenciaController extends Controller
             $periodoMesActual = $hoy->format('Y-m');
             $periodoFecha     = PeriodoCalendario::periodoDeF($fechaStr);
 
-            if ($periodoFecha < $periodoMesActual && $hoy->day > 5) {
+            if ($periodoFecha < $periodoMesActual && $hoy->day > 1) {
                 return response()->json([
-                    'error' => 'El período está cerrado. Solo se puede editar el período anterior los primeros 5 días del mes.',
+                    'error' => 'El período está cerrado. Solo se puede editar el período anterior el primer día del mes.',
                 ], 403);
             }
         }
@@ -364,7 +364,7 @@ class AsistenciaController extends Controller
         $periodoActual  = $hoy->format('Y-m');
         $inicioEditable = PeriodoCalendario::inicio($periodoActual, 1)->format('Y-m-d');
 
-        if ($hoy->day > 5) {
+        if ($hoy->day > 1) {
             return $inicioEditable;
         }
 

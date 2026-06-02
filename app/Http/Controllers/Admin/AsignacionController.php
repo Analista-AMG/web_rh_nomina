@@ -79,7 +79,12 @@ class AsignacionController extends Controller
     {
         if (!$this->puedeVerSinAsignacion()) return 0;
 
-        $userIdsAsignados = UserAsignacion::vigentes()->pluck('user_id')->toArray();
+        $userIdsAsignados = UserAsignacion::where('estado', UserAsignacion::ESTADO_APROBADO)
+            ->where(fn($q) => $q
+                ->where(fn($q2) => $q2->where('activo', true)->whereNull('fecha_fin'))
+                ->orWhereRaw('fecha_fin >= DATEADD(day, -15, CAST(GETDATE() AS DATE))')
+            )
+            ->pluck('user_id')->unique()->toArray();
 
         $docsActivos = Persona::withoutGlobalScope(AlcanceUsuarioScope::class)
             ->whereHas('contratos', fn($q) => $q
@@ -235,7 +240,12 @@ class AsignacionController extends Controller
         $filtroCentro   = array_filter((array) request()->input('centro_costo_id', []));
         $filtroFamilia  = array_filter((array) request()->input('familia_id', []));
 
-        $userIdsAsignados = UserAsignacion::vigentes()->pluck('user_id')->toArray();
+        $userIdsAsignados = UserAsignacion::where('estado', UserAsignacion::ESTADO_APROBADO)
+            ->where(fn($q) => $q
+                ->where(fn($q2) => $q2->where('activo', true)->whereNull('fecha_fin'))
+                ->orWhereRaw('fecha_fin >= DATEADD(day, -15, CAST(GETDATE() AS DATE))')
+            )
+            ->pluck('user_id')->unique()->toArray();
 
         $docsActivos = Persona::withoutGlobalScope(AlcanceUsuarioScope::class)
             ->whereHas('contratos', fn($q) => $q

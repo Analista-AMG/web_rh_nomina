@@ -28,7 +28,7 @@ class ControlConfirmacionController extends Controller
      */
     private function periodosDisponibles(): array
     {
-        $limite  = '2026-05';
+        $limite  = '2026-06';
         $periodos = [];
         for ($i = 0; $i < 6; $i++) {
             $fecha = now()->subMonths($i);
@@ -260,6 +260,7 @@ class ControlConfirmacionController extends Controller
         // Admin/RRHH: reemplazar con contratos huérfanos (sin supervisor asignado en el periodo)
         if ($this->esAdminORrhh()) {
             $docsConSup = UserAsignacion::where('estado', UserAsignacion::ESTADO_APROBADO)
+                ->whereNotNull('superior_id')
                 ->where('fecha_inicio', '<=', $fin->toDateString())
                 ->where(fn($q) => $q->whereNull('fecha_fin')
                                     ->orWhere('fecha_fin', '>=', $inicio->toDateString()))
@@ -494,10 +495,21 @@ class ControlConfirmacionController extends Controller
                 $mov = $contrato->movimientos->first();
                 if (!$mov) continue;
 
-                $snapshot = array_merge(
-                    ['periodo' => $data['periodo']],
-                    ControlConfirmacion::buildSnapshot($mov)
-                );
+                // Solo 'confirmado' actualiza el snapshot.
+                // 'requiere_actualizacion' preserva el snapshot existente.
+                if ($data['estado'] === ControlConfirmacion::ESTADO_CONFIRMADO) {
+                    $snapshot = array_merge(
+                        ['periodo' => $data['periodo']],
+                        ControlConfirmacion::buildSnapshot($mov)
+                    );
+                } else {
+                    $existing = ControlConfirmacion::where('periodo', $data['periodo'])
+                        ->where('contrato_id', $contratoId)
+                        ->first();
+                    $snapshot = $existing
+                        ? ['periodo' => $data['periodo']]
+                        : array_merge(['periodo' => $data['periodo']], ControlConfirmacion::buildSnapshot($mov));
+                }
 
                 $this->upsertConfirmacion(
                     $snapshot,
@@ -847,10 +859,19 @@ class ControlConfirmacionController extends Controller
                 $mov = $contrato->movimientos->first();
                 if (!$mov) continue;
 
-                $snapshot = array_merge(
-                    ['periodo' => $data['periodo']],
-                    ControlConfirmacion::buildSnapshot($mov)
-                );
+                if ($data['estado'] === ControlConfirmacion::ESTADO_CONFIRMADO) {
+                    $snapshot = array_merge(
+                        ['periodo' => $data['periodo']],
+                        ControlConfirmacion::buildSnapshot($mov)
+                    );
+                } else {
+                    $existing = ControlConfirmacion::where('periodo', $data['periodo'])
+                        ->where('contrato_id', $contratoId)
+                        ->first();
+                    $snapshot = $existing
+                        ? ['periodo' => $data['periodo']]
+                        : array_merge(['periodo' => $data['periodo']], ControlConfirmacion::buildSnapshot($mov));
+                }
 
                 $this->upsertConfirmacion(
                     $snapshot,

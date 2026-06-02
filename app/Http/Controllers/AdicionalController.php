@@ -155,8 +155,8 @@ class AdicionalController extends Controller
 
         // Bloqueo por período: si el período solicitado no es el mes actual y ya pasaron 3 días
         $hoy = Carbon::today();
-        if ($hoy->day > 3 && $request->periodo !== PeriodoCalendario::periodoActual()) {
-            return response()->json(['error' => 'El período está cerrado. Solo se puede editar el período actual los primeros 3 días del mes.'], 403);
+        if ($hoy->day > 1 && $request->periodo !== PeriodoCalendario::periodoActual()) {
+            return response()->json(['error' => 'El período está cerrado. Solo se puede editar el período actual el primer día del mes.'], 403);
         }
 
         $monto = $request->monto;
