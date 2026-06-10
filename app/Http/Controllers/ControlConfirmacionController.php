@@ -807,12 +807,29 @@ class ControlConfirmacionController extends Controller
             })->filter(fn($row) => $row->filas->isNotEmpty())->values();
         }
 
+        $buscar = trim($request->input('buscar', ''));
+        if ($buscar !== '') {
+            $termino = mb_strtolower($buscar);
+            $tablero = $tablero->map(function ($row) use ($termino) {
+                $row->filas = $row->filas->filter(function ($fila) use ($termino) {
+                    $nombre = mb_strtolower(
+                        ($fila->persona->apellido_paterno ?? '') . ' ' .
+                        ($fila->persona->apellido_materno ?? '') . ' ' .
+                        ($fila->persona->nombres ?? '')
+                    );
+                    return str_contains($nombre, $termino);
+                })->values();
+                return $row;
+            })->filter(fn($row) => $row->filas->isNotEmpty())->values();
+        }
+
         $grupos = GrupoGerencia::orderBy('nombre_grupo_gerencia')->get();
 
         return view('contratos.confirmaciones.tablero', [
             'tablero'     => $tablero,
             'stats'       => $stats,
             'filtro'      => $filtro,
+            'buscar'      => $buscar,
             'periodo'     => $periodo,
             'periodos'    => $this->periodosDisponibles(),
             'esRrhh'      => $this->esAdminORrhh(),
