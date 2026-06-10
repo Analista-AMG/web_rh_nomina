@@ -109,7 +109,9 @@ class BannerConfirmacionesService
                 ->pluck('contrato_id');
 
             if ($confirmadosIds2->isNotEmpty()) {
-                $ids = $confirmadosIds2->map(fn($id) => (int) $id)->implode(',');
+                $idsList    = $confirmadosIds2->map(fn($id) => (int) $id)->values()->all();
+                $placeholders = implode(',', array_fill(0, count($idsList), '?'));
+
                 // Replica exacta de movimientoCambio(): detecta tanto nuevo row SCD2
                 // como edición directa de campos en el mismo movimiento (mismo id).
                 $result = DB::selectOne("
@@ -125,7 +127,7 @@ class BannerConfirmacionesService
                         ORDER BY inicio DESC
                     ) mov_actual
                     WHERE conf.periodo = ?
-                      AND conf.contrato_id IN ({$ids})
+                      AND conf.contrato_id IN ({$placeholders})
                       AND conf.estado = 'confirmado'
                       AND (
                         conf.movimiento_id    != mov_actual.id
@@ -136,7 +138,7 @@ class BannerConfirmacionesService
                         OR conf.condicion_id    != mov_actual.condicion_id
                         OR conf.haber_basico    != mov_actual.haber_basico
                       )
-                ", [$fin->toDateString(), $inicio->toDateString(), $periodo]);
+                ", array_merge([$fin->toDateString(), $inicio->toDateString(), $periodo], $idsList));
 
                 $movCambio = (int) ($result?->cnt ?? 0);
             }

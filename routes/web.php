@@ -72,6 +72,8 @@ Route::middleware(['auth', 'asignacion'])->group(function () {
             ->name('contratos.confirmaciones.tablero');
         Route::post('/contratos/confirmaciones/tablero',[App\Http\Controllers\ControlConfirmacionController::class, 'intervenirRrhh'])
             ->name('contratos.confirmaciones.intervenir');
+        Route::patch('/contratos/confirmaciones/grupo', [App\Http\Controllers\ControlConfirmacionController::class, 'asignarGrupo'])
+            ->name('contratos.confirmaciones.grupo');
     });
 
     Route::middleware(['permission:contratos.create'])

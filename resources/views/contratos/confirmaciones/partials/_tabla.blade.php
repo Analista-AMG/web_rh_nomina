@@ -1,5 +1,5 @@
 {{-- Tabla de colaboradores para confirmación --}}
-{{-- Variables esperadas: $filas, $periodo, $esRrhh (bool) --}}
+{{-- Variables esperadas: $filas, $periodo, $esRrhh (bool), $grupos (Collection, opcional) --}}
 
 @php $tablaUid = 'tabla-'.uniqid(); @endphp
 
@@ -44,6 +44,9 @@
                     <th class="pb-3 pr-4 text-left font-semibold">Familia</th>
                     <th class="pb-3 pr-4 text-left font-semibold">Cargo</th>
                     <th class="pb-3 pr-4 text-left font-semibold">Condición</th>
+                    @if($esRrhh && ($grupos ?? collect())->isNotEmpty())
+                    <th class="pb-3 pr-4 text-left font-semibold">Grupo Gerencia</th>
+                    @endif
                     <th class="pb-3 text-left font-semibold">Estado</th>
                 </tr>
             </thead>
@@ -56,7 +59,6 @@
                     $persona   = $fila->persona;
                     $contrato  = $fila->contrato;
                     $movCambio = $fila->movCambio ?? false;
-                    $pendiente = !$conf || $estado === 'pendiente' || $movCambio;
                 @endphp
                 <tr class="hover:bg-gray-50 dark:hover:bg-[#1e2a38]/40 transition-colors">
                     {{-- Checkbox --}}
@@ -164,6 +166,37 @@
                     <td class="py-3 pr-4 text-gray-700 dark:text-gray-300">
                         {{ $mov?->condicion?->nombre_condicion ?? '—' }}
                     </td>
+
+                    {{-- Grupo Gerencia (solo RRHH/Admin) --}}
+                    @if($esRrhh && ($grupos ?? collect())->isNotEmpty())
+                    <td class="py-3 pr-4">
+                        <div class="relative inline-block w-full
+                                    {{ $estado !== 'confirmado' ? 'cursor-not-allowed' : '' }}"
+                             @if($estado !== 'confirmado') data-tip-wrap data-tip-align="left" data-tip-w="220" @endif>
+                            <select data-grupo-select
+                                    data-contrato="{{ $contrato->id }}"
+                                    data-periodo="{{ $periodo }}"
+                                    @disabled($estado !== 'confirmado')
+                                    class="text-xs rounded-lg border border-light-border dark:border-dark-border bg-white dark:bg-[#273142] text-gray-700 dark:text-gray-300 px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary/40 w-full min-w-[140px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none">
+                                <option value="">— Sin grupo —</option>
+                                @foreach($grupos as $g)
+                                    <option value="{{ $g->id }}" @selected($conf?->grupo_gerencia_id == $g->id)>
+                                        {{ $g->nombre_grupo_gerencia }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @if($estado !== 'confirmado')
+                            <div class="absolute bottom-full left-0 mb-2 w-[220px] rounded-lg bg-gray-900 text-white shadow-xl
+                                        invisible opacity-0 pointer-events-none" data-tip-box>
+                                <div class="p-3">
+                                    <p class="text-[11px] text-gray-300">Solo se puede asignar un grupo cuando el contrato está <span class="text-green-400 font-medium">confirmado</span>.</p>
+                                </div>
+                                <div class="absolute top-full left-3 border-4 border-transparent border-t-gray-900"></div>
+                            </div>
+                            @endif
+                        </div>
+                    </td>
+                    @endif
 
                     {{-- Estado --}}
                     <td class="py-3">
@@ -351,6 +384,47 @@
             }
         });
     }
+})();
+
+(function () {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
+    const url       = @json(route('contratos.confirmaciones.grupo'));
+
+    document.querySelectorAll('[data-grupo-select]').forEach(function (sel) {
+        sel.addEventListener('change', function () {
+            const contratoId = this.dataset.contrato;
+            const periodo    = this.dataset.periodo;
+            const grupoId    = this.value || null;
+
+            this.disabled = true;
+
+            fetch(url, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'Accept': 'application/json',
+                },
+                body: JSON.stringify({
+                    contrato_id:       contratoId,
+                    periodo:           periodo,
+                    grupo_gerencia_id: grupoId,
+                }),
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (!data.ok) throw new Error(data.message ?? 'Error al guardar');
+                this.dataset.original = this.value;
+            })
+            .catch(() => {
+                this.value    = this.dataset.original ?? '';
+                alert('No se pudo guardar el grupo. Intenta nuevamente.');
+            })
+            .finally(() => { this.disabled = false; });
+        });
+
+        sel.dataset.original = sel.value;
+    });
 })();
 </script>
 @endif

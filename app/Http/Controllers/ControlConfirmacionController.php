@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Contrato;
 use App\Models\ControlConfirmacion;
+use App\Models\GrupoGerencia;
 use App\Models\Persona;
 use App\Models\User;
 use App\Models\UserAsignacion;
@@ -51,10 +52,6 @@ class ControlConfirmacionController extends Controller
         return [$inicio, $fin];
     }
 
-    /**
-     * Subordinados que estuvieron asignados al superior en cualquier punto del periodo.
-     * Mismo criterio que contratosEnPeriodo — cubre bajas a mitad de mes.
-     */
     /**
      * Devuelve todos los user_id del subárbol jerárquico del usuario dado.
      * Una sola query trae todas las asignaciones vigentes; el recorrido BFS es en PHP.
@@ -340,14 +337,12 @@ class ControlConfirmacionController extends Controller
 
             $asig = $asigsDeLaPersona->sortByDesc('fecha_inicio')->first($solapeFn);
 
-            $solapo   = $asig !== null;
-            $relacion = null;
+            $solapo = $asig !== null;
 
             if (!$asig && $asigsDeLaPersona->isNotEmpty()) {
                 $asig = $asigsDeLaPersona
                     ->filter(fn($a) => Carbon::parse($a->fecha_inicio)->gt($cFin))
                     ->sortBy('fecha_inicio')->first();
-                if ($asig) $relacion = 'posterior';
             }
 
             // Quién tenía a esta persona durante la ventana del contrato (otro supervisor)
@@ -358,7 +353,6 @@ class ControlConfirmacionController extends Controller
                 $asigsPorContratoId->put($contrato->id, (object)[
                     'asignacion'   => $asig,
                     'solapo'       => $solapo,
-                    'relacion'     => $relacion,
                     'asigAnterior' => $asigAnterior,
                 ]);
             }
@@ -379,7 +373,6 @@ class ControlConfirmacionController extends Controller
                 'cambiados'    => $movCambio ? $this->camposModificados($confirmacion, $mov) : [],
                 'asignacion'   => $asigEntry?->asignacion,
                 'asigSolapo'   => $asigEntry?->solapo ?? false,
-                'asigRelacion' => $asigEntry?->relacion,
                 'asigAnterior' => $asigEntry?->asigAnterior,
             ];
         })->sortBy('persona.apellido_paterno')->values();
@@ -487,7 +480,11 @@ class ControlConfirmacionController extends Controller
             ->get()
             ->keyBy('id');
 
-        DB::transaction(function () use ($data, $contratos) {
+        $existentes = ControlConfirmacion::where('periodo', $data['periodo'])
+            ->whereIn('contrato_id', $data['contrato_ids'])
+            ->get()->keyBy('contrato_id');
+
+        DB::transaction(function () use ($data, $contratos, $existentes) {
             foreach ($data['contrato_ids'] as $contratoId) {
                 $contrato = $contratos->get($contratoId);
                 if (!$contrato) continue;
@@ -503,10 +500,7 @@ class ControlConfirmacionController extends Controller
                         ControlConfirmacion::buildSnapshot($mov)
                     );
                 } else {
-                    $existing = ControlConfirmacion::where('periodo', $data['periodo'])
-                        ->where('contrato_id', $contratoId)
-                        ->first();
-                    $snapshot = $existing
+                    $snapshot = $existentes->has($contratoId)
                         ? ['periodo' => $data['periodo']]
                         : array_merge(['periodo' => $data['periodo']], ControlConfirmacion::buildSnapshot($mov));
                 }
@@ -557,10 +551,18 @@ class ControlConfirmacionController extends Controller
         }
 
         if ($superiorIdsActivos->isEmpty()) {
+            $filtro = in_array($request->input('filtro'), ['pendiente', 'confirmado', 'requiere_actualizacion'])
+                ? $request->input('filtro')
+                : null;
+
             return view('contratos.confirmaciones.tablero', [
                 'tablero'  => collect(),
+                'stats'    => ['total' => 0, 'confirmados' => 0, 'requieren' => 0, 'pendientes' => 0, 'pct' => 0],
+                'filtro'   => $filtro,
                 'periodo'  => $periodo,
                 'periodos' => $this->periodosDisponibles(),
+                'esRrhh'   => $this->esAdminORrhh(),
+                'grupos'   => GrupoGerencia::orderBy('nombre_grupo_gerencia')->get(),
             ]);
         }
 
@@ -717,14 +719,12 @@ class ControlConfirmacionController extends Controller
 
                 $asig = $asigsDeLaPersona->sortByDesc('fecha_inicio')->first($solapeFn);
 
-                $solapo   = $asig !== null;
-                $relacion = null;
+                $solapo = $asig !== null;
 
                 if (!$asig && $asigsDeLaPersona->isNotEmpty()) {
                     $asig = $asigsDeLaPersona
                         ->filter(fn($a) => Carbon::parse($a->fecha_inicio)->gt($cFin))
                         ->sortBy('fecha_inicio')->first();
-                    if ($asig) $relacion = 'posterior';
                 }
 
                 $asigAnterior = $asigsPreviasTabl->get($contrato->persona_id, collect())
@@ -735,7 +735,6 @@ class ControlConfirmacionController extends Controller
                     $asigsPorContratoId->put($contrato->id, (object)[
                         'asignacion'   => $asig,
                         'solapo'       => $solapo,
-                        'relacion'     => $relacion,
                         'asigAnterior' => $asigAnterior,
                     ]);
                 }
@@ -763,7 +762,6 @@ class ControlConfirmacionController extends Controller
                     'cambiados'    => $movCambio ? $this->camposModificados($confirmacion, $mov) : [],
                     'asignacion'   => $asigEntry?->asignacion,
                     'asigSolapo'   => $asigEntry?->solapo ?? false,
-                    'asigRelacion' => $asigEntry?->relacion,
                     'asigAnterior' => $asigEntry?->asigAnterior,
                 ];
             })->sortBy('persona.apellido_paterno')->values();
@@ -777,7 +775,6 @@ class ControlConfirmacionController extends Controller
                 'confirmados' => $confirmados,
                 'requieren'   => $requieren,
                 'pendientes'  => $pendientes + $movCambios,
-                'mov_cambios' => $movCambios,
                 'pct'         => $total > 0 ? round(($confirmados / $total) * 100) : 0,
                 'filas'       => $filas,
             ];
@@ -810,6 +807,8 @@ class ControlConfirmacionController extends Controller
             })->filter(fn($row) => $row->filas->isNotEmpty())->values();
         }
 
+        $grupos = GrupoGerencia::orderBy('nombre_grupo_gerencia')->get();
+
         return view('contratos.confirmaciones.tablero', [
             'tablero'     => $tablero,
             'stats'       => $stats,
@@ -818,6 +817,7 @@ class ControlConfirmacionController extends Controller
             'periodos'    => $this->periodosDisponibles(),
             'esRrhh'      => $this->esAdminORrhh(),
             'puedeActuar' => auth()->user()->hasRole('Administrador'),
+            'grupos'      => $grupos,
         ]);
     }
 
@@ -851,7 +851,11 @@ class ControlConfirmacionController extends Controller
             ->get()
             ->keyBy('id');
 
-        DB::transaction(function () use ($data, $contratos) {
+        $existentes = ControlConfirmacion::where('periodo', $data['periodo'])
+            ->whereIn('contrato_id', $data['contrato_ids'])
+            ->get()->keyBy('contrato_id');
+
+        DB::transaction(function () use ($data, $contratos, $existentes) {
             foreach ($data['contrato_ids'] as $contratoId) {
                 $contrato = $contratos->get($contratoId);
                 if (!$contrato) continue;
@@ -865,10 +869,7 @@ class ControlConfirmacionController extends Controller
                         ControlConfirmacion::buildSnapshot($mov)
                     );
                 } else {
-                    $existing = ControlConfirmacion::where('periodo', $data['periodo'])
-                        ->where('contrato_id', $contratoId)
-                        ->first();
-                    $snapshot = $existing
+                    $snapshot = $existentes->has($contratoId)
                         ? ['periodo' => $data['periodo']]
                         : array_merge(['periodo' => $data['periodo']], ControlConfirmacion::buildSnapshot($mov));
                 }
@@ -885,5 +886,51 @@ class ControlConfirmacionController extends Controller
         });
 
         return back()->with('success', 'Intervención de RRHH registrada correctamente.');
+    }
+
+    public function asignarGrupo(Request $request)
+    {
+        abort_unless($this->esAdminORrhh(), 403);
+
+        $conn          = config('database.default');
+        $periodosValidos = array_column($this->periodosDisponibles(), 'value');
+
+        $data = $request->validate([
+            'contrato_id'       => ['required', 'integer'],
+            'periodo'           => ['required', 'regex:/^\d{4}-\d{2}$/', 'in:' . implode(',', $periodosValidos)],
+            'grupo_gerencia_id' => ['nullable', 'integer', "exists:{$conn}.dbo.dim_grupo_gerencia,id"],
+        ]);
+
+        $conf = ControlConfirmacion::firstOrNew([
+            'periodo'     => $data['periodo'],
+            'contrato_id' => $data['contrato_id'],
+        ]);
+
+        if (!$conf->exists) {
+            [$inicio, $fin] = $this->rangoMes($data['periodo']);
+
+            $contrato = Contrato::withoutGlobalScope(AlcanceUsuarioScope::class)
+                ->with(['movimientos' => function ($q) use ($inicio, $fin) {
+                    $q->where('inicio', '<=', $fin->toDateString())
+                      ->where(fn($m) => $m->whereNull('fin')->orWhere('fin', '>=', $inicio->toDateString()))
+                      ->orderByDesc('inicio');
+                }])
+                ->findOrFail($data['contrato_id']);
+
+            $mov = $contrato->movimientos->first();
+
+            if (!$mov) {
+                return response()->json(['ok' => false, 'message' => 'Sin movimiento activo en el periodo'], 422);
+            }
+
+            $conf->persona_id    = $contrato->persona_id;
+            $conf->movimiento_id = $mov->id;
+            $conf->estado        = ControlConfirmacion::ESTADO_PENDIENTE;
+        }
+
+        $conf->grupo_gerencia_id = $data['grupo_gerencia_id'];
+        $conf->save();
+
+        return response()->json(['ok' => true]);
     }
 }

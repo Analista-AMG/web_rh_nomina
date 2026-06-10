@@ -157,6 +157,7 @@
                     'periodo'     => $periodo,
                     'esRrhh'      => $esRrhh,
                     'puedeActuar' => $puedeActuar,
+                    'grupos'      => $grupos,
                 ])
             </div>
         </div>

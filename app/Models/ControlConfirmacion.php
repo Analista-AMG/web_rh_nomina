@@ -3,9 +3,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 class ControlConfirmacion extends Model
 {
+    use LogsActivity;
     protected $table = 'dbo.control_confirmaciones_personal';
 
     const ESTADO_PENDIENTE              = 'pendiente';
@@ -21,6 +24,7 @@ class ControlConfirmacion extends Model
         'confirmado_por',
         'origen_accion',
         'comentario',
+        'grupo_gerencia_id',
         'confirmado_en',
         'contrato_id',
         'movimiento_id',
@@ -63,6 +67,21 @@ class ControlConfirmacion extends Model
         'movilidad'           => 'decimal:2',
     ];
 
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly([
+                'estado',
+                'origen_accion',
+                'comentario',
+                'confirmado_por',
+                'confirmado_en',
+                'grupo_gerencia_id',
+            ])
+            ->logOnlyDirty()
+            ->useLogName('confirmaciones');
+    }
+
     public function confirmadoPor()
     {
         return $this->belongsTo(User::class, 'confirmado_por');
@@ -81,6 +100,11 @@ class ControlConfirmacion extends Model
     public function movimiento()
     {
         return $this->belongsTo(ContratoMovimiento::class, 'movimiento_id');
+    }
+
+    public function grupoGerencia()
+    {
+        return $this->belongsTo(GrupoGerencia::class, 'grupo_gerencia_id');
     }
 
     public function scopePeriodo($query, string $periodo)
