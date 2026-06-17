@@ -47,7 +47,14 @@
                         $diaSemana = $fecha->locale('es')->isoFormat('ddd');
                         $esFinSem  = $fecha->isWeekend();
                         $esFer     = isset($feriados[$fStr]);
-                        $colLocked = !$esAdmin && $bloquearAntesDe && $fStr < $bloquearAntesDe;
+                        $pFStr     = \Carbon\Carbon::parse($fStr)->format('Y-m');
+                        $qFStr     = \Carbon\Carbon::parse($fStr)->day <= 12 ? 1 : 2;
+                        $cierreCol = $cierresMap->get($pFStr . '-' . $qFStr);
+                        $colLocked = !$esAdmin && (
+                            $cierreCol !== null
+                                ? (bool) $cierreCol->bloqueado
+                                : ($bloquearAntesDe && $fStr < $bloquearAntesDe)
+                        );
                         $thClass   = $esFer
                             ? 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-[#2f1e1e]'
                             : ($esFinSem ? 'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-[#2f2a1e]' : 'text-gray-500 dark:text-gray-400');
@@ -129,7 +136,14 @@
                             $dentroRango  = $contratoFecha !== null;
 
                             $enEquipo   = $esAdmin || (isset($fila['en_equipo'][$fStr]) && (!$userFechaInicioStr || $fStr >= $userFechaInicioStr));
-                            $bloqueado  = !$esAdmin && $bloquearAntesDe && $fStr < $bloquearAntesDe;
+                            $pFStrCell  = \Carbon\Carbon::parse($fStr)->format('Y-m');
+                            $qFStrCell  = \Carbon\Carbon::parse($fStr)->day <= 12 ? 1 : 2;
+                            $cierreCell = $cierresMap->get($pFStrCell . '-' . $qFStrCell);
+                            $bloqueado  = !$esAdmin && (
+                                $cierreCell !== null
+                                    ? (bool) $cierreCell->bloqueado
+                                    : ($bloquearAntesDe && $fStr < $bloquearAntesDe)
+                            );
 
                             $asistencia     = $fila['asistencias_periodo'][$fStr] ?? null;
                             $valorActual    = $asistencia?->item_asistencia_id ?? '';

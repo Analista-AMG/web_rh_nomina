@@ -74,6 +74,8 @@ Route::middleware(['auth', 'asignacion'])->group(function () {
             ->name('contratos.confirmaciones.intervenir');
         Route::patch('/contratos/confirmaciones/grupo', [App\Http\Controllers\ControlConfirmacionController::class, 'asignarGrupo'])
             ->name('contratos.confirmaciones.grupo');
+        Route::delete('/contratos/confirmaciones/snapshot/{confirmacion}', [App\Http\Controllers\ControlConfirmacionController::class, 'eliminarSnapshot'])
+            ->name('contratos.confirmaciones.snapshot.destroy');
     });
 
     Route::middleware(['permission:contratos.create'])
@@ -122,6 +124,10 @@ Route::middleware(['auth', 'asignacion'])->group(function () {
     Route::middleware(['permission:asistencia.edit'])
         ->post('/asistencia/guardar', [App\Http\Controllers\AsistenciaController::class, 'guardar'])
         ->name('asistencia.guardar');
+
+    Route::middleware(['role:Administrador|Recursos Humanos'])
+        ->patch('/asistencia/cierre', [App\Http\Controllers\AsistenciaController::class, 'toggleCierre'])
+        ->name('asistencia.cierre');
 
     // 6. Rutas de Adicionales - Protegidas por permisos
     Route::middleware(['permission:adicionales.view'])->group(function () {

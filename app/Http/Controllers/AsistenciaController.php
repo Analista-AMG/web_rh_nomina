@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Helpers\PeriodoCalendario;
 use App\Models\Asistencia;
+use App\Models\AsistenciaCierre;
 use App\Models\Calendario;
 use App\Models\Contrato;
 use App\Models\EquipoPrestamo;
@@ -28,6 +29,7 @@ class AsistenciaController extends Controller
     {
         $user    = Auth::user();
         $esAdmin = $user->hasRole('Administrador');
+        $esRrhh  = $user->hasRole('Recursos Humanos');
         $userId  = (int) $user->id;
         $hoy     = Carbon::now();
         $hoyStr  = $hoy->toDateString();
@@ -37,6 +39,11 @@ class AsistenciaController extends Controller
         $bloquearAntesDe = $esAdmin ? null : $this->resolverBloqueo($hoy);
         $diaActual       = $hoy->day;
         $mesActual       = $hoy->format('Y-m');
+
+        $periodoAnterior = PeriodoCalendario::anterior($mesActual);
+        $cierresMap = AsistenciaCierre::whereIn('periodo', [$mesActual, $periodoAnterior])
+            ->get()
+            ->keyBy(fn($c) => $c->periodo . '-' . $c->quincena);
 
         $pagoId = $request->input('pago_id')
             ?: ($pagos->first(fn ($p) => $p->quincena > 0 && $p->inicio->format('Y-m-d') <= $hoyStr && $p->fin->format('Y-m-d') >= $hoyStr)?->id
@@ -198,9 +205,10 @@ class AsistenciaController extends Controller
 
         return view('asistencia.index', compact(
             'pagos', 'pagoSeleccionado', 'filas', 'fechas',
-            'itemsAsistencia', 'feriados', 'esAdmin', 'hoy', 'diaActual', 'mesActual', 'bloquearAntesDe',
+            'itemsAsistencia', 'feriados', 'esAdmin', 'esRrhh', 'hoy', 'diaActual', 'mesActual', 'bloquearAntesDe',
             'equipoDiaSupervisores', 'userFechaInicioStr',
-            'mostrarFiltroDirectos', 'directosPersonaIds'
+            'mostrarFiltroDirectos', 'directosPersonaIds',
+            'cierresMap', 'periodoAnterior'
         ));
     }
 
@@ -233,14 +241,16 @@ class AsistenciaController extends Controller
         }
 
         if (!$esAdmin) {
-            // Período calendario: mes de la fecha a editar vs mes actual.
-            $periodoMesActual = $hoy->format('Y-m');
-            $periodoFecha     = PeriodoCalendario::periodoDeF($fechaStr);
+            $pFecha = PeriodoCalendario::periodoDeF($fechaStr);
+            $qFecha = PeriodoCalendario::quincenaDeF($fechaStr);
+            $cierre = AsistenciaCierre::where('periodo', $pFecha)->where('quincena', $qFecha)->first();
 
-            if ($periodoFecha < $periodoMesActual && $hoy->day > 1) {
-                return response()->json([
-                    'error' => 'El período está cerrado. Solo se puede editar el período anterior el primer día del mes.',
-                ], 403);
+            $bloqueado = $cierre !== null
+                ? (bool) $cierre->bloqueado
+                : ($fechaStr < $this->resolverBloqueo($hoy));
+
+            if ($bloqueado) {
+                return response()->json(['error' => 'El período está cerrado.'], 403);
             }
         }
 
@@ -351,6 +361,31 @@ class AsistenciaController extends Controller
         return response()->json(['success' => true]);
     }
 
+    // ── Admin: toggle cierre de quincena ──────────────────────────────────────
+
+    public function toggleCierre(Request $request): JsonResponse
+    {
+        $u = Auth::user();
+        abort_unless($u->hasRole('Administrador') || $u->hasRole('Recursos Humanos'), 403);
+
+        $data = $request->validate([
+            'periodo'  => ['required', 'regex:/^\d{4}-\d{2}$/'],
+            'quincena' => ['required', 'integer', 'in:1,2'],
+            'bloqueado' => ['required', 'boolean'],
+        ]);
+
+        AsistenciaCierre::updateOrCreate(
+            ['periodo' => $data['periodo'], 'quincena' => $data['quincena']],
+            [
+                'bloqueado'     => (int) (bool) $data['bloqueado'],
+                'bloqueado_por' => Auth::id(),
+                'bloqueado_en'  => now(),
+            ]
+        );
+
+        return response()->json(['ok' => true]);
+    }
+
     // ── Helpers privados ──────────────────────────────────────────────────────
 
     /**
@@ -362,15 +397,21 @@ class AsistenciaController extends Controller
     private function resolverBloqueo(Carbon $hoy): string
     {
         $periodoActual  = $hoy->format('Y-m');
-        $inicioEditable = PeriodoCalendario::inicio($periodoActual, 1)->format('Y-m-d');
+        $quincenaActual = PeriodoCalendario::quincenaActual();
 
-        if ($hoy->day > 1) {
-            return $inicioEditable;
+        // Gracia: primer día de cada quincena (día 1 o día 13) permite editar la quincena anterior
+        if ($hoy->day === 1) {
+            // Inicio Q1: gracia sobre Q2 del mes anterior
+            $periodoPrevio = PeriodoCalendario::anterior($periodoActual);
+            return PeriodoCalendario::inicio($periodoPrevio, 2)->format('Y-m-d');
         }
 
-        // Gracia días 1-3: permitir también el mes anterior completo
-        $periodoPrevio = PeriodoCalendario::anterior($periodoActual);
-        return PeriodoCalendario::inicio($periodoPrevio, 1)->format('Y-m-d');
+        if ($hoy->day === 13) {
+            // Inicio Q2: gracia sobre Q1 del mes actual
+            return PeriodoCalendario::inicio($periodoActual, 1)->format('Y-m-d');
+        }
+
+        return PeriodoCalendario::inicio($periodoActual, $quincenaActual)->format('Y-m-d');
     }
 
     /**

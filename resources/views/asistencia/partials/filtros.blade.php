@@ -143,6 +143,55 @@
                 </div>
             </div>
 
+            {{-- Admin: control de cierre de quincenas --}}
+            @if($esAdmin || $esRrhh)
+            @php
+                $quincenasPanelAdmin = [
+                    ['periodo' => $periodoAnterior, 'q' => 1],
+                    ['periodo' => $periodoAnterior, 'q' => 2],
+                    ['periodo' => $mesActual,       'q' => 1],
+                    ['periodo' => $mesActual,       'q' => 2],
+                ];
+            @endphp
+            <div>
+                <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">
+                    <i class="fa-solid fa-lock mr-1"></i>Control de períodos
+                </label>
+                <div class="flex items-center gap-1.5">
+                    @foreach($quincenasPanelAdmin as $item)
+                    @php
+                        $key      = $item['periodo'] . '-' . $item['q'];
+                        $cierre   = $cierresMap->get($key);
+                        if ($cierre !== null) {
+                            $cerrado = $cierre->bloqueado;
+                        } else {
+                            $inicioQ = \App\Helpers\PeriodoCalendario::inicio($item['periodo'], $item['q'])->format('Y-m-d');
+                            $cerrado = $hoy->toDateString() > $inicioQ
+                                && !($hoy->day === 1 && $item['periodo'] === $periodoAnterior)
+                                && !($hoy->day === 13 && $item['periodo'] === $mesActual && $item['q'] === 1)
+                                && \App\Helpers\PeriodoCalendario::inicio($mesActual, \App\Helpers\PeriodoCalendario::quincenaActual())->format('Y-m-d') > $inicioQ;
+                        }
+                        $mesLabel = rtrim(mb_strtoupper(\Carbon\Carbon::parse($item['periodo'].'-01')->locale('es')->isoFormat('MMM')), '.');
+                        $label    = 'Q' . $item['q'] . ' ' . $mesLabel;
+                    @endphp
+                    <button type="button"
+                        data-periodo="{{ $item['periodo'] }}"
+                        data-quincena="{{ $item['q'] }}"
+                        data-bloqueado="{{ $cerrado ? '1' : '0' }}"
+                        onclick="toggleCierreAdmin(this)"
+                        title="{{ $cerrado ? 'Cerrado — clic para abrir' : 'Abierto — clic para cerrar' }}"
+                        class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors cursor-pointer cierre-btn
+                            {{ $cerrado
+                                ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-600 dark:text-red-400'
+                                : 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-600 dark:text-green-400' }}">
+                        <i class="fa-solid {{ $cerrado ? 'fa-lock' : 'fa-lock-open' }} text-[10px]"></i>
+                        {{ $label }}
+                    </button>
+                    @endforeach
+                </div>
+            </div>
+            @endif
+
         </form>
     </div>
 </div>

@@ -312,5 +312,54 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 });
+
+// ── Admin: toggle cierre de quincena ─────────────────────────────────────────
+window.toggleCierreAdmin = async function (btn) {
+    const periodo   = btn.dataset.periodo;
+    const quincena  = parseInt(btn.dataset.quincena);
+    const bloqueado = btn.dataset.bloqueado === '1';
+    const nuevo     = !bloqueado;
+
+    btn.disabled = true;
+
+    try {
+        const res = await fetch('{{ route("asistencia.cierre") }}', {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+            },
+            body: JSON.stringify({ periodo, quincena, bloqueado: nuevo }),
+        });
+
+        if (!res.ok) throw new Error();
+
+        btn.dataset.bloqueado = nuevo ? '1' : '0';
+        btn.title = nuevo ? 'Cerrado — clic para abrir' : 'Abierto — clic para cerrar';
+
+        const icon = btn.querySelector('i');
+        if (nuevo) {
+            btn.classList.replace('bg-green-50', 'bg-red-50');
+            btn.classList.replace('dark:bg-green-900/20', 'dark:bg-red-900/20');
+            btn.classList.replace('border-green-200', 'border-red-200');
+            btn.classList.replace('dark:border-green-800', 'dark:border-red-800');
+            btn.classList.replace('text-green-600', 'text-red-600');
+            btn.classList.replace('dark:text-green-400', 'dark:text-red-400');
+            icon.classList.replace('fa-lock-open', 'fa-lock');
+        } else {
+            btn.classList.replace('bg-red-50', 'bg-green-50');
+            btn.classList.replace('dark:bg-red-900/20', 'dark:bg-green-900/20');
+            btn.classList.replace('border-red-200', 'border-green-200');
+            btn.classList.replace('dark:border-red-800', 'dark:border-green-800');
+            btn.classList.replace('text-red-600', 'text-green-600');
+            btn.classList.replace('dark:text-red-400', 'dark:text-green-400');
+            icon.classList.replace('fa-lock', 'fa-lock-open');
+        }
+    } catch {
+        alert('Error al actualizar el período. Intenta nuevamente.');
+    } finally {
+        btn.disabled = false;
+    }
+};
 </script>
 @endpush

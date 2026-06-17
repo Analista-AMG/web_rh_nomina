@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Baja;
 use App\Models\Contrato;
 use App\Models\ControlConfirmacion;
 use App\Models\GrupoGerencia;
@@ -555,14 +556,23 @@ class ControlConfirmacionController extends Controller
                 ? $request->input('filtro')
                 : null;
 
+            // Aún sin supervisores activos, puede haber snapshots huérfanos a limpiar
+            $huerfanas = ControlConfirmacion::where('periodo', $periodo)
+                ->with(['confirmadoPor', 'persona'])
+                ->get();
+
             return view('contratos.confirmaciones.tablero', [
-                'tablero'  => collect(),
-                'stats'    => ['total' => 0, 'confirmados' => 0, 'requieren' => 0, 'pendientes' => 0, 'pct' => 0],
-                'filtro'   => $filtro,
-                'periodo'  => $periodo,
-                'periodos' => $this->periodosDisponibles(),
-                'esRrhh'   => $this->esAdminORrhh(),
-                'grupos'   => GrupoGerencia::orderBy('nombre_grupo_gerencia')->get(),
+                'tablero'     => collect(),
+                'stats'       => ['total' => 0, 'confirmados' => 0, 'requieren' => 0, 'pendientes' => 0, 'pct' => 0],
+                'filtro'      => $filtro,
+                'buscar'      => '',
+                'periodo'     => $periodo,
+                'periodos'    => $this->periodosDisponibles(),
+                'esRrhh'      => $this->esAdminORrhh(),
+                'puedeActuar' => auth()->user()->hasRole('Administrador'),
+                'grupos'          => GrupoGerencia::orderBy('nombre_grupo_gerencia')->get(),
+                'huerfanas'       => $huerfanas,
+                'bajasHuerfanas'  => collect(),
             ]);
         }
 
@@ -638,11 +648,40 @@ class ControlConfirmacionController extends Controller
         $contratosPorPersonaId = $todosContratos->groupBy('persona_id');
 
         // ── Query 5: todas las confirmaciones del periodo ─────────────────────
+        $todosContratoIds = $todosContratos->pluck('id');
         $todasConfirmaciones = ControlConfirmacion::where('periodo', $periodo)
-            ->whereIn('contrato_id', $todosContratos->pluck('id'))
+            ->whereIn('contrato_id', $todosContratoIds)
             ->with('confirmadoPor')
             ->get()
             ->keyBy('contrato_id');
+
+        // Snapshots cuyo contrato tiene baja retroactiva (fecha_renuncia anterior al inicio del periodo)
+        // Solo estos son "huérfanos" reales: el supervisor confirmó y luego RRHH registró la baja.
+        $candidatasIds = ControlConfirmacion::where('periodo', $periodo)
+            ->when(
+                $todosContratoIds->isNotEmpty(),
+                fn($q) => $q->whereNotIn('contrato_id', $todosContratoIds)
+            )
+            ->pluck('contrato_id');
+
+        $contratosConBajaRetro = $candidatasIds->isNotEmpty()
+            ? Contrato::withoutGlobalScope(AlcanceUsuarioScope::class)
+                ->whereIn('id', $candidatasIds)
+                ->whereNotNull('fecha_renuncia')
+                ->where('fecha_renuncia', '<', $inicio->toDateString())
+                ->pluck('id')
+            : collect();
+
+        $huerfanas = $contratosConBajaRetro->isNotEmpty()
+            ? ControlConfirmacion::where('periodo', $periodo)
+                ->whereIn('contrato_id', $contratosConBajaRetro)
+                ->with(['confirmadoPor', 'persona'])
+                ->get()
+            : collect();
+
+        $bajasHuerfanas = $contratosConBajaRetro->isNotEmpty()
+            ? Baja::whereIn('contrato_id', $contratosConBajaRetro)->get()->keyBy('contrato_id')
+            : collect();
 
         // Pre-agrupar asignaciones: supervisor_id → (persona_id → [asignaciones])
         // Evita matches cruzados entre personas distintas al buscar por solape de fechas.
@@ -835,7 +874,18 @@ class ControlConfirmacionController extends Controller
             'esRrhh'      => $this->esAdminORrhh(),
             'puedeActuar' => auth()->user()->hasRole('Administrador'),
             'grupos'      => $grupos,
+            'huerfanas'       => $huerfanas,
+            'bajasHuerfanas'  => $bajasHuerfanas,
         ]);
+    }
+
+    // ── DELETE snapshot huérfano ───────────────────────────────────────────────
+
+    public function eliminarSnapshot(ControlConfirmacion $confirmacion)
+    {
+        abort_unless($this->esAdminORrhh(), 403);
+        $confirmacion->delete();
+        return back()->with('success', 'Snapshot eliminado correctamente.');
     }
 
     // ── POST intervención RRHH ─────────────────────────────────────────────────

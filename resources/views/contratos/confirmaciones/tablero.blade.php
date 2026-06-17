@@ -192,6 +192,115 @@
     </div>
     @endif
 
+    {{-- ── Snapshots con baja retroactiva ───────────────────────────────────── --}}
+    @if($esRrhh && $huerfanas->isNotEmpty())
+    <div class="mt-6">
+        <div class="bg-white dark:bg-[#273142] rounded-xl border border-amber-300 dark:border-amber-700 shadow-sm overflow-hidden">
+            <div class="px-5 py-4 border-b border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 flex items-start gap-3">
+                <i class="fa-solid fa-triangle-exclamation text-amber-500 mt-0.5 flex-shrink-0"></i>
+                <div>
+                    <p class="font-semibold text-amber-800 dark:text-amber-300 text-sm">
+                        Snapshots con baja retroactiva
+                        <span class="ml-1.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-500 text-white text-xs font-bold">{{ $huerfanas->count() }}</span>
+                    </p>
+                    <p class="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+                        Estas confirmaciones se crearon antes de que se registrara una baja con fecha anterior al periodo.
+                        Revisar y eliminar si el contrato ya no debía figurar.
+                    </p>
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-xs uppercase text-gray-500 dark:text-gray-400 border-b border-light-border dark:border-dark-border">
+                            <th class="pb-3 pt-3 px-5 text-left font-semibold">Colaborador</th>
+                            <th class="pb-3 pt-3 pr-4 text-left font-semibold hidden sm:table-cell">Empresa / Cargo</th>
+                            <th class="pb-3 pt-3 pr-4 text-left font-semibold">Estado snapshot</th>
+                            <th class="pb-3 pt-3 pr-4 text-left font-semibold hidden md:table-cell">Confirmado por</th>
+                            <th class="pb-3 pt-3 pr-4 text-left font-semibold hidden lg:table-cell">Baja registrada</th>
+                            <th class="pb-3 pt-3 pr-5 text-right font-semibold">Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100 dark:divide-gray-700/50">
+                        @foreach($huerfanas as $hf)
+                        @php $baja = $bajasHuerfanas->get($hf->contrato_id); @endphp
+                        <tr class="hover:bg-amber-50/50 dark:hover:bg-amber-900/10 transition-colors">
+                            <td class="py-3 px-5">
+                                <div class="flex items-center gap-2.5">
+                                    <div class="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0 text-xs font-bold text-amber-600 dark:text-amber-400">
+                                        {{ strtoupper(mb_substr($hf->persona->nombres ?? '?', 0, 1)) }}
+                                    </div>
+                                    <div>
+                                        <p class="font-medium text-gray-800 dark:text-gray-100 leading-tight">
+                                            {{ $hf->persona->apellido_paterno ?? '—' }}
+                                            {{ $hf->persona->apellido_materno ?? '' }},
+                                            {{ $hf->persona->nombres ?? '—' }}
+                                        </p>
+                                        <p class="text-xs text-gray-400">{{ $hf->persona->numero_documento ?? '—' }}</p>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="py-3 pr-4 hidden sm:table-cell">
+                                <p class="text-gray-700 dark:text-gray-200 text-xs font-medium">{{ $hf->empresa ?? '—' }}</p>
+                                <p class="text-gray-400 text-xs">{{ $hf->nombre_cargo ?? '—' }}</p>
+                            </td>
+                            <td class="py-3 pr-4">
+                                @php
+                                    $estadoLabel = match($hf->estado) {
+                                        'confirmado'             => 'Confirmado',
+                                        'requiere_actualizacion' => 'Requiere actualización',
+                                        default                  => 'Pendiente',
+                                    };
+                                    $estadoClasses = match($hf->estado) {
+                                        'confirmado'             => 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
+                                        'requiere_actualizacion' => 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400',
+                                        default                  => 'bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300',
+                                    };
+                                @endphp
+                                <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium {{ $estadoClasses }}">
+                                    {{ $estadoLabel }}
+                                </span>
+                            </td>
+                            <td class="py-3 pr-4 hidden md:table-cell">
+                                <p class="text-gray-600 dark:text-gray-300 text-xs">{{ $hf->confirmadoPor?->name ?? '—' }}</p>
+                                @if($hf->confirmado_en)
+                                <p class="text-gray-400 text-xs">{{ $hf->confirmado_en->format('d/m/Y H:i') }}</p>
+                                @endif
+                            </td>
+                            <td class="py-3 pr-4 hidden lg:table-cell">
+                                @if($baja)
+                                <p class="text-gray-700 dark:text-gray-200 text-xs font-medium">
+                                    Baja: {{ $baja->fecha_baja->format('d/m/Y') }}
+                                </p>
+                                <p class="text-gray-400 text-xs">
+                                    Registrada: {{ $baja->created_at->format('d/m/Y H:i') }}
+                                </p>
+                                @else
+                                <span class="text-gray-400 text-xs">—</span>
+                                @endif
+                            </td>
+                            <td class="py-3 pr-5 text-right">
+                                <form method="POST"
+                                      action="{{ route('contratos.confirmaciones.snapshot.destroy', $hf->id) }}"
+                                      onsubmit="return confirm('¿Eliminar este snapshot?\n\nEsta acción no se puede deshacer.')">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit"
+                                            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 transition-colors">
+                                        <i class="fa-solid fa-trash text-xs"></i>
+                                        Eliminar
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    @endif
+
     <script>
     function toggleDetalle(id) {
         const el   = document.getElementById(id);
