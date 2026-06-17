@@ -143,8 +143,9 @@ class AsistenciaController extends Controller
             if ($allPersonaIds !== null && empty($allPersonaIds)) {
                 return view('asistencia.index', compact(
                     'pagos', 'pagoSeleccionado', 'filas', 'fechas',
-                    'itemsAsistencia', 'feriados', 'esAdmin', 'hoy', 'diaActual', 'mesActual', 'bloquearAntesDe', 'userFechaInicioStr',
-                    'equipoDiaSupervisores', 'mostrarFiltroDirectos', 'directosPersonaIds'
+                    'itemsAsistencia', 'feriados', 'esAdmin', 'esRrhh', 'hoy', 'diaActual', 'mesActual', 'bloquearAntesDe', 'userFechaInicioStr',
+                    'equipoDiaSupervisores', 'mostrarFiltroDirectos', 'directosPersonaIds',
+                    'cierresMap', 'periodoAnterior'
                 ));
             }
 
