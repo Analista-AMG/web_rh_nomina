@@ -23,6 +23,13 @@ use Illuminate\Support\Facades\Auth;
 
 class AsistenciaController extends Controller
 {
+    // Códigos de asistencia que representan trabajo efectivo (jornada realmente prestada).
+    // Solo en estos códigos tiene sentido distinguir Remoto / Presencial.
+    private const CODIGOS_REMOTO_PRESENCIAL = ['A', 'A1', 'A2', 'A3', 'A4', 'D', 'LC', 'TR', 'C', 'MD', 'TF'];
+
+    // Faltas (FI, FJ) y Licencia sin goce (LS): por ley no pueden registrarse en un día feriado.
+    private const CODIGOS_NO_FERIADO = ['FI', 'FJ', 'LS'];
+
     public function __construct(protected JerarquiaService $jerarquia) {}
 
     public function index(Request $request)
@@ -34,8 +41,10 @@ class AsistenciaController extends Controller
         $hoy     = Carbon::now();
         $hoyStr  = $hoy->toDateString();
 
-        $pagos           = PeriodoCalendario::listarDesc(24);
-        $itemsAsistencia = ItemAsistencia::orderBy('codigo_asistencia')->get();
+        $pagos             = PeriodoCalendario::listarDesc(24);
+        $itemsAsistencia   = ItemAsistencia::orderBy('codigo_asistencia')->get();
+        $codigosRemoto     = self::CODIGOS_REMOTO_PRESENCIAL;
+        $codigosNoFeriado  = self::CODIGOS_NO_FERIADO;
         $bloquearAntesDe = $esAdmin ? null : $this->resolverBloqueo($hoy);
         $diaActual       = $hoy->day;
         $mesActual       = $hoy->format('Y-m');
@@ -125,14 +134,17 @@ class AsistenciaController extends Controller
                 : null;
 
             // Pre-filtro server-side por nombre (evita cargar toda la base cuando el usuario
-            // busca una persona específica y luego cambia de período)
+            // busca una persona específica y luego cambia de período).
+            // Debe buscar sobre el mismo nombre completo concatenado que usa el filtro
+            // client-side (ver $filaNombre en tabla.blade.php), para que un término que
+            // cruce apellido_paterno/apellido_materno/nombres (ej. "GARCIA MARIA") matchee
+            // igual antes y después de recargar la página al cambiar de período.
             $fNombre = trim(request('f_nombre', ''));
-            if (strlen($fNombre) >= 4) {
+            if (mb_strlen($fNombre) >= 4) {
                 $matchIds = Persona::withoutGlobalScope(AlcanceUsuarioScope::class)
-                    ->where(fn ($q) => $q
-                        ->where('nombres',          'like', "%{$fNombre}%")
-                        ->orWhere('apellido_paterno', 'like', "%{$fNombre}%")
-                        ->orWhere('apellido_materno', 'like', "%{$fNombre}%")
+                    ->whereRaw(
+                        "CONCAT(apellido_paterno, ' ', ISNULL(apellido_materno,''), ' ', nombres) LIKE ?",
+                        ["%{$fNombre}%"]
                     )
                     ->when($allPersonaIds !== null, fn ($q) => $q->whereIn('id', $allPersonaIds))
                     ->pluck('id')->map(fn ($id) => (int) $id)->toArray();
@@ -145,7 +157,7 @@ class AsistenciaController extends Controller
                     'pagos', 'pagoSeleccionado', 'filas', 'fechas',
                     'itemsAsistencia', 'feriados', 'esAdmin', 'esRrhh', 'hoy', 'diaActual', 'mesActual', 'bloquearAntesDe', 'userFechaInicioStr',
                     'equipoDiaSupervisores', 'mostrarFiltroDirectos', 'directosPersonaIds',
-                    'cierresMap', 'periodoAnterior'
+                    'cierresMap', 'periodoAnterior', 'codigosRemoto', 'codigosNoFeriado'
                 ));
             }
 
@@ -209,7 +221,7 @@ class AsistenciaController extends Controller
             'itemsAsistencia', 'feriados', 'esAdmin', 'esRrhh', 'hoy', 'diaActual', 'mesActual', 'bloquearAntesDe',
             'equipoDiaSupervisores', 'userFechaInicioStr',
             'mostrarFiltroDirectos', 'directosPersonaIds',
-            'cierresMap', 'periodoAnterior'
+            'cierresMap', 'periodoAnterior', 'codigosRemoto', 'codigosNoFeriado'
         ));
     }
 
@@ -221,6 +233,7 @@ class AsistenciaController extends Controller
             'item_asistencia_id' => 'nullable|integer',
             'tardanza'           => 'boolean',
             'min_tardanza'       => 'nullable|integer|min:1|max:999',
+            'es_remoto'          => 'boolean',
         ]);
 
         $contrato = Contrato::withoutGlobalScope(AlcanceUsuarioScope::class)
@@ -239,6 +252,19 @@ class AsistenciaController extends Controller
 
         if ($fecha->isAfter(Carbon::today())) {
             return response()->json(['error' => 'No se puede registrar asistencia en fechas futuras.'], 403);
+        }
+
+        $codigoItem = $request->item_asistencia_id
+            ? ItemAsistencia::where('id', $request->item_asistencia_id)->value('codigo_asistencia')
+            : null;
+
+        if ($codigoItem && in_array($codigoItem, self::CODIGOS_NO_FERIADO, true)) {
+            $esFeriado = Calendario::where('fecha', $fechaStr)->where('tipo_dia', 'Feriado')->exists();
+            if ($esFeriado) {
+                return response()->json([
+                    'error' => 'No se puede registrar Falta o Licencia sin goce en un día feriado.',
+                ], 422);
+            }
         }
 
         if (!$esAdmin) {
@@ -340,10 +366,14 @@ class AsistenciaController extends Controller
             $tardanza    = (bool) $request->input('tardanza', false);
             $minTardanza = $tardanza ? $request->input('min_tardanza') : null;
 
+            $aplicaRemoto = in_array($codigoItem, self::CODIGOS_REMOTO_PRESENCIAL, true);
+            $esRemoto     = $aplicaRemoto && (bool) $request->input('es_remoto', false);
+
             $payload = [
                 'item_asistencia_id' => $request->item_asistencia_id,
                 'tardanza'           => $tardanza,
                 'min_tardanza'       => $minTardanza,
+                'es_remoto'          => $esRemoto,
             ];
 
             if ($asistencia) {

@@ -38,6 +38,7 @@
             <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-gray-100 dark:bg-gray-700 text-gray-400"><i class="fa-solid fa-lock text-[9px]"></i> Sin contrato</span>
             <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400"><i class="fa-solid fa-lock text-[9px]"></i> Periodo cerrado</span>
             <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-blue-50 dark:bg-blue-900/20 text-blue-500"><i class="fa-solid fa-lock text-[9px]"></i> Otro supervisor</span>
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300"><strong class="mr-1">R/P</strong> Remoto / Presencial</span>
         </div>
 
         @if($filas->isEmpty())

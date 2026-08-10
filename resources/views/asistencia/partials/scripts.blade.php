@@ -1,6 +1,19 @@
+@php
+    // Mismo umbral que el prefiltro server-side en AsistenciaController::index().
+    // Si es vacío, el servidor no restringió $filas por nombre en esta carga.
+    $fNombreActivo = trim(request('f_nombre', ''));
+    $fNombreActivo = mb_strlen($fNombreActivo) >= 4 ? $fNombreActivo : '';
+@endphp
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+    // Nombre por el que el servidor ya restringió $filas en esta carga de página
+    // (prefiltro server-side al cambiar de período). Si el usuario sigue escribiendo
+    // un texto distinto, filtrar solo en el cliente dejaría fuera a colaboradores que
+    // el servidor nunca envió al navegador — hay que recargar para traer el universo
+    // completo del período con el nuevo término.
+    const SERVER_F_NOMBRE = @json($fNombreActivo);
+
     // Seleccionar período y auto-submit — preserva filtros client-side en la URL
     window.seleccionarPago = function (id) {
         document.getElementById('pago_id').value = id;
@@ -166,6 +179,15 @@ document.addEventListener('DOMContentLoaded', function () {
     function dispararNombre() {
         if (!filtroNombre) return;
         const val = filtroNombre.value.trim();
+
+        // El servidor ya restringió $filas por SERVER_F_NOMBRE en esta carga. Si el texto
+        // actual ya no coincide, hace falta un reload real (misma ruta que cambiar de
+        // período) para volver a traer el universo completo del período con el nuevo término.
+        if (SERVER_F_NOMBRE && val.toLowerCase() !== SERVER_F_NOMBRE.toLowerCase()) {
+            seleccionarPago(document.getElementById('pago_id').value);
+            return;
+        }
+
         if (val.length === 0 || val.length >= 4) aplicarFiltros();
     }
 
@@ -195,7 +217,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     btnLimpiar?.addEventListener('click', () => {
         if (filtroNombre) filtroNombre.value = '';
-        aplicarFiltros();
+        dispararNombre();
     });
 
     // Restaurar filtros client-side desde URL (persistidos al cambiar período)
@@ -218,7 +240,22 @@ document.addEventListener('DOMContentLoaded', function () {
     // Items map: id => codigo for column-action feedback
     const itemsMap = @json($itemsAsistencia->mapWithKeys(fn($i) => [$i->id => $i->codigo_asistencia]));
 
-    function guardarAsistencia(sel) {
+    // Códigos de asistencia donde aplica distinguir Remoto / Presencial
+    const CODIGOS_REMOTO = @json($codigosRemoto ?? []);
+    window.aplicaRemoto = function (codigo) {
+        return CODIGOS_REMOTO.includes(codigo);
+    };
+
+    // Disparado por el badge P/R (botón, no checkbox). Se pasa el valor ya actualizado
+    // de "remoto" explícitamente en vez de leerlo del DOM, porque Alpine aplica sus
+    // cambios de atributos (:data-remoto) en el siguiente microtask, no de forma
+    // síncrona — leerlo justo aquí devolvería el valor anterior.
+    window.guardarRemoto = function (btn, esRemoto) {
+        const sel = btn.closest('.asist-grupo')?.querySelector('.asistencia-select');
+        if (sel) guardarAsistencia(sel, { es_remoto: esRemoto });
+    };
+
+    function guardarAsistencia(sel, overrides = {}) {
         const grupo            = sel.closest('.asist-grupo');
         const contratoId       = sel.dataset.contrato;
         const fecha            = sel.dataset.fecha;
@@ -227,6 +264,8 @@ document.addEventListener('DOMContentLoaded', function () {
         const minTardanzaInput = grupo?.querySelector('.min-tardanza-input');
         const tardanza         = tardanzaCheck?.checked ?? false;
         const minTardanza      = (tardanza && minTardanzaInput?.value) ? parseInt(minTardanzaInput.value) : null;
+        const remotoBadge      = grupo?.querySelector('.remoto-badge');
+        const esRemoto         = 'es_remoto' in overrides ? overrides.es_remoto : (remotoBadge?.dataset.remoto === '1');
 
         sel.classList.add('opacity-50');
         sel.disabled = true;
@@ -244,6 +283,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 item_asistencia_id: itemAsistenciaId ? parseInt(itemAsistenciaId) : null,
                 tardanza:           tardanza,
                 min_tardanza:       minTardanza,
+                es_remoto:          esRemoto,
             }),
         })
         .then(r => r.json())

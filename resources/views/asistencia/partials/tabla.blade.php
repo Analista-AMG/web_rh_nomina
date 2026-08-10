@@ -70,6 +70,7 @@
                                     data-fecha="{{ $fStr }}">
                                     <option value="">-</option>
                                     @foreach($itemsAsistencia as $item)
+                                        @continue($esFer && in_array($item->codigo_asistencia, $codigosNoFeriado ?? [], true))
                                         <option value="{{ $item->id }}" data-codigo="{{ $item->codigo_asistencia }}">{{ $item->codigo_asistencia }}</option>
                                     @endforeach
                                 </select>
@@ -150,6 +151,7 @@
                             $codigoBadge    = $asistencia?->itemAsistencia?->codigo_asistencia ?? '';
                             $tieneTardanza  = (bool) ($asistencia?->tardanza ?? false);
                             $minTardanzaVal = $asistencia?->min_tardanza ?? null;
+                            $esRemotoVal    = (bool) ($asistencia?->es_remoto ?? false);
 
                             $supNombre = $equipoDiaSupervisores[(int)$contrato->persona_id][$fStr] ?? null;
 
@@ -179,6 +181,9 @@
                                     @if($tieneTardanza)
                                         <span class="text-[9px] text-amber-500 font-medium leading-tight">T{{ $minTardanzaVal ? '+'.$minTardanzaVal.'m' : '' }}</span>
                                     @endif
+                                    @if($esRemotoVal)
+                                        <span class="text-[9px] text-blue-500 font-medium leading-tight">Remoto</span>
+                                    @endif
                                 </div>
                             @elseif(!$enEquipo)
                                 <div class="flex flex-col items-center justify-center text-xs text-gray-400 dark:text-gray-500 px-1 py-1 rounded border border-gray-200 dark:border-gray-700 bg-blue-50/50 dark:bg-blue-900/10">
@@ -193,37 +198,59 @@
                                     @if($tieneTardanza)
                                         <span class="text-[9px] text-amber-500 font-medium leading-tight">T{{ $minTardanzaVal ? '+'.$minTardanzaVal.'m' : '' }}</span>
                                     @endif
+                                    @if($esRemotoVal)
+                                        <span class="text-[9px] text-blue-500 font-medium leading-tight">Remoto</span>
+                                    @endif
                                 </div>
                             @else
                                 <div class="asist-grupo relative"
-                                     x-data="{ open: false, tard: {{ $tieneTardanza ? 'true' : 'false' }}, mins: '{{ $minTardanzaVal ?? '' }}', hasItem: {{ $valorActual ? 'true' : 'false' }} }"
+                                     x-data="{ open: false, tard: {{ $tieneTardanza ? 'true' : 'false' }}, mins: '{{ $minTardanzaVal ?? '' }}', hasItem: {{ $valorActual ? 'true' : 'false' }}, codigo: @js($codigoBadge), remoto: {{ $esRemotoVal ? 'true' : 'false' }} }"
                                      @click.outside="open = false">
-                                    {{-- Select + badge --}}
+                                    {{-- Select + badges (T y P/R apilados en una sola columna junto al select) --}}
                                     <div class="flex items-center gap-0.5">
                                         <select
                                             class="asistencia-select w-full text-xs px-1 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:outline-none focus:ring-1 focus:ring-primary/50 text-center"
                                             data-contrato="{{ $contratoFecha->id }}"
                                             data-fecha="{{ $fStr }}"
-                                            @change="hasItem = !!$event.target.value; if (!hasItem) { open = false; tard = false; mins = ''; }"
+                                            @change="hasItem = !!$event.target.value; codigo = $event.target.selectedOptions[0]?.dataset.codigo || ''; if (!hasItem) { open = false; tard = false; mins = ''; } if (!hasItem || !aplicaRemoto(codigo)) remoto = false"
                                         >
                                             <option value="">-</option>
                                             @foreach($itemsAsistencia as $item)
-                                                <option value="{{ $item->id }}" {{ $valorActual == $item->id ? 'selected' : '' }}>
+                                                @continue($esFer && $valorActual != $item->id && in_array($item->codigo_asistencia, $codigosNoFeriado ?? [], true))
+                                                <option value="{{ $item->id }}" data-codigo="{{ $item->codigo_asistencia }}" {{ $valorActual == $item->id ? 'selected' : '' }}>
                                                     {{ $item->codigo_asistencia }}
                                                 </option>
                                             @endforeach
                                         </select>
-                                        @php
-                                            $btnInitText = $tieneTardanza && $minTardanzaVal ? 'T+'.$minTardanzaVal.'m' : 'T';
-                                        @endphp
-                                        <button type="button"
-                                                @click.prevent.stop="if (hasItem) open = !open"
-                                                :disabled="!hasItem"
-                                                @if(!$valorActual) disabled @endif
-                                                class="tard-badge flex-shrink-0 text-[9px] font-bold px-1 py-0.5 rounded leading-none transition-colors {{ !$valorActual ? 'opacity-30 cursor-not-allowed' : '' }}"
-                                                :class="!hasItem ? 'opacity-30 cursor-not-allowed bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500' : tard ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400 cursor-pointer' : 'bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500 hover:text-amber-400 cursor-pointer'"
-                                                title="Tardanza"
-                                                x-text="tard && mins ? 'T+' + mins + 'm' : 'T'">{{ $btnInitText }}</button>
+                                        <div class="flex flex-col items-stretch gap-0.5">
+                                            @php
+                                                $btnInitText = $tieneTardanza && $minTardanzaVal ? 'T+'.$minTardanzaVal.'m' : 'T';
+                                            @endphp
+                                            <button type="button"
+                                                    @click.prevent.stop="if (hasItem) open = !open"
+                                                    :disabled="!hasItem"
+                                                    @if(!$valorActual) disabled @endif
+                                                    class="tard-badge flex-shrink-0 text-[9px] font-bold px-1 py-0.5 rounded leading-none transition-colors {{ !$valorActual ? 'opacity-30 cursor-not-allowed' : '' }}"
+                                                    :class="!hasItem ? 'opacity-30 cursor-not-allowed bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500' : tard ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400 cursor-pointer' : 'bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500 hover:text-amber-400 cursor-pointer'"
+                                                    title="Tardanza"
+                                                    x-text="tard && mins ? 'T+' + mins + 'm' : 'T'">{{ $btnInitText }}</button>
+                                            @php
+                                                $aplicaRemotoInicial = $valorActual && in_array($codigoBadge, $codigosRemoto ?? [], true);
+                                            @endphp
+                                            <button type="button"
+                                                    x-show="hasItem && aplicaRemoto(codigo)"
+                                                    style="{{ $aplicaRemotoInicial ? '' : 'display:none' }}"
+                                                    :class="{
+                                                        'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400': remoto,
+                                                        'bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500 hover:text-blue-400': !remoto,
+                                                    }"
+                                                    :title="remoto ? 'Remoto (clic para cambiar a Presencial)' : 'Presencial (clic para cambiar a Remoto)'"
+                                                    :data-remoto="remoto ? '1' : '0'"
+                                                    @click.prevent.stop="remoto = !remoto; guardarRemoto($el, remoto)"
+                                                    data-remoto="{{ $esRemotoVal ? '1' : '0' }}"
+                                                    class="remoto-badge flex-shrink-0 text-[9px] font-bold px-1 py-0.5 rounded leading-none transition-colors cursor-pointer"
+                                                    x-text="remoto ? 'R' : 'P'">{{ $esRemotoVal ? 'R' : 'P' }}</button>
+                                        </div>
                                     </div>
                                     {{-- Panel tardanza --}}
                                     <div x-show="open"
